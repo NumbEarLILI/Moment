@@ -11,5 +11,8 @@ data class FragmentEntity(
     val mood: String?,
     val tags: List<String>,
     val createdAtEpochMillis: Long,
-    val updatedAtEpochMillis: Long
+    val updatedAtEpochMillis: Long,
+    val locationLatitude: Double? = null,
+    val locationLongitude: Double? = null,
+    val locationLabel: String? = null
 )
