@@ -37,7 +37,7 @@ fun DiaryDetailScreen(
                 state.isLoading -> CircularProgressIndicator()
                 state.entry == null -> Text("没有找到这篇日记。")
                 else -> {
-                    val entry = state.entry
+                    val entry = checkNotNull(state.entry)
                     Text(entry.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(entry.date.toString(), color = MaterialTheme.colorScheme.secondary)
                     Text(entry.body)
