@@ -9,11 +9,12 @@ import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
 import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
+import com.example.moment.domain.time.resolveNewFragmentRecordedAt
 import com.example.moment.domain.usecase.UpdateFragmentResult
 import com.example.moment.domain.usecase.UpdateFragmentUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Clock
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +30,8 @@ class CaptureViewModel @Inject constructor(
     private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
     private val fragmentLocationCapture: FragmentLocationCapture,
     savedStateHandle: SavedStateHandle,
-    private val zoneId: ZoneId
+    private val zoneId: ZoneId,
+    private val clock: Clock
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CaptureUiState())
     val uiState: StateFlow<CaptureUiState> = _uiState
@@ -151,8 +153,7 @@ class CaptureViewModel @Inject constructor(
                         UpdateFragmentResult.Saved -> _uiState.update { it.copy(isSaving = false, saved = true) }
                     }
                 } else {
-                    val recordedAt =
-                        newFragmentForDate?.atTime(LocalTime.NOON)?.atZone(zoneId)?.toInstant()
+                    val recordedAt = resolveNewFragmentRecordedAt(clock, zoneId, newFragmentForDate)
                     val location = runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
                     when (
                         addFragment(
