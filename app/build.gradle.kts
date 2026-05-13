@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -19,10 +21,23 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val localProps = Properties().apply {
+            val f = rootProject.file("local.properties")
+            if (f.exists()) {
+                f.inputStream().use { load(it) }
+            }
+        }
+        val amapKey = (project.findProperty("amap.web.key") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: localProps.getProperty("amap.web.key")?.trim().orEmpty().takeIf { it.isNotEmpty() }
+            ?: System.getenv("AMAP_WEB_KEY")?.trim().orEmpty()
+        val escaped = amapKey.replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "AMAP_WEB_JS_KEY", "\"$escaped\"")
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
