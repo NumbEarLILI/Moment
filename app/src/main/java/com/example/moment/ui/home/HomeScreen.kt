@@ -34,6 +34,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun HomeScreen(
     onAddFragment: () -> Unit,
+    onContinueEditFragment: (Long) -> Unit,
     onGenerateDiary: (LocalDate) -> Unit,
     onOpenHistory: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
@@ -75,7 +76,11 @@ fun HomeScreen(
                 state.fragments.isEmpty() -> EmptyToday()
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(state.fragments, key = { it.id }) { fragment ->
-                        FragmentCard(fragment = fragment, onDelete = { viewModel.delete(fragment.id) })
+                        FragmentCard(
+                            fragment = fragment,
+                            onContinueEdit = { onContinueEditFragment(fragment.id) },
+                            onDelete = { viewModel.delete(fragment.id) }
+                        )
                     }
                 }
             }
@@ -94,7 +99,11 @@ private fun EmptyToday() {
 }
 
 @Composable
-private fun FragmentCard(fragment: LifeFragment, onDelete: () -> Unit) {
+private fun FragmentCard(
+    fragment: LifeFragment,
+    onContinueEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -103,6 +112,9 @@ private fun FragmentCard(fragment: LifeFragment, onDelete: () -> Unit) {
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
                 )
+                TextButton(onClick = onContinueEdit) {
+                    Text("继续编辑")
+                }
                 TextButton(onClick = onDelete) {
                     Text("删除")
                 }

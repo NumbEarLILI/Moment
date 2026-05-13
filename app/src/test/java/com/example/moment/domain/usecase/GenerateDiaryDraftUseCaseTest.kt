@@ -89,9 +89,16 @@ class GenerateDiaryDraftUseCaseTest {
         override suspend fun getFragmentsForDate(date: LocalDate): List<LifeFragment> =
             fragments.value.filter { LocalDate.ofInstant(it.createdAt, java.time.ZoneId.systemDefault()) == date }
 
+        override suspend fun getFragmentById(id: Long): LifeFragment? =
+            fragments.value.find { it.id == id }
+
         override suspend fun addFragment(fragment: LifeFragment): Long {
             savedFragments += fragment
             return savedFragments.size.toLong()
+        }
+
+        override suspend fun updateFragment(fragment: LifeFragment) {
+            fragments.value = fragments.value.map { if (it.id == fragment.id) fragment else it }
         }
 
         override suspend fun deleteFragment(id: Long) = Unit
