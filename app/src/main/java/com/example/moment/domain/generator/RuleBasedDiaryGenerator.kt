@@ -5,10 +5,13 @@ import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 class RuleBasedDiaryGenerator(
     private val zoneId: ZoneId = ZoneId.systemDefault()
 ) : DiaryGenerator {
+    private val clockFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
     override fun generate(date: LocalDate, fragments: List<LifeFragment>): DiaryDraft {
         val sorted = fragments.sortedBy { it.createdAt }
         if (sorted.isEmpty()) {
@@ -25,14 +28,9 @@ class RuleBasedDiaryGenerator(
             .eachCount()
             .maxWithOrNull(compareBy<Map.Entry<Mood, Int>> { it.value }.thenBy { it.key.ordinal })
             ?.key
-        val grouped = sorted
-            .filter { it.content.isNotBlank() }
-            .groupBy { bucketFor(it) }
-            .toSortedMap(compareBy { it.order })
-        val body = grouped.entries.joinToString(separator = "\n\n") { (bucket, items) ->
-            val text = items.joinToString(separator = "；") { it.content.trim() }
-            "${bucket.label}，$text"
-        }.ifBlank {
+
+        val bodyLines = sorted.mapNotNull { lineForFragment(it) }
+        val body = bodyLines.joinToString(separator = "\n\n").ifBlank {
             "今天留下了 ${sorted.sumOf { it.imageUris.size }} 张图片碎片，适合稍后补上一些文字。"
         }
 
@@ -45,14 +43,17 @@ class RuleBasedDiaryGenerator(
         )
     }
 
-    private fun bucketFor(fragment: LifeFragment): TimeBucket {
-        val hour = fragment.createdAt.atZone(zoneId).hour
-        return when (hour) {
-            in 5..9 -> TimeBucket.EARLY_MORNING
-            in 10..11 -> TimeBucket.MORNING
-            in 12..17 -> TimeBucket.AFTERNOON
-            in 18..23 -> TimeBucket.NIGHT
-            else -> TimeBucket.LATE_NIGHT
+    private fun formatClock(fragment: LifeFragment): String =
+        fragment.createdAt.atZone(zoneId).toLocalTime().format(clockFormatter)
+
+    private fun lineForFragment(fragment: LifeFragment): String? {
+        val time = formatClock(fragment)
+        val text = fragment.content.trim()
+        return when {
+            text.isNotEmpty() -> "$time $text"
+            fragment.imageUris.isNotEmpty() ->
+                "$time（${fragment.imageUris.size} 张图片记录）"
+            else -> null
         }
     }
 
@@ -65,15 +66,7 @@ class RuleBasedDiaryGenerator(
                     .thenByDescending { it.content.trim().length }
                     .thenBy { it.content.trim() }
             )
-            .map { it.content.trim() }
             .take(3)
+            .map { "${formatClock(it)} ${it.content.trim()}" }
             .toList()
-
-    private enum class TimeBucket(val label: String, val order: Int) {
-        LATE_NIGHT("深夜", 0),
-        EARLY_MORNING("清晨", 1),
-        MORNING("上午", 2),
-        AFTERNOON("午后", 3),
-        NIGHT("夜晚", 4)
-    }
 }
