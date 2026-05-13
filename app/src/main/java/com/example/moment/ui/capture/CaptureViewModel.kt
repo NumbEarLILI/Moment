@@ -87,6 +87,12 @@ class CaptureViewModel @Inject constructor(
         it.copy(imageUris = merged, errorMessage = null)
     }
 
+    fun removeImageUri(uri: String) = _uiState.update { state ->
+        val target = uri.trim()
+        val remaining = state.imageUris.csvValues().filterNot { it.trim() == target }
+        state.copy(imageUris = remaining.joinToString(", "))
+    }
+
     fun suggestCaptionFromSelectedImages() {
         val uris = _uiState.value.imageUris.csvValues()
         if (uris.isEmpty()) {
