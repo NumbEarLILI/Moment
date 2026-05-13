@@ -1,6 +1,7 @@
 package com.example.moment.domain.usecase
 
 import com.example.moment.domain.generator.DiaryGenerator
+import com.example.moment.domain.location.pinsFromFragments
 import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.LocalDate
@@ -15,9 +16,11 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         val sorted = fragments.sortedBy { it.createdAt }
         val draft = diaryGenerator.generate(date, sorted)
         val imageUris = sorted.flatMap { it.imageUris }
+        val pins = pinsFromFragments(sorted)
         return draft.copy(
             sourceFragmentIds = sorted.map { it.id },
-            imageUris = imageUris
+            imageUris = imageUris,
+            locationPins = pins
         )
     }
 }

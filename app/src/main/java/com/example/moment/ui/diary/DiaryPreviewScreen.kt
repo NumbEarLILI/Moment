@@ -17,15 +17,32 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavHostController
+import com.example.moment.ui.Routes
+import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 
 @Composable
 fun DiaryPreviewScreen(
+    navController: NavHostController,
+    previewBackStackEntry: NavBackStackEntry,
+    diaryId: Long,
     onClose: () -> Unit,
     viewModel: DiaryPreviewViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val pickJson by previewBackStackEntry.savedStateHandle
+        .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
+        .collectAsStateWithLifecycle()
+
+    LaunchedEffect(pickJson) {
+        if (pickJson.isNotBlank()) {
+            viewModel.reloadDraft()
+            previewBackStackEntry.savedStateHandle[MOMENT_PICK_LOCATION_JSON_KEY] = ""
+        }
+    }
 
     LaunchedEffect(state.saved) {
         if (state.saved) onClose()
@@ -57,6 +74,21 @@ fun DiaryPreviewScreen(
                         .fillMaxWidth()
                         .weight(1f),
                     label = { Text("正文") }
+                )
+                DiaryLocationPinsRow(
+                    pins = state.locationPins,
+                    onPinClick = { pin ->
+                        navController.navigate(
+                            Routes.placePick(
+                                pin.latitude,
+                                pin.longitude,
+                                pin.placeName,
+                                pin.fragmentId,
+                                diaryId
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 )
                 DiaryImageGallery(imageUris = state.imageUris, modifier = Modifier.fillMaxWidth())
                 if (state.highlights.isNotEmpty()) {

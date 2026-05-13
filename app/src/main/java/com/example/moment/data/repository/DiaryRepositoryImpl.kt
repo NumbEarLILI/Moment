@@ -20,6 +20,9 @@ class DiaryRepositoryImpl @Inject constructor(
     override suspend fun getDiaryForDate(date: LocalDate): DiaryEntry? =
         dao.getByDate(date.toEpochDay())?.toDomain()
 
+    override suspend fun getDiaryById(id: Long): DiaryEntry? =
+        dao.getById(id)?.toDomain()
+
     override suspend fun saveDiary(entry: DiaryEntry): Long =
         dao.upsert(entry.toEntity())
 }

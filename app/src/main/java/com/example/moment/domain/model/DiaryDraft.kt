@@ -6,5 +6,6 @@ data class DiaryDraft(
     val highlights: List<String>,
     val moodSummary: String?,
     val sourceFragmentIds: List<Long> = emptyList(),
-    val imageUris: List<String> = emptyList()
+    val imageUris: List<String> = emptyList(),
+    val locationPins: List<DiaryLocationPin> = emptyList()
 )

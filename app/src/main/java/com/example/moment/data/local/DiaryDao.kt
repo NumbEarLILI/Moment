@@ -18,6 +18,9 @@ interface DiaryDao {
     @Query("SELECT * FROM diaries WHERE dateEpochDay = :dateEpochDay LIMIT 1")
     suspend fun getByDate(dateEpochDay: Long): DiaryEntity?
 
+    @Query("SELECT * FROM diaries WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): DiaryEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: DiaryEntity): Long
 }

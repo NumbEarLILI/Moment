@@ -12,6 +12,7 @@ data class DiaryEntry(
     val moodSummary: String?,
     val sourceFragmentIds: List<Long>,
     val imageUris: List<String> = emptyList(),
+    val locationPins: List<DiaryLocationPin> = emptyList(),
     val createdAt: Instant,
     val updatedAt: Instant
 )
