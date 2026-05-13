@@ -1,5 +1,7 @@
 package com.example.moment.ui.capture
 
+import android.content.Context
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -21,20 +23,36 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.Mood
+import java.io.File
 
 @Composable
 fun CaptureScreen(
     onClose: () -> Unit,
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         viewModel.addImageUris(uris.map { it.toString() })
+    }
+    val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val uri = pendingCameraUri
+        pendingCameraUri = null
+        if (success && uri != null) {
+            viewModel.addImageUris(listOf(uri.toString()))
+        }
     }
 
     LaunchedEffect(state.saved) {
@@ -89,8 +107,22 @@ fun CaptureScreen(
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("图片 URI，用英文逗号分隔") }
                     )
-                    TextButton(onClick = { imagePicker.launch("image/*") }) {
-                        Text("从相册选择图片")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(
+                            onClick = {
+                                val uri = createCameraImageUri(context)
+                                pendingCameraUri = uri
+                                takePicture.launch(uri)
+                            }
+                        ) {
+                            Text("相机拍照")
+                        }
+                        TextButton(onClick = { imagePicker.launch("image/*") }) {
+                            Text("从相册选择")
+                        }
                     }
                     state.errorMessage?.let {
                         Text(it, color = MaterialTheme.colorScheme.error)
@@ -112,4 +144,14 @@ fun CaptureScreen(
             }
         }
     }
+}
+
+private fun createCameraImageUri(context: Context): Uri {
+    val dir = File(context.cacheDir, "camera").apply { mkdirs() }
+    val file = File.createTempFile("capture_", ".jpg", dir)
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file
+    )
 }
