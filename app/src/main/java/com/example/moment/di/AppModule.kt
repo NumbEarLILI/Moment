@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.moment.data.local.DiaryDao
 import com.example.moment.data.local.FragmentDao
+import com.example.moment.data.local.MIGRATION_1_2
 import com.example.moment.data.local.MomentDatabase
 import com.example.moment.data.repository.DiaryRepositoryImpl
 import com.example.moment.data.repository.FragmentRepositoryImpl
@@ -37,7 +38,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MomentDatabase =
-        Room.databaseBuilder(context, MomentDatabase::class.java, "moment.db").build()
+        Room.databaseBuilder(context, MomentDatabase::class.java, "moment.db")
+            .addMigrations(MIGRATION_1_2)
+            .build()
 
     @Provides
     fun provideFragmentDao(database: MomentDatabase): FragmentDao = database.fragmentDao()

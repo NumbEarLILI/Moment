@@ -16,7 +16,8 @@ class SaveDiaryUseCase @Inject constructor(
         body: String,
         highlights: List<String>,
         moodSummary: String?,
-        sourceFragmentIds: List<Long>
+        sourceFragmentIds: List<Long>,
+        imageUris: List<String>
     ): Long {
         val now = clock.instant()
         val existing = repository.getDiaryForDate(date)
@@ -28,6 +29,7 @@ class SaveDiaryUseCase @Inject constructor(
             highlights = highlights,
             moodSummary = moodSummary,
             sourceFragmentIds = sourceFragmentIds,
+            imageUris = imageUris,
             createdAt = existing?.createdAt ?: now,
             updatedAt = now
         )

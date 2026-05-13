@@ -58,6 +58,7 @@ fun DiaryPreviewScreen(
                         .weight(1f),
                     label = { Text("正文") }
                 )
+                DiaryImageGallery(imageUris = state.imageUris, modifier = Modifier.fillMaxWidth())
                 if (state.highlights.isNotEmpty()) {
                     Text("今日亮点：${state.highlights.joinToString(" / ")}")
                 }

@@ -13,6 +13,7 @@ fun DiaryEntity.toDomain(): DiaryEntry = DiaryEntry(
     highlights = highlights,
     moodSummary = moodSummary,
     sourceFragmentIds = sourceFragmentIds,
+    imageUris = imageUris,
     createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
     updatedAt = Instant.ofEpochMilli(updatedAtEpochMillis)
 )
@@ -25,6 +26,7 @@ fun DiaryEntry.toEntity(): DiaryEntity = DiaryEntity(
     highlights = highlights,
     moodSummary = moodSummary,
     sourceFragmentIds = sourceFragmentIds,
+    imageUris = imageUris,
     createdAtEpochMillis = createdAt.toEpochMilli(),
     updatedAtEpochMillis = updatedAt.toEpochMilli()
 )
