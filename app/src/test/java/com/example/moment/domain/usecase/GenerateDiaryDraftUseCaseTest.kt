@@ -1,6 +1,7 @@
 package com.example.moment.domain.usecase
 
 import com.example.moment.domain.generator.RuleBasedDiaryGenerator
+import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.repository.FragmentRepository
@@ -30,6 +31,25 @@ class GenerateDiaryDraftUseCaseTest {
         assertTrue(result.body.contains("今天午后完成了拖延很久的小任务"))
         assertTrue(result.sourceFragmentIds.contains(1))
         assertTrue(!result.sourceFragmentIds.contains(2))
+    }
+
+    @Test
+    fun invokeIncludesLocationPinsForFragmentsWithLocation() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(1, "有地点的记录。", Mood.CALM, "2026-05-13T12:00:00Z").copy(
+                    location = FragmentLocation(31.23, 121.47, label = "上海某地")
+                )
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(repository, RuleBasedDiaryGenerator())
+
+        val result = useCase(date)
+
+        assertEquals(1, result.locationPins.size)
+        assertEquals(1L, result.locationPins.first().fragmentId)
+        assertEquals("上海某地", result.locationPins.first().placeName)
     }
 
     @Test

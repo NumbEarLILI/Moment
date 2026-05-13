@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.location.FragmentLocationCapture
+import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
 @HiltViewModel
 class CaptureViewModel @Inject constructor(
@@ -54,6 +56,8 @@ class CaptureViewModel @Inject constructor(
                                     tags = fragment.tags.joinToString(", "),
                                     imageUris = fragment.imageUris.joinToString(", "),
                                     mood = fragment.mood,
+                                    baselineLocation = fragment.location,
+                                    locationOverride = null,
                                     errorMessage = null
                                 )
                             }
@@ -91,6 +95,29 @@ class CaptureViewModel @Inject constructor(
         val target = uri.trim()
         val remaining = state.imageUris.csvValues().filterNot { it.trim() == target }
         state.copy(imageUris = remaining.joinToString(", "))
+    }
+
+    fun applyPickedLocationFromJson(json: String) {
+        runCatching {
+            Json.decodeFromString(FragmentLocation.serializer(), json)
+        }.onSuccess { loc ->
+            _uiState.update { it.copy(locationOverride = loc, errorMessage = null) }
+        }
+    }
+
+    fun requestPlacePickSeed(onReady: (Double, Double, String) -> Unit) {
+        viewModelScope.launch {
+            val s = _uiState.value
+            val seed = s.locationOverride ?: s.baselineLocation
+                ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+            if (seed == null) {
+                _uiState.update {
+                    it.copy(errorMessage = "暂时无法获取位置，请检查定位权限或稍后再试")
+                }
+            } else {
+                onReady(seed.latitude, seed.longitude, seed.label.orEmpty())
+            }
+        }
     }
 
     fun suggestCaptionFromSelectedImages() {
@@ -147,7 +174,8 @@ class CaptureViewModel @Inject constructor(
                             content = state.content,
                             imageUris = state.imageUris.csvValues(),
                             mood = state.mood,
-                            tags = state.tags.csvValues()
+                            tags = state.tags.csvValues(),
+                            location = state.locationOverride ?: state.baselineLocation
                         )
                     ) {
                         UpdateFragmentResult.Empty -> _uiState.update {
@@ -160,7 +188,8 @@ class CaptureViewModel @Inject constructor(
                     }
                 } else {
                     val recordedAt = resolveNewFragmentRecordedAt(clock, zoneId, newFragmentForDate)
-                    val location = runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+                    val location = state.locationOverride
+                        ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
                     when (
                         addFragment(
                             content = state.content,
@@ -199,6 +228,8 @@ data class CaptureUiState(
     val tags: String = "",
     val imageUris: String = "",
     val mood: Mood? = null,
+    val baselineLocation: FragmentLocation? = null,
+    val locationOverride: FragmentLocation? = null,
     val isAnalyzingImages: Boolean = false,
     val isSaving: Boolean = false,
     val saved: Boolean = false,

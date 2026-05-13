@@ -3,6 +3,8 @@ package com.example.moment.ui.diary
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.moment.domain.model.DiaryDraft
+import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.usecase.GenerateDiaryDraftUseCase
 import com.example.moment.domain.usecase.SaveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,24 +26,36 @@ class DiaryPreviewViewModel @Inject constructor(
     val uiState: StateFlow<DiaryPreviewUiState> = _uiState
 
     init {
+        viewModelScope.launch { loadDraft() }
+    }
+
+    fun reloadDraft() {
         viewModelScope.launch {
-            runCatching { generateDiaryDraft(date) }
-                .onSuccess { draft ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            title = draft.title,
-                            body = draft.body,
-                            highlights = draft.highlights,
-                            moodSummary = draft.moodSummary,
-                            sourceFragmentIds = draft.sourceFragmentIds,
-                            imageUris = draft.imageUris
-                        )
-                    }
-                }
-                .onFailure {
-                    _uiState.update { it.copy(isLoading = false, errorMessage = "生成日记失败，请稍后重试") }
-                }
+            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            loadDraft()
+        }
+    }
+
+    private suspend fun loadDraft() {
+        runCatching { generateDiaryDraft(date) }
+            .onSuccess { draft -> applyDraft(draft) }
+            .onFailure {
+                _uiState.update { it.copy(isLoading = false, errorMessage = "生成日记失败，请稍后重试") }
+            }
+    }
+
+    private fun applyDraft(draft: DiaryDraft) {
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                title = draft.title,
+                body = draft.body,
+                highlights = draft.highlights,
+                moodSummary = draft.moodSummary,
+                sourceFragmentIds = draft.sourceFragmentIds,
+                imageUris = draft.imageUris,
+                locationPins = draft.locationPins
+            )
         }
     }
 
@@ -64,7 +78,8 @@ class DiaryPreviewViewModel @Inject constructor(
                     highlights = state.highlights,
                     moodSummary = state.moodSummary,
                     sourceFragmentIds = state.sourceFragmentIds,
-                    imageUris = state.imageUris
+                    imageUris = state.imageUris,
+                    locationPins = state.locationPins
                 )
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false, saved = true) }
@@ -84,6 +99,7 @@ data class DiaryPreviewUiState(
     val moodSummary: String? = null,
     val sourceFragmentIds: List<Long> = emptyList(),
     val imageUris: List<String> = emptyList(),
+    val locationPins: List<DiaryLocationPin> = emptyList(),
     val isSaving: Boolean = false,
     val saved: Boolean = false,
     val errorMessage: String? = null

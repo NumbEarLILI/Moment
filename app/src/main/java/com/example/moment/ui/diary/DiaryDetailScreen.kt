@@ -15,11 +15,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
+import com.example.moment.ui.Routes
 
 @Composable
 fun DiaryDetailScreen(
+    navController: NavHostController,
+    diaryId: Long,
     onBack: () -> Unit,
     viewModel: DiaryDetailViewModel = hiltViewModel()
 ) {
@@ -43,6 +47,21 @@ fun DiaryDetailScreen(
                     Text(entry.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(entry.date.toString(), color = MaterialTheme.colorScheme.secondary)
                     Text(entry.body)
+                    DiaryLocationPinsRow(
+                        pins = entry.locationPins,
+                        onPinClick = { pin ->
+                            navController.navigate(
+                                Routes.placePick(
+                                    pin.latitude,
+                                    pin.longitude,
+                                    pin.placeName,
+                                    pin.fragmentId,
+                                    diaryId
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
                     if (entry.highlights.isNotEmpty()) {
                         Text("亮点：${entry.highlights.joinToString(" / ")}")

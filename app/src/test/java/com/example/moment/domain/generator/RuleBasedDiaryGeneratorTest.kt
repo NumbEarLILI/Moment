@@ -1,5 +1,6 @@
 package com.example.moment.domain.generator
 
+import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import java.time.Instant
@@ -89,6 +90,27 @@ class RuleBasedDiaryGeneratorTest {
 
         assertTrue(draft.highlights.first().startsWith("19:00 "))
         assertTrue(draft.highlights.first().contains("见到老朋友。"))
+    }
+
+    @Test
+    fun generateAppendsReadableLocationSuffixWhenFragmentHasLocation() {
+        val fragment = fragment(
+            id = 1,
+            content = "在公园散步。",
+            mood = Mood.CALM,
+            createdAt = "2026-05-13T16:00:00Z"
+        ).copy(
+            location = FragmentLocation(
+                latitude = 39.9042,
+                longitude = 116.4074,
+                label = "测试公园"
+            )
+        )
+
+        val body = generator.generate(date, listOf(fragment)).body
+
+        assertTrue(body.contains("16:00 在公园散步。"))
+        assertTrue(body.contains("📍测试公园"))
     }
 
     private fun fragment(

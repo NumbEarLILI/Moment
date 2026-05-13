@@ -1,7 +1,9 @@
 package com.example.moment.ui
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -15,6 +17,7 @@ import com.example.moment.ui.history.HistoryScreen
 import com.example.moment.ui.home.HomeEvent
 import com.example.moment.ui.home.HomeScreen
 import com.example.moment.ui.home.HomeViewModel
+import com.example.moment.ui.place.PlacePickScreen
 import java.time.LocalDate
 
 @Composable
@@ -46,14 +49,23 @@ fun MomentApp() {
                 navArgument("fragmentId") { type = NavType.LongType; defaultValue = 0L },
                 navArgument("forDate") { type = NavType.StringType; defaultValue = "" }
             )
-        ) {
-            CaptureScreen(onClose = { navController.popBackStack() })
+        ) { entry ->
+            CaptureScreen(
+                navController = navController,
+                backStackEntry = entry,
+                onClose = { navController.popBackStack() }
+            )
         }
         composable(
             route = Routes.Preview,
             arguments = listOf(navArgument("date") { type = NavType.StringType })
-        ) {
-            DiaryPreviewScreen(onClose = { navController.popBackStack(Routes.Home, inclusive = false) })
+        ) { entry ->
+            DiaryPreviewScreen(
+                navController = navController,
+                previewBackStackEntry = entry,
+                diaryId = 0L,
+                onClose = { navController.popBackStack(Routes.Home, inclusive = false) }
+            )
         }
         composable(Routes.History) {
             HistoryScreen(
@@ -64,8 +76,28 @@ fun MomentApp() {
         composable(
             route = Routes.Detail,
             arguments = listOf(navArgument("id") { type = NavType.LongType })
+        ) { entry ->
+            val diaryId = entry.arguments!!.getLong("id")
+            DiaryDetailScreen(
+                navController = navController,
+                diaryId = diaryId,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = Routes.PlacePick,
+            arguments = listOf(
+                navArgument("lat") { type = NavType.StringType },
+                navArgument("lng") { type = NavType.StringType },
+                navArgument("hint") { type = NavType.StringType; defaultValue = "" },
+                navArgument("fragmentId") { type = NavType.StringType; defaultValue = "0" },
+                navArgument("diaryId") { type = NavType.StringType; defaultValue = "0" }
+            )
         ) {
-            DiaryDetailScreen(onBack = { navController.popBackStack() })
+            PlacePickScreen(
+                navController = navController,
+                onClose = { navController.popBackStack() }
+            )
         }
     }
 }
@@ -76,6 +108,7 @@ object Routes {
     const val Preview = "preview/{date}"
     const val History = "history"
     const val Detail = "detail/{id}"
+    const val PlacePick = "placePick?lat={lat}&lng={lng}&hint={hint}&fragmentId={fragmentId}&diaryId={diaryId}"
 
     fun capture(fragmentId: Long, forDate: LocalDate? = null): String =
         buildString {
@@ -86,4 +119,7 @@ object Routes {
                 append("&forDate=")
             }
         }
+
+    fun placePick(lat: Double, lng: Double, hint: String, fragmentId: Long, diaryId: Long): String =
+        "placePick?lat=$lat&lng=$lng&hint=${Uri.encode(hint)}&fragmentId=$fragmentId&diaryId=$diaryId"
 }

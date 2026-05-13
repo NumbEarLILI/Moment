@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -50,19 +49,29 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.example.moment.domain.model.Mood
+import com.example.moment.ui.Routes
+import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 import java.io.File
+import java.util.Locale
 
 private val ImageThumbSize = 88.dp
 
 @Composable
 fun CaptureScreen(
+    navController: NavHostController,
+    backStackEntry: NavBackStackEntry,
     onClose: () -> Unit,
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val pickJson by backStackEntry.savedStateHandle
+        .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
+        .collectAsStateWithLifecycle()
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var pendingSaveAfterLocationPermission by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
@@ -118,6 +127,13 @@ fun CaptureScreen(
 
     LaunchedEffect(state.saved) {
         if (state.saved) onClose()
+    }
+
+    LaunchedEffect(pickJson) {
+        if (pickJson.isNotBlank()) {
+            viewModel.applyPickedLocationFromJson(pickJson)
+            backStackEntry.savedStateHandle[MOMENT_PICK_LOCATION_JSON_KEY] = ""
+        }
     }
 
     Scaffold { padding ->
@@ -177,6 +193,40 @@ fun CaptureScreen(
                             modifier = Modifier.fillMaxWidth(),
                             label = { Text("标签，用英文逗号分隔") }
                         )
+                        Text("地点", style = MaterialTheme.typography.labelLarge)
+                        val loc = state.locationOverride ?: state.baselineLocation
+                        loc?.let {
+                            Text(
+                                "当前：${it.label.orEmpty()}（${
+                                    String.format(
+                                        Locale.CHINA,
+                                        "%.4f，%.4f",
+                                        it.latitude,
+                                        it.longitude
+                                    )
+                                }）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                viewModel.requestPlacePickSeed { lat, lng, hint ->
+                                    navController.navigate(
+                                        Routes.placePick(
+                                            lat,
+                                            lng,
+                                            hint,
+                                            state.editingFragmentId,
+                                            0L
+                                        )
+                                    )
+                                }
+                            },
+                            enabled = !state.isSaving && !state.isLoadingDraft
+                        ) {
+                            Text("在地图上选择地点名称")
+                        }
                         Text("图片", style = MaterialTheme.typography.labelLarge)
                         if (imageUriList.isNotEmpty()) {
                             LazyRow(

@@ -3,6 +3,7 @@ package com.example.moment.data.local.entity
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.example.moment.domain.model.DiaryLocationPin
 
 @Entity(
     tableName = "diaries",
@@ -17,6 +18,7 @@ data class DiaryEntity(
     val moodSummary: String?,
     val sourceFragmentIds: List<Long>,
     val imageUris: List<String> = emptyList(),
+    val locationPins: List<DiaryLocationPin> = emptyList(),
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long
 )

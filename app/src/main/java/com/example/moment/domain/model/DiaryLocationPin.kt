@@ -3,8 +3,9 @@ package com.example.moment.domain.model
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class FragmentLocation(
+data class DiaryLocationPin(
+    val fragmentId: Long,
+    val placeName: String,
     val latitude: Double,
-    val longitude: Double,
-    val label: String?
+    val longitude: Double
 )

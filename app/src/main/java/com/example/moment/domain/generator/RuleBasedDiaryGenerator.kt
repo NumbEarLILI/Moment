@@ -6,6 +6,7 @@ import com.example.moment.domain.model.Mood
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 class RuleBasedDiaryGenerator(
     private val zoneId: ZoneId = ZoneId.systemDefault()
@@ -49,12 +50,20 @@ class RuleBasedDiaryGenerator(
     private fun lineForFragment(fragment: LifeFragment): String? {
         val time = formatClock(fragment)
         val text = fragment.content.trim()
+        val suffix = locationSuffix(fragment).orEmpty()
         return when {
-            text.isNotEmpty() -> "$time $text"
+            text.isNotEmpty() -> "$time $text$suffix"
             fragment.imageUris.isNotEmpty() ->
-                "$time（${fragment.imageUris.size} 张图片记录）"
+                "$time（${fragment.imageUris.size} 张图片记录）$suffix"
             else -> null
         }
+    }
+
+    private fun locationSuffix(fragment: LifeFragment): String? {
+        val loc = fragment.location ?: return null
+        val label = loc.label?.trim()?.takeIf { it.isNotEmpty() }
+            ?: String.format(Locale.CHINA, "约 %.4f，%.4f", loc.latitude, loc.longitude)
+        return " · 📍$label"
     }
 
     private fun highlights(fragments: List<LifeFragment>): List<String> =

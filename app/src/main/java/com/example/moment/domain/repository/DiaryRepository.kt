@@ -8,5 +8,6 @@ interface DiaryRepository {
     fun observeDiaries(): Flow<List<DiaryEntry>>
     fun observeDiary(id: Long): Flow<DiaryEntry?>
     suspend fun getDiaryForDate(date: LocalDate): DiaryEntry?
+    suspend fun getDiaryById(id: Long): DiaryEntry?
     suspend fun saveDiary(entry: DiaryEntry): Long
 }
