@@ -23,23 +23,31 @@ class CaptureViewModel @Inject constructor(
     fun updateTags(value: String) = _uiState.update { it.copy(tags = value) }
     fun updateImageUris(value: String) = _uiState.update { it.copy(imageUris = value) }
     fun updateMood(value: Mood?) = _uiState.update { it.copy(mood = value) }
+    fun addImageUris(values: List<String>) = _uiState.update {
+        val merged = (it.imageUris.csvValues() + values).distinct().joinToString(", ")
+        it.copy(imageUris = merged, errorMessage = null)
+    }
 
     fun save() {
         val state = _uiState.value
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
-            when (
+            runCatching {
                 addFragment(
                     content = state.content,
                     imageUris = state.imageUris.csvValues(),
                     mood = state.mood,
                     tags = state.tags.csvValues()
                 )
-            ) {
-                AddFragmentResult.Empty -> _uiState.update {
-                    it.copy(isSaving = false, errorMessage = "至少写一句话或添加一个图片 URI")
+            }.onSuccess { result ->
+                when (result) {
+                    AddFragmentResult.Empty -> _uiState.update {
+                        it.copy(isSaving = false, errorMessage = "至少写一句话或添加一张图片")
+                    }
+                    is AddFragmentResult.Saved -> _uiState.update { it.copy(isSaving = false, saved = true) }
                 }
-                is AddFragmentResult.Saved -> _uiState.update { it.copy(isSaving = false, saved = true) }
+            }.onFailure {
+                _uiState.update { it.copy(isSaving = false, errorMessage = "保存碎片失败，请稍后重试") }
             }
         }
     }

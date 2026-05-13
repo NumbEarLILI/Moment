@@ -43,6 +43,7 @@ fun HistoryScreen(
             Text("历史日记", style = MaterialTheme.typography.headlineSmall)
             when {
                 state.isLoading -> CircularProgressIndicator()
+                state.errorMessage != null -> Text(state.errorMessage ?: "")
                 state.entries.isEmpty() -> Text("还没有保存过日记。")
                 else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(state.entries, key = { it.id }) { entry ->

@@ -59,9 +59,13 @@ class RuleBasedDiaryGenerator(
     private fun highlights(fragments: List<LifeFragment>): List<String> =
         fragments
             .asSequence()
+            .filter { it.content.isNotBlank() }
+            .sortedWith(
+                compareByDescending<LifeFragment> { it.tags.isNotEmpty() }
+                    .thenByDescending { it.content.trim().length }
+                    .thenBy { it.content.trim() }
+            )
             .map { it.content.trim() }
-            .filter { it.isNotBlank() }
-            .sortedWith(compareByDescending<String> { it.length }.thenBy { it })
             .take(3)
             .toList()
 

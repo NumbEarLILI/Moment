@@ -35,6 +35,7 @@ fun DiaryDetailScreen(
             TextButton(onClick = onBack) { Text("返回") }
             when {
                 state.isLoading -> CircularProgressIndicator()
+                state.errorMessage != null -> Text(state.errorMessage ?: "")
                 state.entry == null -> Text("没有找到这篇日记。")
                 else -> {
                     val entry = checkNotNull(state.entry)

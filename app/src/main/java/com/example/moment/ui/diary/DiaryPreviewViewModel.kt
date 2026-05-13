@@ -26,17 +26,22 @@ class DiaryPreviewViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val draft = generateDiaryDraft(date)
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    title = draft.title,
-                    body = draft.body,
-                    highlights = draft.highlights,
-                    moodSummary = draft.moodSummary,
-                    sourceFragmentIds = draft.sourceFragmentIds
-                )
-            }
+            runCatching { generateDiaryDraft(date) }
+                .onSuccess { draft ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            title = draft.title,
+                            body = draft.body,
+                            highlights = draft.highlights,
+                            moodSummary = draft.moodSummary,
+                            sourceFragmentIds = draft.sourceFragmentIds
+                        )
+                    }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(isLoading = false, errorMessage = "生成日记失败，请稍后重试") }
+                }
         }
     }
 
@@ -45,17 +50,26 @@ class DiaryPreviewViewModel @Inject constructor(
 
     fun save() {
         val state = _uiState.value
+        if (state.sourceFragmentIds.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "今天还没有碎片，不能保存空手帐") }
+            return
+        }
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true) }
-            saveDiary(
-                date = state.date,
-                title = state.title,
-                body = state.body,
-                highlights = state.highlights,
-                moodSummary = state.moodSummary,
-                sourceFragmentIds = state.sourceFragmentIds
-            )
-            _uiState.update { it.copy(isSaving = false, saved = true) }
+            _uiState.update { it.copy(isSaving = true, errorMessage = null) }
+            runCatching {
+                saveDiary(
+                    date = state.date,
+                    title = state.title,
+                    body = state.body,
+                    highlights = state.highlights,
+                    moodSummary = state.moodSummary,
+                    sourceFragmentIds = state.sourceFragmentIds
+                )
+            }.onSuccess {
+                _uiState.update { it.copy(isSaving = false, saved = true) }
+            }.onFailure {
+                _uiState.update { it.copy(isSaving = false, errorMessage = "保存日记失败，请稍后重试") }
+            }
         }
     }
 }
@@ -69,5 +83,6 @@ data class DiaryPreviewUiState(
     val moodSummary: String? = null,
     val sourceFragmentIds: List<Long> = emptyList(),
     val isSaving: Boolean = false,
-    val saved: Boolean = false
+    val saved: Boolean = false,
+    val errorMessage: String? = null
 )

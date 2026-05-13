@@ -54,7 +54,10 @@ fun HomeScreen(
                 Button(onClick = onAddFragment) {
                     Text("记录碎片")
                 }
-                OutlinedButton(onClick = { onGenerateDiary(viewModel.today) }) {
+                OutlinedButton(
+                    onClick = { onGenerateDiary(viewModel.today) },
+                    enabled = state.fragments.isNotEmpty()
+                ) {
                     Text("生成手帐")
                 }
                 TextButton(onClick = onOpenHistory) {
@@ -62,6 +65,10 @@ fun HomeScreen(
                 }
             }
             Spacer(Modifier.height(16.dp))
+            if (state.fragments.isEmpty()) {
+                Text("先记录碎片后再生成手帐。", color = MaterialTheme.colorScheme.secondary)
+                Spacer(Modifier.height(8.dp))
+            }
             when {
                 state.isLoading -> CircularProgressIndicator()
                 state.errorMessage != null -> Text(state.errorMessage ?: "")

@@ -4,16 +4,18 @@ import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RuleBasedDiaryGeneratorTest {
     private val date: LocalDate = LocalDate.of(2026, 5, 13)
+    private val generator = RuleBasedDiaryGenerator(ZoneOffset.UTC)
 
     @Test
     fun generateReturnsEmptyPromptWhenFragmentsAreEmpty() {
-        val draft = RuleBasedDiaryGenerator().generate(date, emptyList())
+        val draft = generator.generate(date, emptyList())
 
         assertEquals("还没有记录的一天", draft.title)
         assertTrue(draft.body.contains("今天还没有记录"))
@@ -30,7 +32,7 @@ class RuleBasedDiaryGeneratorTest {
             createdAt = "2026-05-13T07:30:00Z"
         )
 
-        val draft = RuleBasedDiaryGenerator().generate(date, listOf(fragment))
+        val draft = generator.generate(date, listOf(fragment))
 
         assertEquals("平静的一天", draft.title)
         assertTrue(draft.body.contains("清晨"))
@@ -47,7 +49,7 @@ class RuleBasedDiaryGeneratorTest {
             fragment(3, "上午和同事确认了项目方向。", Mood.FOCUSED, "2026-05-13T10:15:00Z")
         )
 
-        val body = RuleBasedDiaryGenerator().generate(date, fragments).body
+        val body = generator.generate(date, fragments).body
 
         assertTrue(body.indexOf("上午") < body.indexOf("午后"))
         assertTrue(body.indexOf("午后") < body.indexOf("夜晚"))
@@ -61,23 +63,36 @@ class RuleBasedDiaryGeneratorTest {
             fragment(3, "睡前整理了一下房间。", Mood.CALM, "2026-05-13T22:00:00Z")
         )
 
-        val draft = RuleBasedDiaryGenerator().generate(date, fragments)
+        val draft = generator.generate(date, fragments)
 
         assertEquals("开心的一天", draft.title)
         assertEquals("今天整体偏开心。", draft.moodSummary)
+    }
+
+    @Test
+    fun generatePrioritizesTaggedFragmentsInHighlights() {
+        val fragments = listOf(
+            fragment(1, "这是一条很长很长但是没有标签的普通记录。", Mood.CALM, "2026-05-13T08:30:00Z"),
+            fragment(2, "见到老朋友。", Mood.HAPPY, "2026-05-13T19:00:00Z", tags = listOf("朋友"))
+        )
+
+        val draft = generator.generate(date, fragments)
+
+        assertEquals("见到老朋友。", draft.highlights.first())
     }
 
     private fun fragment(
         id: Long,
         content: String,
         mood: Mood,
-        createdAt: String
+        createdAt: String,
+        tags: List<String> = emptyList()
     ): LifeFragment = LifeFragment(
         id = id,
         content = content,
         imageUris = emptyList(),
         mood = mood,
-        tags = emptyList(),
+        tags = tags,
         createdAt = Instant.parse(createdAt),
         updatedAt = Instant.parse(createdAt)
     )

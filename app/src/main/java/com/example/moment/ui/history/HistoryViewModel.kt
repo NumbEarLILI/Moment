@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
@@ -17,10 +18,12 @@ class HistoryViewModel @Inject constructor(
 ) : ViewModel() {
     val uiState: StateFlow<HistoryUiState> = observeDiaryEntries()
         .map { HistoryUiState(entries = it, isLoading = false) }
+        .catch { emit(HistoryUiState(isLoading = false, errorMessage = "读取历史日记失败")) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistoryUiState())
 }
 
 data class HistoryUiState(
     val isLoading: Boolean = true,
-    val entries: List<DiaryEntry> = emptyList()
+    val entries: List<DiaryEntry> = emptyList(),
+    val errorMessage: String? = null
 )

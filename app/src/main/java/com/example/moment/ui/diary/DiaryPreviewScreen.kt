@@ -62,9 +62,12 @@ fun DiaryPreviewScreen(
                     Text("今日亮点：${state.highlights.joinToString(" / ")}")
                 }
                 state.moodSummary?.let { Text(it) }
+                state.errorMessage?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error)
+                }
                 Button(
                     onClick = viewModel::save,
-                    enabled = !state.isSaving,
+                    enabled = !state.isSaving && state.sourceFragmentIds.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (state.isSaving) "保存中..." else "保存日记")

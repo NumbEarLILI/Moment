@@ -1,3 +1,5 @@
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 package com.example.moment.ui.capture
 
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +32,9 @@ fun CaptureScreen(
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        viewModel.addImageUris(uris.map { it.toString() })
+    }
 
     LaunchedEffect(state.saved) {
         if (state.saved) onClose()
@@ -77,6 +82,9 @@ fun CaptureScreen(
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("图片 URI，用英文逗号分隔") }
             )
+            TextButton(onClick = { imagePicker.launch("image/*") }) {
+                Text("从相册选择图片")
+            }
             state.errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
