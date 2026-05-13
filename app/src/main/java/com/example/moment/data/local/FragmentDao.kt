@@ -30,6 +30,9 @@ interface FragmentDao {
     )
     suspend fun getForRange(startInclusive: Long, endExclusive: Long): List<FragmentEntity>
 
+    @Query("SELECT * FROM fragments WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): FragmentEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(fragment: FragmentEntity): Long
 

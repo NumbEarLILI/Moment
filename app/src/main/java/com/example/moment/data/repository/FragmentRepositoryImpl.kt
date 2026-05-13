@@ -23,8 +23,15 @@ class FragmentRepositoryImpl @Inject constructor(
         return dao.getForRange(start, end).map { it.toDomain() }
     }
 
+    override suspend fun getFragmentById(id: Long): LifeFragment? =
+        dao.getById(id)?.toDomain()
+
     override suspend fun addFragment(fragment: LifeFragment): Long =
         dao.insert(fragment.toEntity())
+
+    override suspend fun updateFragment(fragment: LifeFragment) {
+        dao.insert(fragment.toEntity())
+    }
 
     override suspend fun deleteFragment(id: Long) {
         dao.deleteById(id)

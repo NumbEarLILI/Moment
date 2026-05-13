@@ -19,12 +19,16 @@ fun MomentApp() {
     NavHost(navController = navController, startDestination = Routes.Home) {
         composable(Routes.Home) {
             HomeScreen(
-                onAddFragment = { navController.navigate(Routes.Capture) },
+                onAddFragment = { navController.navigate(Routes.capture(0L)) },
+                onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
                 onGenerateDiary = { date -> navController.navigate("preview/$date") },
                 onOpenHistory = { navController.navigate(Routes.History) }
             )
         }
-        composable(Routes.Capture) {
+        composable(
+            route = Routes.Capture,
+            arguments = listOf(navArgument("fragmentId") { type = NavType.LongType; defaultValue = 0L })
+        ) {
             CaptureScreen(onClose = { navController.popBackStack() })
         }
         composable(
@@ -50,8 +54,10 @@ fun MomentApp() {
 
 object Routes {
     const val Home = "home"
-    const val Capture = "capture"
+    const val Capture = "capture?fragmentId={fragmentId}"
     const val Preview = "preview/{date}"
     const val History = "history"
     const val Detail = "detail/{id}"
+
+    fun capture(fragmentId: Long): String = "capture?fragmentId=$fragmentId"
 }
