@@ -1,6 +1,8 @@
 package com.example.moment.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -10,7 +12,10 @@ import com.example.moment.ui.capture.CaptureScreen
 import com.example.moment.ui.diary.DiaryDetailScreen
 import com.example.moment.ui.diary.DiaryPreviewScreen
 import com.example.moment.ui.history.HistoryScreen
+import com.example.moment.ui.home.HomeEvent
 import com.example.moment.ui.home.HomeScreen
+import com.example.moment.ui.home.HomeViewModel
+import java.time.LocalDate
 
 @Composable
 fun MomentApp() {
@@ -18,16 +23,29 @@ fun MomentApp() {
 
     NavHost(navController = navController, startDestination = Routes.Home) {
         composable(Routes.Home) {
+            val homeViewModel: HomeViewModel = hiltViewModel()
+            LaunchedEffect(homeViewModel) {
+                homeViewModel.events.collect { event ->
+                    when (event) {
+                        is HomeEvent.OpenSavedDiary -> navController.navigate("detail/${event.id}")
+                        is HomeEvent.OpenDiaryPreview -> navController.navigate("preview/${event.date}")
+                    }
+                }
+            }
             HomeScreen(
-                onAddFragment = { navController.navigate(Routes.capture(0L)) },
+                onAddFragment = { date -> navController.navigate(Routes.capture(0L, date)) },
                 onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
                 onGenerateDiary = { date -> navController.navigate("preview/$date") },
-                onOpenHistory = { navController.navigate(Routes.History) }
+                onOpenHistory = { navController.navigate(Routes.History) },
+                viewModel = homeViewModel
             )
         }
         composable(
             route = Routes.Capture,
-            arguments = listOf(navArgument("fragmentId") { type = NavType.LongType; defaultValue = 0L })
+            arguments = listOf(
+                navArgument("fragmentId") { type = NavType.LongType; defaultValue = 0L },
+                navArgument("forDate") { type = NavType.StringType; defaultValue = "" }
+            )
         ) {
             CaptureScreen(onClose = { navController.popBackStack() })
         }
@@ -54,10 +72,18 @@ fun MomentApp() {
 
 object Routes {
     const val Home = "home"
-    const val Capture = "capture?fragmentId={fragmentId}"
+    const val Capture = "capture?fragmentId={fragmentId}&forDate={forDate}"
     const val Preview = "preview/{date}"
     const val History = "history"
     const val Detail = "detail/{id}"
 
-    fun capture(fragmentId: Long): String = "capture?fragmentId=$fragmentId"
+    fun capture(fragmentId: Long, forDate: LocalDate? = null): String =
+        buildString {
+            append("capture?fragmentId=$fragmentId")
+            if (fragmentId == 0L && forDate != null) {
+                append("&forDate=$forDate")
+            } else {
+                append("&forDate=")
+            }
+        }
 }

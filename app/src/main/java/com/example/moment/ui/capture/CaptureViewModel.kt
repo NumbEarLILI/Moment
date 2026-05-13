@@ -10,6 +10,9 @@ import com.example.moment.domain.usecase.GetFragmentByIdUseCase
 import com.example.moment.domain.usecase.UpdateFragmentResult
 import com.example.moment.domain.usecase.UpdateFragmentUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,10 +24,14 @@ class CaptureViewModel @Inject constructor(
     private val addFragment: AddFragmentUseCase,
     private val updateFragment: UpdateFragmentUseCase,
     private val getFragmentById: GetFragmentByIdUseCase,
-    savedStateHandle: SavedStateHandle
+    savedStateHandle: SavedStateHandle,
+    private val zoneId: ZoneId
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CaptureUiState())
     val uiState: StateFlow<CaptureUiState> = _uiState
+
+    private val newFragmentForDate: LocalDate? =
+        savedStateHandle.get<String>(ARG_FOR_DATE)?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
 
     init {
         val id = savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L
@@ -99,12 +106,15 @@ class CaptureViewModel @Inject constructor(
                         UpdateFragmentResult.Saved -> _uiState.update { it.copy(isSaving = false, saved = true) }
                     }
                 } else {
+                    val recordedAt =
+                        newFragmentForDate?.atTime(LocalTime.NOON)?.atZone(zoneId)?.toInstant()
                     when (
                         addFragment(
                             content = state.content,
                             imageUris = state.imageUris.csvValues(),
                             mood = state.mood,
-                            tags = state.tags.csvValues()
+                            tags = state.tags.csvValues(),
+                            recordedAt = recordedAt
                         )
                     ) {
                         AddFragmentResult.Empty -> _uiState.update {
@@ -124,6 +134,7 @@ class CaptureViewModel @Inject constructor(
 
     companion object {
         const val ARG_FRAGMENT_ID = "fragmentId"
+        const val ARG_FOR_DATE = "forDate"
     }
 }
 
