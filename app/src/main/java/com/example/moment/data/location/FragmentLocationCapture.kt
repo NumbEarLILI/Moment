@@ -3,44 +3,46 @@ package com.example.moment.data.location
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.Geocoder
+import android.location.Location
+import android.location.LocationManager
+import android.os.Build
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
+import androidx.core.os.CancellationSignal
 import com.example.moment.domain.model.FragmentLocation
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.location.Priority
-import com.google.android.gms.tasks.CancellationTokenSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 
+/**
+ * Uses Android framework [LocationManager] only — no Google Play services / Fused provider.
+ * Suitable for devices without GMS (common in mainland China). Address text is a short
+ * coordinate summary instead of reverse-geocoding (which often depends on Google backends).
+ */
 @Singleton
 class FragmentLocationCapture @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    private val fused by lazy { LocationServices.getFusedLocationProviderClient(context) }
 
     suspend fun captureIfPermitted(): FragmentLocation? = withContext(Dispatchers.IO) {
         if (!hasLocationPermission()) return@withContext null
 
-        val location = withTimeoutOrNull(12_000) {
-            runCatching {
-                fused.getCurrentLocation(
-                    Priority.PRIORITY_BALANCED_POWER_ACCURACY,
-                    CancellationTokenSource().token
-                ).await()
-            }.getOrNull()
+        val location = withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
+            fetchBestLocation()
         } ?: return@withContext null
 
-        val label = resolveLabel(location.latitude, location.longitude)
         FragmentLocation(
             latitude = location.latitude,
             longitude = location.longitude,
-            label = label
+            label = formatCoordinateLabel(location.latitude, location.longitude)
         )
     }
 
@@ -56,23 +58,47 @@ class FragmentLocationCapture @Inject constructor(
         return coarse || fine
     }
 
-    private fun resolveLabel(lat: Double, lng: Double): String? {
-        if (!Geocoder.isPresent()) return null
-        return runCatching {
-            val geocoder = Geocoder(context, Locale.getDefault())
-            @Suppress("DEPRECATION")
-            val addresses = geocoder.getFromLocation(lat, lng, 1)
-            addresses?.firstOrNull()?.let { addr ->
-                val line0 = addr.getAddressLine(0)
-                if (!line0.isNullOrBlank()) line0
-                else {
-                    listOfNotNull(addr.locality, addr.adminArea, addr.countryName)
-                        .filter { it.isNotBlank() }
-                        .distinct()
-                        .joinToString(" ")
-                        .ifBlank { null }
-                }
+    private suspend fun fetchBestLocation(): Location? {
+        val lm = context.getSystemService(LocationManager::class.java) ?: return null
+        val providers = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                add(LocationManager.FUSED_PROVIDER)
             }
-        }.getOrNull()
+            add(LocationManager.GPS_PROVIDER)
+            add(LocationManager.NETWORK_PROVIDER)
+        }
+
+        val executor = Executors.newSingleThreadExecutor()
+        return try {
+            for (provider in providers) {
+                if (!lm.isProviderEnabled(provider)) continue
+                val cancel = CancellationSignal()
+                val location = suspendCancellableCoroutine { cont ->
+                    val finished = AtomicBoolean(false)
+                    cont.invokeOnCancellation { cancel.cancel() }
+                    LocationManagerCompat.getCurrentLocation(
+                        lm,
+                        provider,
+                        cancel,
+                        executor
+                    ) { l ->
+                        if (finished.compareAndSet(false, true)) {
+                            cont.resume(l)
+                        }
+                    }
+                }
+                if (location != null) return location
+            }
+            null
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
+    private fun formatCoordinateLabel(lat: Double, lng: Double): String =
+        String.format(Locale.CHINA, "约 %.4f，%.4f", lat, lng)
+
+    private companion object {
+        private const val LOCATION_TIMEOUT_MS = 10_000L
     }
 }
