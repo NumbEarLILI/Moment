@@ -24,7 +24,7 @@ class RuleBasedDiaryGeneratorTest {
     }
 
     @Test
-    fun generateIncludesSingleTextFragmentInBodyAndHighlight() {
+    fun generateIncludesSingleTextFragmentWithClockPrefixInBodyAndHighlight() {
         val fragment = fragment(
             id = 1,
             content = "早上喝了一杯热咖啡，感觉整个人慢慢醒过来了。",
@@ -35,14 +35,17 @@ class RuleBasedDiaryGeneratorTest {
         val draft = generator.generate(date, listOf(fragment))
 
         assertEquals("平静的一天", draft.title)
-        assertTrue(draft.body.contains("清晨"))
+        assertTrue(draft.body.startsWith("07:30 "))
         assertTrue(draft.body.contains("早上喝了一杯热咖啡"))
-        assertEquals(listOf("早上喝了一杯热咖啡，感觉整个人慢慢醒过来了。"), draft.highlights)
+        assertEquals(
+            listOf("07:30 早上喝了一杯热咖啡，感觉整个人慢慢醒过来了。"),
+            draft.highlights
+        )
         assertEquals("今天整体偏平静。", draft.moodSummary)
     }
 
     @Test
-    fun generateOrdersMultipleTimeBucketsChronologically() {
+    fun generateOrdersBodyLinesChronologicallyByClockTime() {
         val fragments = listOf(
             fragment(1, "晚上读了几页书。", Mood.CALM, "2026-05-13T20:10:00Z"),
             fragment(2, "午后完成了拖延很久的小任务。", Mood.HAPPY, "2026-05-13T14:20:00Z"),
@@ -51,8 +54,14 @@ class RuleBasedDiaryGeneratorTest {
 
         val body = generator.generate(date, fragments).body
 
-        assertTrue(body.indexOf("上午") < body.indexOf("午后"))
-        assertTrue(body.indexOf("午后") < body.indexOf("夜晚"))
+        val i10 = body.indexOf("10:15")
+        val i14 = body.indexOf("14:20")
+        val i20 = body.indexOf("20:10")
+        assertTrue(i10 < i14)
+        assertTrue(i14 < i20)
+        assertTrue(body.contains("10:15 上午和同事确认了项目方向。"))
+        assertTrue(body.contains("14:20 午后完成了拖延很久的小任务。"))
+        assertTrue(body.contains("20:10 晚上读了几页书。"))
     }
 
     @Test
@@ -78,7 +87,8 @@ class RuleBasedDiaryGeneratorTest {
 
         val draft = generator.generate(date, fragments)
 
-        assertEquals("见到老朋友。", draft.highlights.first())
+        assertTrue(draft.highlights.first().startsWith("19:00 "))
+        assertTrue(draft.highlights.first().contains("见到老朋友。"))
     }
 
     private fun fragment(
