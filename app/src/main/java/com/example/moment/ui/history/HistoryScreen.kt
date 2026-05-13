@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.ui.diary.DiaryImageGallery
 
 @Composable
 fun HistoryScreen(
@@ -57,15 +58,27 @@ fun HistoryScreen(
 
 @Composable
 private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(entry.title, fontWeight = FontWeight.Bold)
-            Text(entry.date.toString(), color = MaterialTheme.colorScheme.secondary)
-            Text(entry.body.take(80))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(entry.title, fontWeight = FontWeight.Bold)
+                Text(entry.date.toString(), color = MaterialTheme.colorScheme.secondary)
+                Text(entry.body.take(80))
+            }
+            if (entry.imageUris.isNotEmpty()) {
+                DiaryImageGallery(
+                    imageUris = entry.imageUris,
+                    modifier = Modifier.fillMaxWidth(),
+                    showLabel = false,
+                    thumbnailSize = 88.dp,
+                    rowHeight = 100.dp
+                )
+            }
         }
     }
 }
