@@ -340,6 +340,11 @@ private fun FragmentCard(
             if (fragment.tags.isNotEmpty()) {
                 Text(fragment.tags.joinToString(prefix = "#", separator = " #"))
             }
+            fragment.location?.let { loc ->
+                val line = loc.label ?: "${String.format(Locale.getDefault(), "%.4f", loc.latitude)}, " +
+                    String.format(Locale.getDefault(), "%.4f", loc.longitude)
+                Text("位置：$line", color = MaterialTheme.colorScheme.secondary)
+            }
             if (fragment.imageUris.isNotEmpty()) {
                 Text("图片：${fragment.imageUris.size} 张")
             }

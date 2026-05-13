@@ -9,5 +9,6 @@ data class LifeFragment(
     val mood: Mood?,
     val tags: List<String>,
     val createdAt: Instant,
-    val updatedAt: Instant
+    val updatedAt: Instant,
+    val location: FragmentLocation? = null
 )

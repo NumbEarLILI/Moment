@@ -1,5 +1,6 @@
 package com.example.moment.domain.usecase
 
+import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.repository.FragmentRepository
@@ -16,7 +17,8 @@ class AddFragmentUseCase @Inject constructor(
         imageUris: List<String>,
         mood: Mood?,
         tags: List<String>,
-        recordedAt: Instant? = null
+        recordedAt: Instant? = null,
+        location: FragmentLocation? = null
     ): AddFragmentResult {
         val normalizedContent = content.trim()
         val normalizedTags = tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
@@ -32,7 +34,8 @@ class AddFragmentUseCase @Inject constructor(
                 mood = mood,
                 tags = normalizedTags,
                 createdAt = now,
-                updatedAt = now
+                updatedAt = now,
+                location = location
             )
         )
         return AddFragmentResult.Saved(id)

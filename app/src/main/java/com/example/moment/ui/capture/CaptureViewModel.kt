@@ -3,6 +3,7 @@ package com.example.moment.ui.capture
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.moment.data.location.FragmentLocationCapture
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
@@ -24,6 +25,7 @@ class CaptureViewModel @Inject constructor(
     private val addFragment: AddFragmentUseCase,
     private val updateFragment: UpdateFragmentUseCase,
     private val getFragmentById: GetFragmentByIdUseCase,
+    private val fragmentLocationCapture: FragmentLocationCapture,
     savedStateHandle: SavedStateHandle,
     private val zoneId: ZoneId
 ) : ViewModel() {
@@ -108,13 +110,15 @@ class CaptureViewModel @Inject constructor(
                 } else {
                     val recordedAt =
                         newFragmentForDate?.atTime(LocalTime.NOON)?.atZone(zoneId)?.toInstant()
+                    val location = runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
                     when (
                         addFragment(
                             content = state.content,
                             imageUris = state.imageUris.csvValues(),
                             mood = state.mood,
                             tags = state.tags.csvValues(),
-                            recordedAt = recordedAt
+                            recordedAt = recordedAt,
+                            location = location
                         )
                     ) {
                         AddFragmentResult.Empty -> _uiState.update {
