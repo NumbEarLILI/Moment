@@ -29,9 +29,6 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindDiaryRepository(impl: DiaryRepositoryImpl): DiaryRepository
-
-    @Binds
-    abstract fun bindDiaryGenerator(impl: RuleBasedDiaryGenerator): DiaryGenerator
 }
 
 @Module
@@ -53,4 +50,7 @@ object AppModule {
 
     @Provides
     fun provideZoneId(): ZoneId = ZoneId.systemDefault()
+
+    @Provides
+    fun provideDiaryGenerator(zoneId: ZoneId): DiaryGenerator = RuleBasedDiaryGenerator(zoneId)
 }

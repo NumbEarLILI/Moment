@@ -5,9 +5,8 @@ import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import java.time.LocalDate
 import java.time.ZoneId
-import javax.inject.Inject
 
-class RuleBasedDiaryGenerator @Inject constructor(
+class RuleBasedDiaryGenerator(
     private val zoneId: ZoneId = ZoneId.systemDefault()
 ) : DiaryGenerator {
     override fun generate(date: LocalDate, fragments: List<LifeFragment>): DiaryDraft {
