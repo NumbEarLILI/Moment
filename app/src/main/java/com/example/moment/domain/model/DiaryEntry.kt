@@ -11,6 +11,7 @@ data class DiaryEntry(
     val highlights: List<String>,
     val moodSummary: String?,
     val sourceFragmentIds: List<Long>,
+    val imageUris: List<String> = emptyList(),
     val createdAt: Instant,
     val updatedAt: Instant
 )

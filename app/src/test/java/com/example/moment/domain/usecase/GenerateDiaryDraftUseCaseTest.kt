@@ -33,6 +33,41 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun invokeCollectsImageUrisFromFragmentsInChronologicalOrder() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val repository = FakeFragmentRepository(
+            listOf(
+                LifeFragment(
+                    id = 1,
+                    content = "早",
+                    imageUris = listOf("content://early1", "content://early2"),
+                    mood = Mood.CALM,
+                    tags = emptyList(),
+                    createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+                    updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+                ),
+                LifeFragment(
+                    id = 2,
+                    content = "晚",
+                    imageUris = listOf("content://late"),
+                    mood = Mood.CALM,
+                    tags = emptyList(),
+                    createdAt = Instant.parse("2026-05-13T20:00:00Z"),
+                    updatedAt = Instant.parse("2026-05-13T20:00:00Z")
+                )
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(repository, RuleBasedDiaryGenerator())
+
+        val result = useCase(date)
+
+        assertEquals(
+            listOf("content://early1", "content://early2", "content://late"),
+            result.imageUris
+        )
+    }
+
+    @Test
     fun addFragmentRejectsCompletelyEmptyInput() = runTest {
         val repository = FakeFragmentRepository(emptyList())
         val useCase = AddFragmentUseCase(repository)

@@ -12,7 +12,12 @@ class GenerateDiaryDraftUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(date: LocalDate): DiaryDraft {
         val fragments = fragmentRepository.getFragmentsForDate(date)
-        val draft = diaryGenerator.generate(date, fragments)
-        return draft.copy(sourceFragmentIds = fragments.map { it.id })
+        val sorted = fragments.sortedBy { it.createdAt }
+        val draft = diaryGenerator.generate(date, sorted)
+        val imageUris = sorted.flatMap { it.imageUris }
+        return draft.copy(
+            sourceFragmentIds = sorted.map { it.id },
+            imageUris = imageUris
+        )
     }
 }

@@ -3,6 +3,7 @@ package com.example.moment.ui.diary
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +43,7 @@ fun DiaryDetailScreen(
                     Text(entry.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Text(entry.date.toString(), color = MaterialTheme.colorScheme.secondary)
                     Text(entry.body)
+                    DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
                     if (entry.highlights.isNotEmpty()) {
                         Text("亮点：${entry.highlights.joinToString(" / ")}")
                     }
