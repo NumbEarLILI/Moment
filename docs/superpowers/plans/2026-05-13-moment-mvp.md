@@ -63,4 +63,3 @@
 - [ ] Run `./gradlew testDebugUnitTest assembleDebug`.
 - [ ] Run `git diff --check`.
 - [ ] Commit and push the finished implementation.
-
