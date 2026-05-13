@@ -55,6 +55,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.navigation:navigation-compose:2.9.8")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     implementation("androidx.room:room-ktx:2.8.4")
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("com.google.dagger:hilt-android:2.56.2")

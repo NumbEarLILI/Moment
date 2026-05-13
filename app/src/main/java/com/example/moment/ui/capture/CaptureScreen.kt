@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,7 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -116,12 +116,36 @@ fun CaptureScreen(
                                 val uri = createCameraImageUri(context)
                                 pendingCameraUri = uri
                                 takePicture.launch(uri)
-                            }
+                            },
+                            enabled = !state.isAnalyzingImages
                         ) {
                             Text("相机拍照")
                         }
-                        TextButton(onClick = { imagePicker.launch("image/*") }) {
+                        TextButton(
+                            onClick = { imagePicker.launch("image/*") },
+                            enabled = !state.isAnalyzingImages
+                        ) {
                             Text("从相册选择")
+                        }
+                    }
+                    if (state.imageUris.isNotBlank()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(
+                                onClick = viewModel::suggestCaptionFromSelectedImages,
+                                enabled = !state.isAnalyzingImages && !state.isSaving
+                            ) {
+                                Text("识别图片并生成文案")
+                            }
+                            if (state.isAnalyzingImages) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
                         }
                     }
                     state.errorMessage?.let {
@@ -135,7 +159,7 @@ fun CaptureScreen(
                     }
                     Button(
                         onClick = viewModel::save,
-                        enabled = !state.isSaving && !state.isLoadingDraft,
+                        enabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(saveLabel)

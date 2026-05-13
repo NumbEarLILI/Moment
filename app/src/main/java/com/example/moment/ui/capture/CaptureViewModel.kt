@@ -7,6 +7,7 @@ import com.example.moment.domain.model.Mood
 import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
+import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
 import com.example.moment.domain.usecase.UpdateFragmentResult
 import com.example.moment.domain.usecase.UpdateFragmentUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,6 +25,7 @@ class CaptureViewModel @Inject constructor(
     private val addFragment: AddFragmentUseCase,
     private val updateFragment: UpdateFragmentUseCase,
     private val getFragmentById: GetFragmentByIdUseCase,
+    private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
     savedStateHandle: SavedStateHandle,
     private val zoneId: ZoneId
 ) : ViewModel() {
@@ -79,6 +81,47 @@ class CaptureViewModel @Inject constructor(
     fun addImageUris(values: List<String>) = _uiState.update {
         val merged = (it.imageUris.csvValues() + values).distinct().joinToString(", ")
         it.copy(imageUris = merged, errorMessage = null)
+    }
+
+    fun suggestCaptionFromSelectedImages() {
+        val uris = _uiState.value.imageUris.csvValues()
+        if (uris.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "请先添加至少一张图片") }
+            return
+        }
+        viewModelScope.launch {
+            val moodSnapshot = _uiState.value.mood
+            _uiState.update { it.copy(isAnalyzingImages = true, errorMessage = null) }
+            runCatching { suggestCaptionFromImages(uris, moodSnapshot) }
+                .onSuccess { suggestion ->
+                    _uiState.update { state ->
+                        val newContent = when {
+                            state.content.isBlank() -> suggestion.suggestedContent
+                            else -> state.content.trimEnd() + "\n\n" + suggestion.suggestedContent
+                        }
+                        val mergedTags =
+                            (state.tags.csvValues() + suggestion.suggestedTags)
+                                .map { t -> t.trim() }
+                                .filter { t -> t.isNotEmpty() }
+                                .distinct()
+                        state.copy(
+                            content = newContent,
+                            tags = mergedTags.joinToString(", "),
+                            mood = state.mood ?: suggestion.suggestedMood,
+                            isAnalyzingImages = false,
+                            errorMessage = null
+                        )
+                    }
+                }
+                .onFailure {
+                    _uiState.update {
+                        it.copy(
+                            isAnalyzingImages = false,
+                            errorMessage = "识别图片失败，请检查权限或稍后重试"
+                        )
+                    }
+                }
+        }
     }
 
     fun save() {
@@ -145,6 +188,7 @@ data class CaptureUiState(
     val tags: String = "",
     val imageUris: String = "",
     val mood: Mood? = null,
+    val isAnalyzingImages: Boolean = false,
     val isSaving: Boolean = false,
     val saved: Boolean = false,
     val errorMessage: String? = null
