@@ -39,6 +39,14 @@ android {
             ?: System.getenv("AMAP_SECURITY_JS_CODE")?.trim().orEmpty()
         val escapedSecurity = amapSecurity.replace("\\", "\\\\").replace("\"", "\\\"")
         buildConfigField("String", "AMAP_SECURITY_JS_CODE", "\"$escapedSecurity\"")
+
+        // 与 JS 地图 Key 分开：高德同一 Key 通常只能选一种「服务平台」，逆地理需单独申请「Web服务」类型 Key。
+        val amapWebServiceKey =
+            (project.findProperty("amap.web.service.key") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+                ?: localProps.getProperty("amap.web.service.key")?.trim().orEmpty().takeIf { it.isNotEmpty() }
+                ?: System.getenv("AMAP_WEB_SERVICE_KEY")?.trim().orEmpty()
+        val escapedServiceKey = amapWebServiceKey.replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "AMAP_WEB_SERVICE_KEY", "\"$escapedServiceKey\"")
     }
 
     buildFeatures {

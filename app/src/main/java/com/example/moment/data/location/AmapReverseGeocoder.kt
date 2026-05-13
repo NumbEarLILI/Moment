@@ -13,15 +13,17 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /**
- * 高德逆地理编码（国内可用）。需在控制台为同一 Key 勾选 **Web服务**（逆地理编码）。
+ * 高德逆地理编码（国内可用）。
  *
- * 与 JS 地图共用 [BuildConfig.AMAP_WEB_JS_KEY]；若返回 `USERKEY_PLAT_NOMATCH` 等，请在应用里为该 Key 启用 Web 服务类型。
+ * 使用单独的 **Web 服务** Key（[BuildConfig.AMAP_WEB_SERVICE_KEY]），与 JS 地图用的
+ * [BuildConfig.AMAP_WEB_JS_KEY] 分开配置：`local.properties` 里 `amap.web.service.key=`，
+ * 或环境变量 `AMAP_WEB_SERVICE_KEY`（CI Secret）。未配置时跳过高德逆地理。
  */
 @Singleton
 class AmapReverseGeocoder @Inject constructor() {
 
     suspend fun reverseLabel(latitude: Double, longitude: Double): String? = withContext(Dispatchers.IO) {
-        val key = BuildConfig.AMAP_WEB_JS_KEY.trim()
+        val key = BuildConfig.AMAP_WEB_SERVICE_KEY.trim()
         if (key.isEmpty()) return@withContext null
         val loc = String.format(Locale.US, "%.6f,%.6f", longitude, latitude)
         val built = Uri.parse("https://restapi.amap.com/v3/geocode/regeo").buildUpon()

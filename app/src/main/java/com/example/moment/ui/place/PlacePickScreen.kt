@@ -112,7 +112,7 @@ fun PlacePickScreen(
         ) {
             Text("选择地点名称", style = MaterialTheme.typography.titleMedium)
             Text(
-                "底图使用高德地图（官方 loader 加载）。Key 须为「Web端（JS API）」并启用 **Web服务**（逆地理）以便自动读出地名；域名白名单需包含 https://lbs.amap.com/ 与 restapi.amap.com。local.properties：amap.web.key、amap.security.jscode。",
+                "底图与逆地理各需一个高德 Key（同一应用下可建两个 Key）：① amap.web.key + amap.security.jscode（Web 端 JS API，地图）；② amap.web.service.key（Web 服务，自动地名）。CI：AMAP_WEB_KEY、AMAP_SECURITY_JS_CODE、AMAP_WEB_SERVICE_KEY。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

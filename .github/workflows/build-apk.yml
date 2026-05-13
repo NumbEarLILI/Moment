@@ -43,6 +43,7 @@ jobs:
         env:
           AMAP_WEB_KEY: ${{ secrets.AMAP_WEB_KEY }}
           AMAP_SECURITY_JS_CODE: ${{ secrets.AMAP_SECURITY_JS_CODE }}
+          AMAP_WEB_SERVICE_KEY: ${{ secrets.AMAP_WEB_SERVICE_KEY }}
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK
