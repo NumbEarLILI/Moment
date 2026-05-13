@@ -4,6 +4,7 @@ import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.Clock
+import java.time.Instant
 import javax.inject.Inject
 
 class AddFragmentUseCase @Inject constructor(
@@ -14,7 +15,8 @@ class AddFragmentUseCase @Inject constructor(
         content: String,
         imageUris: List<String>,
         mood: Mood?,
-        tags: List<String>
+        tags: List<String>,
+        recordedAt: Instant? = null
     ): AddFragmentResult {
         val normalizedContent = content.trim()
         val normalizedTags = tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
@@ -22,7 +24,7 @@ class AddFragmentUseCase @Inject constructor(
             return AddFragmentResult.Empty
         }
 
-        val now = clock.instant()
+        val now = recordedAt ?: clock.instant()
         val id = repository.addFragment(
             LifeFragment(
                 content = normalizedContent,
