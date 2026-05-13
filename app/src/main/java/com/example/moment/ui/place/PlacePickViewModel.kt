@@ -40,6 +40,17 @@ class PlacePickViewModel @Inject constructor(
 
     fun updatePlaceName(value: String) = _uiState.update { it.copy(placeName = value, errorMessage = null) }
 
+    fun reportMapDiagnostic(line: String) {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) return
+        _uiState.update { s ->
+            val merged = if (s.mapDiagnostics.isBlank()) trimmed else s.mapDiagnostics + "\n" + trimmed
+            val clipped =
+                if (merged.length > 4000) merged.substring(merged.length - 4000) else merged
+            s.copy(mapDiagnostics = clipped)
+        }
+    }
+
     fun onMapPosition(latitude: Double, longitude: Double) {
         _uiState.update { it.copy(mapLat = latitude, mapLng = longitude, errorMessage = null) }
         viewModelScope.launch {
@@ -101,5 +112,7 @@ data class PlacePickUiState(
     val mapLng: Double = 0.0,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
+    /** WebView / 高德 JS 加载阶段的诊断信息（便于排查白名单、Key 类型等）。 */
+    val mapDiagnostics: String = "",
     val finishedLocation: FragmentLocation? = null
 )

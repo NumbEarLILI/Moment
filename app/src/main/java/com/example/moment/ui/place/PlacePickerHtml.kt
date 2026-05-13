@@ -1,6 +1,5 @@
 package com.example.moment.ui.place
 
-import android.net.Uri
 import java.util.Locale
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -8,9 +7,12 @@ import kotlinx.serialization.json.JsonPrimitive
 /**
  * 高德地图 JS API 2.0（国内）。
  *
- * - **Key**：`local.properties` → `amap.web.key=`，或环境变量 `AMAP_WEB_KEY`（GitHub Actions Secret）。
- * - **安全密钥**（2021-12-02 之后申请的 Key 必填）：`amap.security.jscode=`，或 `AMAP_SECURITY_JS_CODE` Secret。
- *   在高德控制台「应用」→「Key 设置」旁可查看「安全密钥」说明与复制入口。
+ * 使用官方 [loader.js + AMapLoader.load](https://developer.amap.com/api/javascript-api-v2/getting-started)，
+ * 比直接引用 `maps?v=2.0` 在 WebView 中更稳定。
+ *
+ * - **Key**：`amap.web.key` / `AMAP_WEB_KEY`（须为控制台 **Web 端（JS API）** 类型，不是纯 Android SDK Key）。
+ * - **安全密钥**：`amap.security.jscode` / `AMAP_SECURITY_JS_CODE`（2021-12-02 后申请的 Key 必填）。
+ * - **白名单**：若 Key 启用了「请求来源 / 域名」限制，请将页面基址域名加入白名单（与 [LOAD_BASE_URL] 一致，例如 `https://lbs.amap.com/` 并允许子路径）。
  */
 object PlacePickerHtml {
 
@@ -35,6 +37,7 @@ object PlacePickerHtml {
         } else {
             ""
         }
+        val keyJson = Json.encodeToString(JsonPrimitive(key))
         val warnBanner = if (security.isEmpty()) {
             """
 <div style="background:#fff3cd;color:#664d03;padding:8px 10px;font-size:13px;line-height:1.45;border-bottom:1px solid #ffe69c;">
@@ -45,7 +48,7 @@ object PlacePickerHtml {
         } else {
             ""
         }
-        val scriptSrc = "https://webapi.amap.com/maps?v=2.0&key=" + Uri.encode(key, "UTF-8")
+        val loaderSrc = "https://webapi.amap.com/loader.js"
         return """
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -61,46 +64,66 @@ function showErr(msg) {
     el.innerHTML = '<div style="padding:16px;color:#555;font-size:14px;line-height:1.6;flex:1;">' + msg + '</div>';
   }
 }
-function initMap() {
-  if (typeof AMap === 'undefined') {
-    showErr('高德地图脚本未加载，请检查网络、Key 与安全密钥是否正确。');
+var lat = $latStr, lng = $lngStr;
+function initWithAMap(AMap) {
+  try {
+    var map = new AMap.Map('map', {
+      resizeEnable: true,
+      zoom: 15,
+      center: [lng, lat]
+    });
+    var marker = new AMap.Marker({
+      position: [lng, lat],
+      map: map,
+      draggable: true
+    });
+    map.on('click', function(ev) {
+      marker.setPosition(ev.lnglat);
+    });
+    window.sendPick = function() {
+      var p = marker.getPosition();
+      AndroidHost.onPick(p.lat, p.lng);
+    };
+    window.__momentResizeMap = function() {
+      try { map.resize(); } catch (e) {}
+    };
+    setTimeout(function() { window.__momentResizeMap && window.__momentResizeMap(); }, 80);
+    setTimeout(function() { window.__momentResizeMap && window.__momentResizeMap(); }, 400);
+    setTimeout(function() { window.__momentResizeMap && window.__momentResizeMap(); }, 1200);
+  } catch (e) {
+    var m = (e && e.message) ? e.message : String(e);
+    showErr('地图初始化失败：' + m);
+    if (window.AndroidHost && AndroidHost.onMapError) {
+      AndroidHost.onMapError(String(m));
+    }
+  }
+}
+function bootLoader() {
+  if (typeof AMapLoader === 'undefined') {
+    var msg = '未加载高德 loader（请检查网络或 webapi.amap.com 是否被拦截）';
+    showErr(msg);
+    if (window.AndroidHost && AndroidHost.onMapError) {
+      AndroidHost.onMapError('AMapLoader undefined');
+    }
     return;
   }
-  var lat = $latStr, lng = $lngStr;
-  var map = new AMap.Map('map', {
-    resizeEnable: true,
-    zoom: 15,
-    center: [lng, lat]
+  AMapLoader.load({
+    key: $keyJson,
+    version: '2.0'
+  }).then(initWithAMap).catch(function(e) {
+    var m = (e && (e.message || e.msg || e.info)) ? (e.message || e.msg || e.info) : String(e);
+    showErr('地图模块加载失败：' + m);
+    if (window.AndroidHost && AndroidHost.onMapError) {
+      AndroidHost.onMapError(String(m));
+    }
   });
-  var marker = new AMap.Marker({
-    position: [lng, lat],
-    map: map,
-    draggable: true
-  });
-  map.on('click', function(ev) {
-    marker.setPosition(ev.lnglat);
-  });
-  window.sendPick = function() {
-    var p = marker.getPosition();
-    AndroidHost.onPick(p.lat, p.lng);
-  };
 }
 </script>
-<script id="amap-sdk" src="$scriptSrc" onload="initMap()"></script>
+<script id="amap-loader" src="$loaderSrc" onload="bootLoader()" onerror="showErr('无法加载 loader.js，请检查网络或白名单（需允许 webapi.amap.com）。'); if(window.AndroidHost &amp;&amp; AndroidHost.onMapError){AndroidHost.onMapError('loader script onerror');}"></script>
 </head>
 <body>
 <div id="warn">$warnBanner</div>
 <div id="map"></div>
-<script>
-(function() {
-  var el = document.getElementById('amap-sdk');
-  if (el) {
-    el.onerror = function() {
-      showErr('无法从高德服务器加载地图脚本，请检查网络、Key 或白名单设置。');
-    };
-  }
-})();
-</script>
 </body>
 </html>
         """.trimIndent()
@@ -123,7 +146,7 @@ function initMap() {
 <code style="background:#eee;padding:2px 6px;border-radius:4px;">amap.web.key=你的Web端(JS API) Key</code><br/><br/>
 <strong>安全密钥</strong>（2021-12-02 后申请的 Key 必填）：<br/>
 <code style="background:#eee;padding:2px 6px;border-radius:4px;">amap.security.jscode=你的安全密钥</code><br/><br/>
-均可在 <b>高德开放平台</b>（console.amap.com）对应应用中获取。
+Key 类型须为 <b>Web端（JS API）</b>；若启用域名白名单，请加入 <code>https://lbs.amap.com/*</code>。
 </p>
 <p style="margin:12px 0 0;color:#888;font-size:13px;">未加载地图时，「读取图钉位置」仍使用当前坐标：纬度 $latStr，经度 $lngStr。</p>
 </div>

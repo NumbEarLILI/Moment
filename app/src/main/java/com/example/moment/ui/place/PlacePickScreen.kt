@@ -12,7 +12,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -37,12 +40,20 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class PlacePickerJsBridge(
-    private val onPick: (Double, Double) -> Unit
+    private val onPick: (Double, Double) -> Unit,
+    private val onMapError: (String) -> Unit
 ) {
     @JavascriptInterface
     fun onPick(latitude: Double, longitude: Double) {
         Handler(Looper.getMainLooper()).post {
             onPick(latitude, longitude)
+        }
+    }
+
+    @JavascriptInterface
+    fun onMapError(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            onMapError(message)
         }
     }
 }
@@ -91,7 +102,7 @@ fun PlacePickScreen(
         ) {
             Text("选择地点名称", style = MaterialTheme.typography.titleMedium)
             Text(
-                "底图使用高德地图。请在 local.properties 配置 amap.web.key 与 amap.security.jscode（2021年12月后申请的 Key 必须配安全密钥）；GitHub 构建需同时配置 AMAP_WEB_KEY 与 AMAP_SECURITY_JS_CODE 两个 Secrets。",
+                "底图使用高德地图（官方 loader 加载）。Key 须为控制台里的「Web端（JS API）」类型；若启用了域名白名单，请加入 https://lbs.amap.com/*。local.properties：amap.web.key、amap.security.jscode；CI：AMAP_WEB_KEY、AMAP_SECURITY_JS_CODE。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -120,23 +131,43 @@ fun PlacePickScreen(
                     .weight(1f),
                 factory = { context ->
                     WebView(context).apply {
-                        configureForPlacePick()
+                        configureForPlacePick(viewModel::reportMapDiagnostic)
                         addJavascriptInterface(
-                            PlacePickerJsBridge { lat, lng -> viewModel.onMapPosition(lat, lng) },
+                            PlacePickerJsBridge(
+                                onPick = { lat, lng -> viewModel.onMapPosition(lat, lng) },
+                                onMapError = viewModel::reportMapDiagnostic
+                            ),
                             "AndroidHost"
                         )
                         webViewRef = this
                         loadPlacePickerHtml(pickerHtml)
                         lastLoadedHtml = pickerHtml
+                        post { requestPlaceMapResize() }
+                        postDelayed({ requestPlaceMapResize() }, 400L)
+                        postDelayed({ requestPlaceMapResize() }, 1200L)
                     }
                 },
                 update = { webView ->
                     if (pickerHtml != lastLoadedHtml) {
                         lastLoadedHtml = pickerHtml
                         webView.loadPlacePickerHtml(pickerHtml)
+                        webView.post { webView.requestPlaceMapResize() }
+                        webView.postDelayed({ webView.requestPlaceMapResize() }, 400L)
+                        webView.postDelayed({ webView.requestPlaceMapResize() }, 1200L)
                     }
                 }
             )
+            if (state.mapDiagnostics.isNotBlank()) {
+                Text(
+                    state.mapDiagnostics,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 120.dp)
+                        .verticalScroll(rememberScrollState()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
             state.errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
