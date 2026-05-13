@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+    <link rel="stylesheet" href="leaflet/leaflet.css"/>
+    <script src="leaflet/leaflet.js"></script>
+    <style>
+        html, body, #map { height: 100%; margin: 0; padding: 0; }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+    function readQuery(name) {
+        var s = window.location.search;
+        if (!s || s.length < 2) return NaN;
+        var p = new URLSearchParams(s.substring(1));
+        var v = p.get(name);
+        return v == null ? NaN : parseFloat(v);
+    }
+
+    var lat = readQuery('lat');
+    var lng = readQuery('lng');
+    if (isNaN(lat) || isNaN(lng)) {
+        lat = 39.9042;
+        lng = 116.4074;
+    }
+
+    var map = L.map('map').setView([lat, lng], 15);
+
+    // Carto Voyager：多数网络下比 tile.openstreetmap.org 更容易连通；仍失败时多为设备无法访问国际 HTTPS。
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
+        maxZoom: 20,
+        subdomains: 'abcd',
+        attribution: '&copy; OSM contributors &copy; CARTO'
+    }).addTo(map);
+
+    var marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+    map.on('click', function (e) {
+        marker.setLatLng(e.latlng);
+    });
+
+    function sendPick() {
+        var p = marker.getLatLng();
+        AndroidHost.onPick(p.lat, p.lng);
+    }
+</script>
+</body>
+</html>
