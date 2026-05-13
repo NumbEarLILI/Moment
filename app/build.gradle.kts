@@ -31,8 +31,14 @@ android {
         val amapKey = (project.findProperty("amap.web.key") as String?)?.trim()?.takeIf { it.isNotEmpty() }
             ?: localProps.getProperty("amap.web.key")?.trim().orEmpty().takeIf { it.isNotEmpty() }
             ?: System.getenv("AMAP_WEB_KEY")?.trim().orEmpty()
-        val escaped = amapKey.replace("\\", "\\\\").replace("\"", "\\\"")
-        buildConfigField("String", "AMAP_WEB_JS_KEY", "\"$escaped\"")
+        val escapedKey = amapKey.replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "AMAP_WEB_JS_KEY", "\"$escapedKey\"")
+
+        val amapSecurity = (project.findProperty("amap.security.jscode") as String?)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: localProps.getProperty("amap.security.jscode")?.trim().orEmpty().takeIf { it.isNotEmpty() }
+            ?: System.getenv("AMAP_SECURITY_JS_CODE")?.trim().orEmpty()
+        val escapedSecurity = amapSecurity.replace("\\", "\\\\").replace("\"", "\\\"")
+        buildConfigField("String", "AMAP_SECURITY_JS_CODE", "\"$escapedSecurity\"")
     }
 
     buildFeatures {
