@@ -40,6 +40,8 @@ jobs:
         run: chmod +x gradlew
 
       - name: Assemble debug APK
+        env:
+          AMAP_WEB_KEY: ${{ secrets.AMAP_WEB_KEY }}
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload debug APK

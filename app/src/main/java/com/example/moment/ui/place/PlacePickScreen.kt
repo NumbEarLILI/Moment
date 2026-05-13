@@ -31,6 +31,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import com.example.moment.BuildConfig
 import com.example.moment.domain.model.FragmentLocation
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -57,10 +58,10 @@ fun PlacePickScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
-    val pickerUrl = remember(state.mapLat, state.mapLng) {
-        placePickerAssetUrl(state.mapLat, state.mapLng)
+    val pickerHtml = remember(state.mapLat, state.mapLng, BuildConfig.AMAP_WEB_JS_KEY) {
+        PlacePickerHtml.build(state.mapLat, state.mapLng, BuildConfig.AMAP_WEB_JS_KEY)
     }
-    var lastLoadedUrl by remember { mutableStateOf<String?>(null) }
+    var lastLoadedHtml by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(state.finishedLocation) {
         val done = state.finishedLocation ?: return@LaunchedEffect
@@ -80,8 +81,7 @@ fun PlacePickScreen(
         ) {
             Text("选择地点名称", style = MaterialTheme.typography.titleMedium)
             Text(
-                "拖动图钉或点击地图选点；可编辑下方名称。地图资源已内置在应用中；" +
-                    "若底图仍为空白，多为当前网络无法访问国际地图服务器，可直接填写地点名称后保存（仍使用上方坐标）。",
+                "底图使用高德地图（国内）。请在项目根目录 local.properties 中配置 amap.web.key；未配置时仍可手动输入名称并用当前坐标保存。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -116,14 +116,14 @@ fun PlacePickScreen(
                             "AndroidHost"
                         )
                         webViewRef = this
-                        loadUrl(pickerUrl)
-                        lastLoadedUrl = pickerUrl
+                        loadPlacePickerHtml(pickerHtml)
+                        lastLoadedHtml = pickerHtml
                     }
                 },
                 update = { webView ->
-                    if (pickerUrl != lastLoadedUrl) {
-                        lastLoadedUrl = pickerUrl
-                        webView.loadUrl(pickerUrl)
+                    if (pickerHtml != lastLoadedHtml) {
+                        lastLoadedHtml = pickerHtml
+                        webView.loadPlacePickerHtml(pickerHtml)
                     }
                 }
             )
