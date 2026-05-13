@@ -3,6 +3,7 @@ package com.example.moment.ui.place
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.moment.data.location.AmapReverseGeocoder
 import com.example.moment.data.location.NominatimReverseGeocoder
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.usecase.RefreshSavedDiaryFromFragmentsUseCase
@@ -18,6 +19,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class PlacePickViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    private val amapReverseGeocoder: AmapReverseGeocoder,
     private val nominatim: NominatimReverseGeocoder,
     private val updateFragmentLocation: UpdateFragmentLocationUseCase,
     private val refreshSavedDiaryFromFragments: RefreshSavedDiaryFromFragmentsUseCase
@@ -67,7 +69,8 @@ class PlacePickViewModel @Inject constructor(
         viewModelScope.launch {
             val name = _uiState.value.placeName.trim()
             if (name.isNotEmpty()) return@launch
-            val suggested = nominatim.reverseLabel(latitude, longitude)
+            val suggested = amapReverseGeocoder.reverseLabel(latitude, longitude)
+                ?: nominatim.reverseLabel(latitude, longitude)
             if (!suggested.isNullOrBlank()) {
                 _uiState.update { s -> s.copy(placeName = suggested) }
             }
