@@ -8,6 +8,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabeling
 import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.tasks.await
@@ -23,7 +24,11 @@ class MlKitImageLabelAnalyzer @Inject constructor(
 
     override suspend fun labelsForImage(imageUri: String): List<RecognizedImageLabel> {
         val uri = Uri.parse(imageUri)
-        val input = InputImage.fromMediaUri(context, uri)
+        val input = try {
+            InputImage.fromFilePath(context, uri)
+        } catch (_: IOException) {
+            return emptyList()
+        }
         return client.process(input).await().map { label ->
             RecognizedImageLabel(text = label.text, confidence = label.confidence)
         }
