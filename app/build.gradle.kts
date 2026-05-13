@@ -57,6 +57,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.room:room-ktx:2.8.4")
     implementation("androidx.room:room-runtime:2.8.4")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("com.google.dagger:hilt-android:2.56.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
 
@@ -68,6 +69,7 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
 
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")

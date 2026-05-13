@@ -31,7 +31,8 @@ class UpdateFragmentUseCase @Inject constructor(
                 imageUris = imageUris,
                 mood = mood,
                 tags = normalizedTags,
-                updatedAt = now
+                updatedAt = now,
+                location = existing.location
             )
         )
         return UpdateFragmentResult.Saved

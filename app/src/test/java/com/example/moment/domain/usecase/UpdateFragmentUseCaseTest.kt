@@ -1,5 +1,6 @@
 package com.example.moment.domain.usecase
 
+import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.repository.FragmentRepository
@@ -22,7 +23,8 @@ class UpdateFragmentUseCaseTest {
             mood = Mood.CALM,
             tags = listOf("a"),
             createdAt = created,
-            updatedAt = created
+            updatedAt = created,
+            location = FragmentLocation(39.9042, 116.4074, "北京市")
         )
         val repo = FakeFragmentRepository(listOf(existing))
         val useCase = UpdateFragmentUseCase(
@@ -48,6 +50,7 @@ class UpdateFragmentUseCaseTest {
         assertEquals(Mood.FOCUSED, updated.mood)
         assertEquals(listOf("b", "c"), updated.tags)
         assertEquals(Instant.parse("2026-05-13T18:00:00Z"), updated.updatedAt)
+        assertEquals(FragmentLocation(39.9042, 116.4074, "北京市"), updated.location)
     }
 
     @Test

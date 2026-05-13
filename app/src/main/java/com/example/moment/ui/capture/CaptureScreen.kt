@@ -1,6 +1,8 @@
 package com.example.moment.ui.capture
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,6 +46,42 @@ fun CaptureScreen(
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingSaveAfterLocationPermission by remember { mutableStateOf(false) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        if (pendingSaveAfterLocationPermission) {
+            pendingSaveAfterLocationPermission = false
+        }
+        viewModel.save()
+    }
+
+    fun hasLocationPermission(): Boolean {
+        val coarse = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val fine = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        return coarse || fine
+    }
+
+    fun requestSave() {
+        if (state.editingFragmentId > 0L || hasLocationPermission()) {
+            viewModel.save()
+        } else {
+            pendingSaveAfterLocationPermission = true
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            )
+        }
+    }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         viewModel.addImageUris(uris.map { it.toString() })
@@ -134,7 +173,7 @@ fun CaptureScreen(
                         else -> "保存碎片"
                     }
                     Button(
-                        onClick = viewModel::save,
+                        onClick = { requestSave() },
                         enabled = !state.isSaving && !state.isLoadingDraft,
                         modifier = Modifier.fillMaxWidth()
                     ) {
