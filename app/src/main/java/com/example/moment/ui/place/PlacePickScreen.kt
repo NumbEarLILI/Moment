@@ -3,12 +3,14 @@ package com.example.moment.ui.place
 import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,7 +43,8 @@ import kotlinx.serialization.json.Json
 
 class PlacePickerJsBridge(
     private val onPick: (Double, Double) -> Unit,
-    private val onMapError: (String) -> Unit
+    private val onMapError: (String) -> Unit,
+    private val onMapTrace: (String) -> Unit
 ) {
     @JavascriptInterface
     fun onPick(latitude: Double, longitude: Double) {
@@ -54,6 +57,13 @@ class PlacePickerJsBridge(
     fun onMapError(message: String) {
         Handler(Looper.getMainLooper()).post {
             onMapError(message)
+        }
+    }
+
+    @JavascriptInterface
+    fun onMapTrace(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            onMapTrace(message)
         }
     }
 }
@@ -128,14 +138,20 @@ fun PlacePickScreen(
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .defaultMinSize(minHeight = 280.dp)
                     .weight(1f),
                 factory = { context ->
                     WebView(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
                         configureForPlacePick(viewModel::reportMapDiagnostic)
                         addJavascriptInterface(
                             PlacePickerJsBridge(
                                 onPick = { lat, lng -> viewModel.onMapPosition(lat, lng) },
-                                onMapError = viewModel::reportMapDiagnostic
+                                onMapError = viewModel::reportMapDiagnostic,
+                                onMapTrace = viewModel::reportMapTrace
                             ),
                             "AndroidHost"
                         )
@@ -157,6 +173,17 @@ fun PlacePickScreen(
                     }
                 }
             )
+            if (state.mapTrace.isNotBlank()) {
+                Text(
+                    state.mapTrace,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 88.dp)
+                        .verticalScroll(rememberScrollState()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             if (state.mapDiagnostics.isNotBlank()) {
                 Text(
                     state.mapDiagnostics,

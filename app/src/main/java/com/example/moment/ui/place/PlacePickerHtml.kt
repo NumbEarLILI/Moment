@@ -55,9 +55,14 @@ object PlacePickerHtml {
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<style>html,body{height:100%;margin:0;padding:0;background:#f5f5f5;}body{display:flex;flex-direction:column;}#warn{flex-shrink:0;}#map{flex:1;min-height:0;position:relative;}</style>
+<style>html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#e8e8e8;}#warn{position:absolute;top:0;left:0;right:0;z-index:10;pointer-events:none;}#warn *{pointer-events:auto;}#map{position:absolute;top:0;left:0;right:0;bottom:0;width:100%;height:100%;min-height:100vh;}</style>
 <script>
 $securitySetup
+(function() {
+  if (window.AndroidHost && AndroidHost.onMapTrace) {
+    AndroidHost.onMapTrace('picker page script start');
+  }
+})();
 function showErr(msg) {
   var el = document.getElementById('map');
   if (el) {
@@ -67,10 +72,25 @@ function showErr(msg) {
 var lat = $latStr, lng = $lngStr;
 function initWithAMap(AMap) {
   try {
+    if (window.AndroidHost && AndroidHost.onMapTrace) {
+      AndroidHost.onMapTrace('initWithAMap: creating map');
+    }
     var map = new AMap.Map('map', {
       resizeEnable: true,
       zoom: 15,
-      center: [lng, lat]
+      center: [lng, lat],
+      viewMode: '2D'
+    });
+    if (window.AndroidHost && AndroidHost.onMapTrace) {
+      AndroidHost.onMapTrace('Map instance created');
+    }
+    map.on('complete', function() {
+      if (window.AndroidHost && AndroidHost.onMapTrace) {
+        AndroidHost.onMapTrace('map event: complete');
+      }
+      setTimeout(function() {
+        try { map.resize(); } catch (e1) {}
+      }, 50);
     });
     var marker = new AMap.Marker({
       position: [lng, lat],
@@ -85,11 +105,27 @@ function initWithAMap(AMap) {
       AndroidHost.onPick(p.lat, p.lng);
     };
     window.__momentResizeMap = function() {
-      try { map.resize(); } catch (e) {}
+      try { map.resize(); } catch (e2) {}
     };
     setTimeout(function() { window.__momentResizeMap && window.__momentResizeMap(); }, 80);
     setTimeout(function() { window.__momentResizeMap && window.__momentResizeMap(); }, 400);
     setTimeout(function() { window.__momentResizeMap && window.__momentResizeMap(); }, 1200);
+    setTimeout(function() {
+      var canvas = document.querySelector('#map canvas');
+      if (!canvas) {
+        if (window.AndroidHost && AndroidHost.onMapError) {
+          AndroidHost.onMapError('3.5s check: no canvas in #map (WebView height 0 or tiles blocked)');
+        }
+      } else {
+        var w = canvas.width, h = canvas.height;
+        if (window.AndroidHost && AndroidHost.onMapTrace) {
+          AndroidHost.onMapTrace('3.5s check: canvas ' + w + 'x' + h);
+        }
+        if ((!w || !h) && window.AndroidHost && AndroidHost.onMapError) {
+          AndroidHost.onMapError('canvas size is 0');
+        }
+      }
+    }, 3500);
   } catch (e) {
     var m = (e && e.message) ? e.message : String(e);
     showErr('地图初始化失败：' + m);
@@ -99,6 +135,9 @@ function initWithAMap(AMap) {
   }
 }
 function bootLoader() {
+  if (window.AndroidHost && AndroidHost.onMapTrace) {
+    AndroidHost.onMapTrace('loader.js onload -> bootLoader');
+  }
   if (typeof AMapLoader === 'undefined') {
     var msg = '未加载高德 loader（请检查网络或 webapi.amap.com 是否被拦截）';
     showErr(msg);

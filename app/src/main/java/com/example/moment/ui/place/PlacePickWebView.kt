@@ -62,6 +62,16 @@ internal fun WebView.configureForPlacePick(onLoadingDiagnostic: ((String) -> Uni
         }
     }
     webChromeClient = object : WebChromeClient() {
+        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+            if (newProgress == 100) {
+                view?.post {
+                    view.requestPlaceMapResize()
+                    view.postDelayed({ view.requestPlaceMapResize() }, 200L)
+                }
+            }
+            super.onProgressChanged(view, newProgress)
+        }
+
         override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
             consoleMessage?.let {
                 Log.d(

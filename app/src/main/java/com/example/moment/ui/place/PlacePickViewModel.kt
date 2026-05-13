@@ -51,6 +51,17 @@ class PlacePickViewModel @Inject constructor(
         }
     }
 
+    /** 非错误类线索（灰字），用于确认 JS 是否执行、canvas 是否出现。 */
+    fun reportMapTrace(line: String) {
+        val trimmed = line.trim()
+        if (trimmed.isEmpty()) return
+        _uiState.update { s ->
+            val merged = if (s.mapTrace.isBlank()) trimmed else s.mapTrace + "\n" + trimmed
+            val clipped = if (merged.length > 2500) merged.substring(merged.length - 2500) else merged
+            s.copy(mapTrace = clipped)
+        }
+    }
+
     fun onMapPosition(latitude: Double, longitude: Double) {
         _uiState.update { it.copy(mapLat = latitude, mapLng = longitude, errorMessage = null) }
         viewModelScope.launch {
@@ -114,5 +125,7 @@ data class PlacePickUiState(
     val errorMessage: String? = null,
     /** WebView / 高德 JS 加载阶段的诊断信息（便于排查白名单、Key 类型等）。 */
     val mapDiagnostics: String = "",
+    /** 地图脚本生命周期（非错误），用于确认是否执行到某一步。 */
+    val mapTrace: String = "",
     val finishedLocation: FragmentLocation? = null
 )
