@@ -12,7 +12,7 @@ import kotlinx.serialization.json.JsonPrimitive
  *
  * - **Key**：`amap.web.key` / `AMAP_WEB_KEY`（须为控制台 **Web 端（JS API）** 类型，不是纯 Android SDK Key）。
  * - **安全密钥**：`amap.security.jscode` / `AMAP_SECURITY_JS_CODE`（2021-12-02 后申请的 Key 必填）。
- * - **白名单**：若 Key 启用了「请求来源 / 域名」限制，请加入 `https://lbs.amap.com/*`（与 [LOAD_BASE_URL] 一致）。
+ * - **白名单**：若 Key 启用了「请求来源 / 域名」限制，请将页面基址域名加入白名单（与 [LOAD_BASE_URL] 一致，例如 `https://lbs.amap.com/` 并允许子路径）。
  */
 object PlacePickerHtml {
 
