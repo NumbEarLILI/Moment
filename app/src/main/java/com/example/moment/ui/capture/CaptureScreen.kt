@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -181,7 +180,9 @@ fun CaptureScreen(
                         Text("图片", style = MaterialTheme.typography.labelLarge)
                         if (imageUriList.isNotEmpty()) {
                             LazyRow(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(ImageThumbSize),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 items(imageUriList, key = { it }) { uri ->
