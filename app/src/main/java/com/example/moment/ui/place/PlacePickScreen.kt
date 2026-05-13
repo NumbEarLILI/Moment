@@ -58,8 +58,18 @@ fun PlacePickScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
-    val pickerHtml = remember(state.mapLat, state.mapLng, BuildConfig.AMAP_WEB_JS_KEY) {
-        PlacePickerHtml.build(state.mapLat, state.mapLng, BuildConfig.AMAP_WEB_JS_KEY)
+    val pickerHtml = remember(
+        state.mapLat,
+        state.mapLng,
+        BuildConfig.AMAP_WEB_JS_KEY,
+        BuildConfig.AMAP_SECURITY_JS_CODE
+    ) {
+        PlacePickerHtml.build(
+            state.mapLat,
+            state.mapLng,
+            BuildConfig.AMAP_WEB_JS_KEY,
+            BuildConfig.AMAP_SECURITY_JS_CODE
+        )
     }
     var lastLoadedHtml by remember { mutableStateOf<String?>(null) }
 
@@ -81,7 +91,7 @@ fun PlacePickScreen(
         ) {
             Text("选择地点名称", style = MaterialTheme.typography.titleMedium)
             Text(
-                "底图使用高德地图（国内）。请在项目根目录 local.properties 中配置 amap.web.key；未配置时仍可手动输入名称并用当前坐标保存。",
+                "底图使用高德地图。请在 local.properties 配置 amap.web.key 与 amap.security.jscode（2021年12月后申请的 Key 必须配安全密钥）；GitHub 构建需同时配置 AMAP_WEB_KEY 与 AMAP_SECURITY_JS_CODE 两个 Secrets。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

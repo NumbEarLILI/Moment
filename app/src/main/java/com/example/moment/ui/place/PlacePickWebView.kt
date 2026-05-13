@@ -1,6 +1,8 @@
 package com.example.moment.ui.place
 
 import android.annotation.SuppressLint
+import android.util.Log
+import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -9,7 +11,17 @@ import android.webkit.WebViewClient
 @SuppressLint("SetJavaScriptEnabled")
 internal fun WebView.configureForPlacePick() {
     webViewClient = WebViewClient()
-    webChromeClient = WebChromeClient()
+    webChromeClient = object : WebChromeClient() {
+        override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+            consoleMessage?.let {
+                Log.d(
+                    "MomentPlacePickJs",
+                    "${it.messageLevel()} ${it.message()} (${it.sourceId()}:${it.lineNumber()})"
+                )
+            }
+            return super.onConsoleMessage(consoleMessage)
+        }
+    }
     settings.apply {
         javaScriptEnabled = true
         domStorageEnabled = true
