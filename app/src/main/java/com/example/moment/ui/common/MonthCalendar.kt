@@ -11,8 +11,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +29,8 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.Locale
+
+private val DayShape = RoundedCornerShape(12.dp)
 
 @Composable
 fun MonthCalendar(
@@ -46,47 +49,68 @@ fun MonthCalendar(
         }
     }
     val cells = remember(visibleMonth, weekFields) { calendarCellsForMonth(visibleMonth, weekFields) }
+    val scheme = MaterialTheme.colorScheme
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = scheme.surface,
+        tonalElevation = 1.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            TextButton(onClick = onPreviousMonth) { Text("‹") }
-            Text(
-                "${visibleMonth.year}年${visibleMonth.monthValue}月",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            TextButton(onClick = onNextMonth) { Text("›") }
-        }
-        Row(Modifier.fillMaxWidth()) {
-            weekDayLabels.forEach { label ->
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 4.dp)
-                )
-            }
-        }
-        cells.chunked(7).forEach { week ->
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                week.forEach { date ->
-                    DayCell(
-                        date = date,
-                        selectedDate = selectedDate,
-                        today = today,
-                        onClick = onDayClick,
-                        modifier = Modifier.weight(1f)
+                TextButton(onClick = onPreviousMonth) {
+                    Text("‹", style = MaterialTheme.typography.titleLarge, color = scheme.primary)
+                }
+                Text(
+                    "${visibleMonth.year}年${visibleMonth.monthValue}月",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = scheme.onSurface
+                )
+                TextButton(onClick = onNextMonth) {
+                    Text("›", style = MaterialTheme.typography.titleLarge, color = scheme.primary)
+                }
+            }
+            Row(Modifier.fillMaxWidth()) {
+                weekDayLabels.forEach { label ->
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = 4.dp)
                     )
+                }
+            }
+            cells.chunked(7).forEach { week ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    week.forEach { date ->
+                        DayCell(
+                            date = date,
+                            selectedDate = selectedDate,
+                            today = today,
+                            onClick = onDayClick,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -120,35 +144,33 @@ private fun DayCell(
         Spacer(modifier.aspectRatio(1f))
         return
     }
+    val scheme = MaterialTheme.colorScheme
     val isSelected = date == selectedDate
     val isToday = date == today
-    val shape = CircleShape
     val bg = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surface
+        isSelected -> scheme.primaryContainer
+        else -> scheme.surfaceVariant.copy(alpha = 0.55f)
+    }
+    val borderModifier = when {
+        isToday && !isSelected -> Modifier.border(1.5.dp, scheme.primary, DayShape)
+        else -> Modifier
     }
     Box(
         modifier = modifier
             .aspectRatio(1f)
-            .clip(shape)
+            .clip(DayShape)
             .background(bg)
-            .then(
-                if (isToday && !isSelected) {
-                    Modifier.border(1.dp, MaterialTheme.colorScheme.primary, shape)
-                } else {
-                    Modifier
-                }
-            )
+            .then(borderModifier)
             .clickable { onClick(date) },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "${date.dayOfMonth}",
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+            fontWeight = if (isToday || isSelected) FontWeight.SemiBold else FontWeight.Medium,
             color = when {
-                isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
-                else -> MaterialTheme.colorScheme.onSurface
+                isSelected -> scheme.onPrimaryContainer
+                else -> scheme.onSurface
             }
         )
     }

@@ -27,11 +27,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
-      # setup-android `packages` must be space-separated on one line; a YAML
-      # block scalar is passed as a single invalid package name. Install extras
-      # in a dedicated step instead.
+      - name: Accept SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      # Gradle uses compileSdk 36; install matching platform + build-tools.
       - name: Install SDK platform and build-tools
-        run: sdkmanager "platforms;android-36" "build-tools;35.0.1"
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
