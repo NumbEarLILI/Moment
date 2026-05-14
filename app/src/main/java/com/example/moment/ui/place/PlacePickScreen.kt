@@ -43,14 +43,24 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class PlacePickerJsBridge(
-    private val onPick: (Double, Double) -> Unit,
+    private val onPickFromWeb: (Double, Double) -> Unit,
     private val onMapError: (String) -> Unit,
     private val onMapTrace: (String) -> Unit
 ) {
+    /**
+     * 必须用字符串传经纬度：部分 WebView 下从 `evaluateJavascript` 触发的 JS 用 `Number` 调
+     * `onPick(double,double)` 会匹配失败且静默无回调；字符串与高德 LngLat 的 getter 都更稳。
+     */
     @JavascriptInterface
-    fun onPick(latitude: Double, longitude: Double) {
+    fun onPick(latitude: String, longitude: String) {
         Handler(Looper.getMainLooper()).post {
-            onPick(latitude, longitude)
+            val lat = latitude.trim().toDoubleOrNull()
+            val lng = longitude.trim().toDoubleOrNull()
+            if (lat != null && lng != null) {
+                onPickFromWeb(lat, lng)
+            } else {
+                onMapError("onPick 无法解析: lat=\"$latitude\" lng=\"$longitude\"")
+            }
         }
     }
 
@@ -185,7 +195,7 @@ fun PlacePickScreen(
                         configureForPlacePick(viewModel::reportMapDiagnostic)
                         addJavascriptInterface(
                             PlacePickerJsBridge(
-                                onPick = { lat, lng -> viewModel.onMapPosition(lat, lng) },
+                                onPickFromWeb = { lat, lng -> viewModel.onMapPosition(lat, lng) },
                                 onMapError = viewModel::reportMapDiagnostic,
                                 onMapTrace = viewModel::reportMapTrace
                             ),

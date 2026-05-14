@@ -92,11 +92,32 @@ function initWithAMap(AMap) {
         try { map.resize(); } catch (e1) {}
       }, 50);
     });
+    function momentLngLatToStrings(pos) {
+      if (!pos) return null;
+      if (Array.isArray(pos) && pos.length >= 2) {
+        var lngA = Number(pos[0]);
+        var latA = Number(pos[1]);
+        if (latA === latA && lngA === lngA) return ['' + latA, '' + lngA];
+      }
+      var lat = (typeof pos.getLat === 'function') ? pos.getLat() : pos.lat;
+      var lng = (typeof pos.getLng === 'function') ? pos.getLng() : pos.lng;
+      if (lat == null || lng == null) return null;
+      lat = Number(lat);
+      lng = Number(lng);
+      if (lat !== lat || lng !== lng) return null;
+      return ['' + lat, '' + lng];
+    }
     function notifyPickFromMarker(m) {
       try {
-        var p = m.getPosition();
+        var pair = momentLngLatToStrings(m.getPosition());
+        if (!pair) {
+          if (window.AndroidHost && AndroidHost.onMapError) {
+            AndroidHost.onMapError('notifyPickFromMarker: 无法解析图钉坐标');
+          }
+          return;
+        }
         if (window.AndroidHost && AndroidHost.onPick) {
-          AndroidHost.onPick(p.lat, p.lng);
+          AndroidHost.onPick(pair[0], pair[1]);
         }
       } catch (err) {
         var msg = (err && err.message) ? err.message : String(err);
@@ -209,7 +230,7 @@ Key 类型须为 <b>Web端（JS API）</b>；若启用域名白名单，请加�
 <script>
 window.sendPick = function() {
   if (window.AndroidHost && AndroidHost.onPick) {
-    AndroidHost.onPick(parseFloat('$latStr'), parseFloat('$lngStr'));
+    AndroidHost.onPick('$latStr', '$lngStr');
   }
 };
 </script>

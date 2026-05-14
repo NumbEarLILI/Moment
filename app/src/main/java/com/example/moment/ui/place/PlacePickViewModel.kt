@@ -99,6 +99,7 @@ class PlacePickViewModel @Inject constructor(
     }
 
     fun onMapPosition(latitude: Double, longitude: Double) {
+        reportMapTrace("【图钉】Kotlin 收到 lat=$latitude lng=$longitude")
         _uiState.update { it.copy(mapLat = latitude, mapLng = longitude, errorMessage = null) }
         viewModelScope.launch {
             val locked = _uiState.value.placeNameUserLocked
