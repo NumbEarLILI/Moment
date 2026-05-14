@@ -121,6 +121,7 @@ fun CaptureScreen(
 
     var showPlacePickPermissionDialog by remember { mutableStateOf(false) }
     var pendingPlacePickAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     val placePickPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
@@ -254,7 +255,10 @@ fun CaptureScreen(
                     },
                     location = state.locationOverride ?: state.baselineLocation,
                     isAnalyzingImages = state.isAnalyzingImages,
-                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft,
+                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
+                    canDeleteFragment = state.editingFragmentId > 0,
+                    isDeleting = state.isDeleting,
+                    onRequestDelete = { showDeleteConfirmDialog = true },
                     errorMessage = state.errorMessage,
                     saveLabel = when {
                         state.isSaving -> "保存中..."
@@ -262,7 +266,7 @@ fun CaptureScreen(
                         else -> "保存碎片"
                     },
                     onSave = { requestSave() },
-                    saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages
+                    saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages && !state.isDeleting
                 )
                 when {
                     state.isLoadingDraft ->
@@ -381,6 +385,37 @@ fun CaptureScreen(
             }
         )
     }
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!state.isDeleting) showDeleteConfirmDialog = false },
+            title = { Text("删除碎片") },
+            text = {
+                Text(
+                    "确定要删除这条碎片吗？此操作无法撤销。",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        viewModel.deleteEditingFragment()
+                    },
+                    enabled = !state.isDeleting
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmDialog = false },
+                    enabled = !state.isDeleting
+                ) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -412,6 +447,9 @@ private fun CaptureHeader(
     saveLabel: String,
     onSave: () -> Unit,
     saveEnabled: Boolean,
+    canDeleteFragment: Boolean,
+    isDeleting: Boolean,
+    onRequestDelete: () -> Unit,
 ) {
     val title = if (isEditing) "继续编辑碎片" else "记录生活碎片"
     val subtitle = selectedDate?.let { "${it.format(HeaderDateFormatter)} · 把这天整理成一页手帐" }
@@ -491,7 +529,10 @@ private fun CaptureHeader(
                 errorMessage = errorMessage,
                 saveLabel = saveLabel,
                 onSave = onSave,
-                saveEnabled = saveEnabled
+                saveEnabled = saveEnabled,
+                canDeleteFragment = canDeleteFragment,
+                isDeleting = isDeleting,
+                onRequestDelete = onRequestDelete
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -541,6 +582,9 @@ private fun CaptureMomentExpandable(
     saveLabel: String,
     onSave: () -> Unit,
     saveEnabled: Boolean,
+    canDeleteFragment: Boolean,
+    isDeleting: Boolean,
+    onRequestDelete: () -> Unit,
 ) {
     val corner = RoundedCornerShape(14.dp)
     Surface(
@@ -773,6 +817,18 @@ private fun CaptureMomentExpandable(
                         shape = MaterialTheme.shapes.large
                     ) {
                         Text(saveLabel)
+                    }
+                    if (canDeleteFragment) {
+                        TextButton(
+                            onClick = onRequestDelete,
+                            enabled = interactionsEnabled && !isDeleting && !isAnalyzingImages,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isDeleting) "删除中…" else "删除碎片",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
             }
