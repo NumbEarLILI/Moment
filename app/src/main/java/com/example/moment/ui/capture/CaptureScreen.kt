@@ -8,13 +8,13 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,8 +30,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -598,9 +596,10 @@ private fun CaptureMomentExpandable(
             }
             AnimatedVisibility(
                 visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = fadeIn(animationSpec = tween(220)),
+                exit = fadeOut(animationSpec = tween(180))
             ) {
+                val thumbRowScroll = rememberScrollState()
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -643,17 +642,20 @@ private fun CaptureMomentExpandable(
                         }
                     }
                     if (imageUriList.isNotEmpty()) {
-                        LazyRow(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .horizontalScroll(thumbRowScroll)
                                 .height(ImageThumbSize),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(imageUriList, key = { it }) { uri ->
-                                ImageThumbnail(
-                                    uri = uri,
-                                    onRemove = { onRemoveImage(uri) }
-                                )
+                            imageUriList.forEach { uri ->
+                                key(uri) {
+                                    ImageThumbnail(
+                                        uri = uri,
+                                        onRemove = { onRemoveImage(uri) }
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -701,8 +703,7 @@ private fun CaptureMomentExpandable(
                     }
                     TextButton(
                         onClick = onPickPlace,
-                        enabled = interactionsEnabled,
-                        modifier = Modifier.padding(start = (-4).dp)
+                        enabled = interactionsEnabled
                     ) {
                         Text("在地图上选择地点名称")
                     }
