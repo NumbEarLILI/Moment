@@ -162,12 +162,17 @@ fun CaptureScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     if (state.editingFragmentId > 0) "继续编辑碎片" else "记录生活碎片",
-                    style = MaterialTheme.typography.headlineSmall
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.weight(1f)
                 )
+                TextButton(onClick = { navController.navigate(Routes.History) }) {
+                    Text("历史")
+                }
                 TextButton(onClick = onClose) { Text("关闭") }
             }
             when {

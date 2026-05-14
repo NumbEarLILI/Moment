@@ -13,10 +13,9 @@ import androidx.navigation.navArgument
 import com.example.moment.ui.capture.CaptureScreen
 import com.example.moment.ui.diary.DiaryDetailScreen
 import com.example.moment.ui.diary.DiaryPreviewScreen
+import com.example.moment.ui.history.HistoryEvent
 import com.example.moment.ui.history.HistoryScreen
-import com.example.moment.ui.home.HomeEvent
-import com.example.moment.ui.home.HomeScreen
-import com.example.moment.ui.home.HomeViewModel
+import com.example.moment.ui.history.HistoryViewModel
 import com.example.moment.ui.place.PlacePickScreen
 import java.time.LocalDate
 
@@ -24,25 +23,7 @@ import java.time.LocalDate
 fun MomentApp() {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = Routes.Home) {
-        composable(Routes.Home) {
-            val homeViewModel: HomeViewModel = hiltViewModel()
-            LaunchedEffect(homeViewModel) {
-                homeViewModel.events.collect { event ->
-                    when (event) {
-                        is HomeEvent.OpenSavedDiary -> navController.navigate("detail/${event.id}")
-                        is HomeEvent.OpenDiaryPreview -> navController.navigate("preview/${event.date}")
-                    }
-                }
-            }
-            HomeScreen(
-                onAddFragment = { date -> navController.navigate(Routes.capture(0L, date)) },
-                onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
-                onGenerateDiary = { date -> navController.navigate("preview/$date") },
-                onOpenHistory = { navController.navigate(Routes.History) },
-                viewModel = homeViewModel
-            )
-        }
+    NavHost(navController = navController, startDestination = Routes.RootCapture) {
         composable(
             route = Routes.Capture,
             arguments = listOf(
@@ -53,7 +34,13 @@ fun MomentApp() {
             CaptureScreen(
                 navController = navController,
                 backStackEntry = entry,
-                onClose = { navController.popBackStack() }
+                onClose = {
+                    if (!navController.popBackStack()) {
+                        navController.navigate(Routes.RootCapture) {
+                            popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                        }
+                    }
+                }
             )
         }
         composable(
@@ -64,13 +51,26 @@ fun MomentApp() {
                 navController = navController,
                 previewBackStackEntry = entry,
                 diaryId = 0L,
-                onClose = { navController.popBackStack(Routes.Home, inclusive = false) }
+                onClose = { navController.popBackStack() }
             )
         }
         composable(Routes.History) {
+            val historyViewModel: HistoryViewModel = hiltViewModel()
+            LaunchedEffect(historyViewModel) {
+                historyViewModel.events.collect { event ->
+                    when (event) {
+                        is HistoryEvent.OpenSavedDiary -> navController.navigate("detail/${event.id}")
+                        is HistoryEvent.OpenDiaryPreview -> navController.navigate("preview/${event.date}")
+                    }
+                }
+            }
             HistoryScreen(
                 onBack = { navController.popBackStack() },
-                onOpenDiary = { id -> navController.navigate("detail/$id") }
+                onAddFragment = { date -> navController.navigate(Routes.capture(0L, date)) },
+                onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
+                onGenerateDiary = { date -> navController.navigate("preview/$date") },
+                onOpenDiary = { id -> navController.navigate("detail/$id") },
+                viewModel = historyViewModel
             )
         }
         composable(
@@ -103,7 +103,7 @@ fun MomentApp() {
 }
 
 object Routes {
-    const val Home = "home"
+    val RootCapture: String = capture(0L, null)
     const val Capture = "capture?fragmentId={fragmentId}&forDate={forDate}"
     const val Preview = "preview/{date}"
     const val History = "history"
