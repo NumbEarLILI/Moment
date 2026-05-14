@@ -32,11 +32,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.MonthCalendar
-import com.example.moment.ui.diary.DiaryImageGallery
+import com.example.moment.ui.diary.DiarySummaryCard
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -177,7 +176,7 @@ fun HistoryScreen(
                 }
             } else {
                 items(state.diaryEntries, key = { "diary-${it.id}" }) { entry ->
-                    DiaryCard(entry = entry, onClick = { onOpenDiary(entry.id) })
+                    DiarySummaryCard(entry = entry, onClick = { onOpenDiary(entry.id) })
                 }
             }
         }
@@ -287,40 +286,3 @@ private fun FragmentCard(
     }
 }
 
-@Composable
-private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onClick),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(entry.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(entry.date.toString(), color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
-                Text(
-                    entry.body,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            if (entry.imageUris.isNotEmpty()) {
-                DiaryImageGallery(
-                    imageUris = entry.imageUris,
-                    modifier = Modifier.fillMaxWidth(),
-                    showLabel = false,
-                    thumbnailSize = 88.dp,
-                    rowHeight = 100.dp
-                )
-            }
-        }
-    }
-}
