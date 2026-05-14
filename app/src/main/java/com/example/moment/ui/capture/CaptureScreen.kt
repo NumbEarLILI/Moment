@@ -89,6 +89,7 @@ fun CaptureScreen(
     backStackEntry: NavBackStackEntry,
     onClose: () -> Unit,
     onGenerateDiary: (LocalDate) -> Unit,
+    onOpenSettings: () -> Unit,
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -207,6 +208,7 @@ fun CaptureScreen(
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
                     onOpenHistory = { navController.navigate(Routes.History) },
+                    onOpenSettings = onOpenSettings,
                     momentExpanded = momentExpanded,
                     onToggleMomentExpanded = {
                         val cur = backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] ?: false
@@ -422,6 +424,7 @@ private fun CaptureHeader(
     canGenerateDiary: Boolean,
     onGenerateDiary: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenSettings: () -> Unit,
     momentExpanded: Boolean,
     onToggleMomentExpanded: () -> Unit,
     momentContent: String,
@@ -509,24 +512,37 @@ private fun CaptureHeader(
                 isDeleting = isDeleting,
                 onRequestDelete = onRequestDelete
             )
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Button(
                     onClick = onGenerateDiary,
                     enabled = canGenerateDiary,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large
                 ) {
                     Text("生成手帐")
                 }
-                OutlinedButton(
-                    onClick = onOpenHistory,
-                    shape = MaterialTheme.shapes.large
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("历史")
+                    OutlinedButton(
+                        onClick = onOpenHistory,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text("历史")
+                    }
+                    OutlinedButton(
+                        onClick = onOpenSettings,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text("设置")
+                    }
                 }
             }
         }
