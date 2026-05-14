@@ -94,6 +94,7 @@ fun PlacePickScreen(
         )
     }
     var lastLoadedHtml by remember { mutableStateOf<String?>(null) }
+    val traceScroll = rememberScrollState()
 
     LaunchedEffect(state.finishedLocation) {
         val done = state.finishedLocation ?: return@LaunchedEffect
@@ -113,7 +114,7 @@ fun PlacePickScreen(
         ) {
             Text("选择地点名称", style = MaterialTheme.typography.titleMedium)
             Text(
-                "底图与逆地理各需一个高德 Key（同一应用下可建两个 Key）：① amap.web.key + amap.security.jscode（Web 端 JS API，地图）；② amap.web.service.key（Web 服务，自动地名）。CI：AMAP_WEB_KEY、AMAP_SECURITY_JS_CODE、AMAP_WEB_SERVICE_KEY。",
+                "① amap.web.key + amap.security.jscode（地图）；② amap.web.service.key（逆地理）；若控制台为 Web 服务 Key 启用了数字签名，再加 amap.web.service.secret。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -179,17 +180,20 @@ fun PlacePickScreen(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            if (state.mapTrace.isNotBlank()) {
-                Text(
-                    state.mapTrace,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 88.dp)
-                        .verticalScroll(rememberScrollState()),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text("运行与逆地理诊断", style = MaterialTheme.typography.labelLarge)
+            Text(
+                text = if (state.mapTrace.isBlank()) {
+                    "若进入本页后仍只有本行，请更新安装版本。正常会先出现「【配置】…」再出现「【逆地理】…」。"
+                } else {
+                    state.mapTrace
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp, max = 168.dp)
+                    .verticalScroll(traceScroll),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             if (state.mapDiagnostics.isNotBlank()) {
                 Text(
                     state.mapDiagnostics,

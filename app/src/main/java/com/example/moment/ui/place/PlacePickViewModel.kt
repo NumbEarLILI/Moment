@@ -3,6 +3,7 @@ package com.example.moment.ui.place
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.moment.BuildConfig
 import com.example.moment.data.location.AmapReverseGeocoder
 import com.example.moment.data.location.NominatimReverseGeocoder
 import com.example.moment.domain.model.FragmentLocation
@@ -40,6 +41,27 @@ class PlacePickViewModel @Inject constructor(
         )
     )
     val uiState: StateFlow<PlacePickUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            reportMapTrace(
+                buildString {
+                    append("【配置】逆地理 Web 服务 Key：")
+                    append(if (BuildConfig.AMAP_WEB_SERVICE_KEY.isNotBlank()) "已填写" else "未填写（local.properties → amap.web.service.key）")
+                    append("；签名私钥：")
+                    append(
+                        if (BuildConfig.AMAP_WEB_SERVICE_SECRET.isNotBlank()) {
+                            "已填写（请求将带 sig）"
+                        } else {
+                            "未填写（若控制台启用了数字签名，需配置 amap.web.service.secret）"
+                        }
+                    )
+                }
+            )
+            val s = _uiState.value
+            onMapPosition(s.mapLat, s.mapLng)
+        }
+    }
 
     fun updatePlaceName(value: String) = _uiState.update { s ->
         if (value.isBlank()) {
@@ -80,11 +102,26 @@ class PlacePickViewModel @Inject constructor(
         _uiState.update { it.copy(mapLat = latitude, mapLng = longitude, errorMessage = null) }
         viewModelScope.launch {
             val locked = _uiState.value.placeNameUserLocked
+            reportMapTrace("【逆地理】请求 lat=$latitude lng=$longitude 名称锁=$locked")
             val amap = amapReverseGeocoder.reverseGeocode(latitude, longitude)
-            amap.failureDetail?.let { reportMapTrace("高德逆地理: $it") }
-            val suggested = amap.label ?: nominatim.reverseLabel(latitude, longitude)
-            if (!suggested.isNullOrBlank() && !locked) {
-                _uiState.update { s -> s.copy(placeName = suggested) }
+            if (amap.label != null) {
+                reportMapTrace("【逆地理】高德成功（已解析到地址文本）")
+            } else {
+                reportMapTrace("【逆地理】高德未返回地名：${amap.failureDetail ?: "无详情"}")
+            }
+            val nomin = nominatim.reverseLabel(latitude, longitude)
+            reportMapTrace(
+                if (nomin != null) "【逆地理】OpenStreetMap 有备选结果" else "【逆地理】OpenStreetMap 无结果（国内常见）"
+            )
+            val suggested = amap.label ?: nomin
+            when {
+                !suggested.isNullOrBlank() && !locked -> {
+                    _uiState.update { s -> s.copy(placeName = suggested) }
+                    reportMapTrace("【逆地理】已填入地点名称")
+                }
+                !suggested.isNullOrBlank() && locked ->
+                    reportMapTrace("【逆地理】有结果但未覆盖名称（你已编辑过名称，可清空名称框再试）")
+                else -> reportMapTrace("【逆地理】仍无可用名称")
             }
         }
     }
