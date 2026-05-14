@@ -3,6 +3,8 @@ package com.example.moment.ui.history
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,11 +28,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.MonthCalendar
 import com.example.moment.ui.diary.DiaryImageGallery
 import java.time.LocalDate
@@ -189,6 +193,7 @@ private fun EmptyDayHint(selected: LocalDate, today: LocalDate) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FragmentCard(
     fragment: LifeFragment,
@@ -201,7 +206,7 @@ private fun FragmentCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = fragment.createdAt.atZone(ZoneId.systemDefault()).toLocalTime().toString().take(5),
@@ -217,16 +222,50 @@ private fun FragmentCard(
                 }
             }
             if (fragment.content.isNotBlank()) {
-                Text(fragment.content, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    fragment.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            fragment.mood?.let { Text("心情：${it.displayName}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            fragment.mood?.let { MoodBadge(mood = it) }
             if (fragment.tags.isNotEmpty()) {
-                Text(fragment.tags.joinToString(prefix = "#", separator = " #"), color = MaterialTheme.colorScheme.primary)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    fragment.tags.forEach { tag ->
+                        Surface(
+                            shape = MaterialTheme.shapes.small,
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+                            tonalElevation = 0.dp,
+                            shadowElevation = 0.dp
+                        ) {
+                            Text(
+                                text = "#$tag",
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
             }
             fragment.location?.let { loc ->
                 val line = loc.label ?: "${String.format(Locale.getDefault(), "%.4f", loc.latitude)}, " +
                     String.format(Locale.getDefault(), "%.4f", loc.longitude)
-                Text("位置：$line", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "位置：$line",
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             if (fragment.imageUris.isNotEmpty()) {
                 Text("图片：${fragment.imageUris.size} 张", style = MaterialTheme.typography.bodySmall)
@@ -252,7 +291,13 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit) {
             ) {
                 Text(entry.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(entry.date.toString(), color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
-                Text(entry.body.take(80), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    entry.body,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             if (entry.imageUris.isNotEmpty()) {
                 DiaryImageGallery(

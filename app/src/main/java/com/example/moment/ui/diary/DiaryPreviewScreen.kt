@@ -17,12 +17,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import com.example.moment.ui.Routes
+import com.example.moment.ui.common.MoodSummaryBadge
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 
 @Composable
@@ -65,6 +68,7 @@ fun DiaryPreviewScreen(
             Text(
                 "生成手帐",
                 style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             if (state.isLoading) {
@@ -113,12 +117,14 @@ fun DiaryPreviewScreen(
                 if (state.highlights.isNotEmpty()) {
                     Text(
                         "今日亮点：${state.highlights.joinToString(" / ")}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 state.moodSummary?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    MoodSummaryBadge(summary = it, modifier = Modifier.fillMaxWidth())
                 }
                 state.errorMessage?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)

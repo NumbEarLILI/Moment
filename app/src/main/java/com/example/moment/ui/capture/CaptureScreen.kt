@@ -12,6 +12,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -75,6 +77,7 @@ import java.util.Locale
 
 private val ImageThumbSize = 88.dp
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CaptureScreen(
     navController: NavHostController,
@@ -322,13 +325,29 @@ fun CaptureScreen(
                                 focusedLabelColor = MaterialTheme.colorScheme.primary
                             )
                         )
-                        Text("心情", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            "心情",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
                             Mood.entries.forEach { mood ->
                                 FilterChip(
                                     selected = state.mood == mood,
                                     onClick = { viewModel.updateMood(if (state.mood == mood) null else mood) },
-                                    label = { Text(mood.displayName) },
+                                    label = {
+                                        Text(
+                                            mood.displayName,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Clip,
+                                            softWrap = false
+                                        )
+                                    },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                                         selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
