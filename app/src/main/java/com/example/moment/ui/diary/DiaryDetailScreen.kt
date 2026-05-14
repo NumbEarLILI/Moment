@@ -1,10 +1,12 @@
 package com.example.moment.ui.diary
 
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -14,11 +16,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.moment.ui.Routes
+import com.example.moment.ui.common.MoodSummaryBadge
 
 @Composable
 fun DiaryDetailScreen(
@@ -36,6 +40,7 @@ fun DiaryDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -63,7 +68,11 @@ fun DiaryDetailScreen(
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.secondary
                     )
-                    Text(entry.body, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        entry.body,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     DiaryLocationPinsRow(
                         pins = entry.locationPins,
                         onPinClick = { pin ->
@@ -81,9 +90,15 @@ fun DiaryDetailScreen(
                     )
                     DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
                     if (entry.highlights.isNotEmpty()) {
-                        Text("亮点：${entry.highlights.joinToString(" / ")}")
+                        Text(
+                            "亮点：${entry.highlights.joinToString(" / ")}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    entry.moodSummary?.let { Text(it) }
+                    entry.moodSummary?.let { MoodSummaryBadge(summary = it, modifier = Modifier.fillMaxWidth()) }
                 }
             }
         }
