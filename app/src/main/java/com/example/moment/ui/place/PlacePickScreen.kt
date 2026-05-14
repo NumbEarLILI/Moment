@@ -132,25 +132,39 @@ fun PlacePickScreen(
                 TextButton(
                     onClick = {
                         viewModel.reportMapTrace("【读取图钉】已点击")
-                        val wv = webViewRef
-                        if (wv == null) {
+                        if (webViewRef == null) {
                             viewModel.reportMapTrace("【读取图钉】WebView 未就绪，请等地图加载后再试")
                             return@TextButton
                         }
-                        wv.post {
-                            wv.evaluateJavascript(
+                        // 不要用旧 WebView.post：Compose 重组后实例可能已换，旧队列上的 Runnable 不会执行。
+                        Handler(Looper.getMainLooper()).post {
+                            viewModel.reportMapTrace("【读取图钉】主线程任务开始")
+                            val live = webViewRef
+                            if (live == null) {
+                                viewModel.reportMapTrace("【读取图钉】执行时 WebView 已为空")
+                                return@post
+                            }
+                            val js =
                                 "(function(){try{" +
+                                    "if(window.AndroidHost&&AndroidHost.onMapTrace)" +
+                                    "{AndroidHost.onMapTrace('【读取图钉】JS开始');}" +
                                     "if(typeof window.sendPick!=='function'){" +
                                     "if(window.AndroidHost&&AndroidHost.onMapTrace)" +
-                                    "AndroidHost.onMapTrace('sendPick 未定义，地图脚本可能未跑完');" +
-                                    "return;}" +
+                                    "{AndroidHost.onMapTrace('sendPick 未定义');}" +
+                                    "return 'no_sendPick';}" +
                                     "window.sendPick();" +
+                                    "return 'ok';" +
                                     "}catch(e){" +
+                                    "var m=(e&&e.message)?e.message:String(e);" +
                                     "if(window.AndroidHost&&AndroidHost.onMapError)" +
-                                    "AndroidHost.onMapError('sendPick: '+(e&&e.message?e.message:String(e)));" +
-                                    "}})();",
-                                null
-                            )
+                                    "{AndroidHost.onMapError('sendPick:'+m);}" +
+                                    "return 'err';" +
+                                    "}})();"
+                            live.evaluateJavascript(js) { value ->
+                                Handler(Looper.getMainLooper()).post {
+                                    viewModel.reportMapTrace("【读取图钉】evaluateJavascript 回调: ${value ?: "null"}")
+                                }
+                            }
                         }
                     }
                 ) {
