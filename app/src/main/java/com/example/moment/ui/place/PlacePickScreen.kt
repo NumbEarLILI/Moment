@@ -6,7 +6,6 @@ import android.os.Looper
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
-import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,10 +14,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -104,7 +100,6 @@ fun PlacePickScreen(
         )
     }
     var lastLoadedHtml by remember { mutableStateOf<String?>(null) }
-    val traceScroll = rememberScrollState()
 
     LaunchedEffect(state.finishedLocation) {
         val done = state.finishedLocation ?: return@LaunchedEffect
@@ -123,11 +118,6 @@ fun PlacePickScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("选择地点名称", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "① amap.web.key + amap.security.jscode（地图）；② amap.web.service.key（逆地理）；若控制台为 Web 服务 Key 启用了数字签名，再加 amap.web.service.secret。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
             OutlinedTextField(
                 value = state.placeName,
                 onValueChange = viewModel::updatePlaceName,
@@ -141,27 +131,13 @@ fun PlacePickScreen(
             ) {
                 TextButton(
                     onClick = {
-                        viewModel.reportMapTrace("【读取图钉】已点击")
-                        if (webViewRef == null) {
-                            viewModel.reportMapTrace("【读取图钉】WebView 未就绪，请等地图加载后再试")
-                            return@TextButton
-                        }
-                        // 不要用旧 WebView.post：Compose 重组后实例可能已换，旧队列上的 Runnable 不会执行。
+                        if (webViewRef == null) return@TextButton
+                        // 主线程调度并读取最新 webViewRef，避免旧 WebView.post 在实例替换后不执行。
                         Handler(Looper.getMainLooper()).post {
-                            viewModel.reportMapTrace("【读取图钉】主线程任务开始")
-                            val live = webViewRef
-                            if (live == null) {
-                                viewModel.reportMapTrace("【读取图钉】执行时 WebView 已为空")
-                                return@post
-                            }
+                            val wv = webViewRef ?: return@post
                             val js =
                                 "(function(){try{" +
-                                    "if(window.AndroidHost&&AndroidHost.onMapTrace)" +
-                                    "{AndroidHost.onMapTrace('【读取图钉】JS开始');}" +
-                                    "if(typeof window.sendPick!=='function'){" +
-                                    "if(window.AndroidHost&&AndroidHost.onMapTrace)" +
-                                    "{AndroidHost.onMapTrace('sendPick 未定义');}" +
-                                    "return 'no_sendPick';}" +
+                                    "if(typeof window.sendPick!=='function'){return 'no_sendPick';}" +
                                     "window.sendPick();" +
                                     "return 'ok';" +
                                     "}catch(e){" +
@@ -170,11 +146,7 @@ fun PlacePickScreen(
                                     "{AndroidHost.onMapError('sendPick:'+m);}" +
                                     "return 'err';" +
                                     "}})();"
-                            live.evaluateJavascript(js) { value ->
-                                Handler(Looper.getMainLooper()).post {
-                                    viewModel.reportMapTrace("【读取图钉】evaluateJavascript 回调: ${value ?: "null"}")
-                                }
-                            }
+                            wv.evaluateJavascript(js, null)
                         }
                     }
                 ) {
@@ -220,36 +192,6 @@ fun PlacePickScreen(
                     }
                 }
             )
-            Text(
-                "当前图钉：" + String.format(Locale.CHINA, "%.6f，%.6f", state.mapLat, state.mapLng),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text("运行与逆地理诊断", style = MaterialTheme.typography.labelLarge)
-            Text(
-                text = if (state.mapTrace.isBlank()) {
-                    "若进入本页后仍只有本行，请更新安装版本。正常会先出现「【配置】…」再出现「【逆地理】…」。"
-                } else {
-                    state.mapTrace
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 56.dp, max = 168.dp)
-                    .verticalScroll(traceScroll),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (state.mapDiagnostics.isNotBlank()) {
-                Text(
-                    state.mapDiagnostics,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 120.dp)
-                        .verticalScroll(rememberScrollState()),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
             state.errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
