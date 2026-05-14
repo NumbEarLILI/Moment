@@ -203,12 +203,10 @@ fun CaptureScreen(
                     .verticalScroll(scrollState)
             ) {
                 CaptureHeader(
-                    isEditing = state.editingFragmentId > 0,
                     selectedDate = state.summaryCalendarDay,
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
                     onOpenHistory = { navController.navigate(Routes.History) },
-                    onClose = onClose,
                     momentExpanded = momentExpanded,
                     onToggleMomentExpanded = {
                         val cur = backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] ?: false
@@ -420,12 +418,10 @@ fun CaptureScreen(
 
 @Composable
 private fun CaptureHeader(
-    isEditing: Boolean,
     selectedDate: LocalDate?,
     canGenerateDiary: Boolean,
     onGenerateDiary: () -> Unit,
     onOpenHistory: () -> Unit,
-    onClose: () -> Unit,
     momentExpanded: Boolean,
     onToggleMomentExpanded: () -> Unit,
     momentContent: String,
@@ -451,7 +447,6 @@ private fun CaptureHeader(
     isDeleting: Boolean,
     onRequestDelete: () -> Unit,
 ) {
-    val title = if (isEditing) "继续编辑碎片" else "记录生活碎片"
     val subtitle = selectedDate?.let { "${it.format(HeaderDateFormatter)} · 把这天整理成一页手帐" }
         ?: "随手记下文字、照片与地点"
 
@@ -468,45 +463,25 @@ private fun CaptureHeader(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        "Moment",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                TextButton(
-                    onClick = onClose,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text("关闭", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text(
+                    "Moment",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             CaptureMomentExpandable(
                 expanded = momentExpanded,
