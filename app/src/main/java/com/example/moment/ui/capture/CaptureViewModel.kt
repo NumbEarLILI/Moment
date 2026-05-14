@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 
 @HiltViewModel
@@ -44,6 +46,7 @@ class CaptureViewModel @Inject constructor(
     private val clock: Clock
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CaptureUiState())
+    private val imageAutoSuggestMutex = Mutex()
 
     private val newFragmentForDate: LocalDate? =
         savedStateHandle.get<String>(ARG_FOR_DATE)?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
@@ -127,10 +130,36 @@ class CaptureViewModel @Inject constructor(
     fun updateContent(value: String) = _uiState.update { it.copy(content = value, errorMessage = null) }
     fun updateTags(value: String) = _uiState.update { it.copy(tags = value) }
     fun updateImageUris(value: String) = _uiState.update { it.copy(imageUris = value) }
-    fun updateMood(value: Mood?) = _uiState.update { it.copy(mood = value) }
-    fun addImageUris(values: List<String>) = _uiState.update {
-        val merged = (it.imageUris.csvValues() + values).distinct().joinToString(", ")
-        it.copy(imageUris = merged, errorMessage = null)
+
+    fun addTag(raw: String) {
+        val tag = raw.trim()
+        if (tag.isEmpty()) return
+        _uiState.update { state ->
+            val list = state.tags.csvValues().toMutableList()
+            if (list.any { it.equals(tag, ignoreCase = true) }) return@update state
+            list.add(tag)
+            state.copy(tags = list.joinToString(", "))
+        }
+    }
+
+    fun removeTag(tag: String) = _uiState.update { state ->
+        val remaining = state.tags.csvValues().filterNot { it == tag }
+        state.copy(tags = remaining.joinToString(", "))
+    }
+
+    fun addImageUris(values: List<String>) {
+        _uiState.update {
+            val merged = (it.imageUris.csvValues() + values).distinct().joinToString(", ")
+            it.copy(imageUris = merged, errorMessage = null)
+        }
+        viewModelScope.launch {
+            imageAutoSuggestMutex.withLock {
+                val uris = _uiState.value.imageUris.csvValues()
+                if (uris.isNotEmpty()) {
+                    runAutoSuggestFromImages(uris)
+                }
+            }
+        }
     }
 
     fun removeImageUri(uri: String) = _uiState.update { state ->
@@ -162,45 +191,37 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
-    fun suggestCaptionFromSelectedImages() {
-        val uris = _uiState.value.imageUris.csvValues()
-        if (uris.isEmpty()) {
-            _uiState.update { it.copy(errorMessage = "请先添加至少一张图片") }
-            return
-        }
-        viewModelScope.launch {
-            val moodSnapshot = _uiState.value.mood
-            _uiState.update { it.copy(isAnalyzingImages = true, errorMessage = null) }
-            runCatching { suggestCaptionFromImages(uris, moodSnapshot) }
-                .onSuccess { suggestion ->
-                    _uiState.update { state ->
-                        val newContent = when {
-                            state.content.isBlank() -> suggestion.suggestedContent
-                            else -> state.content.trimEnd() + "\n\n" + suggestion.suggestedContent
-                        }
-                        val mergedTags =
-                            (state.tags.csvValues() + suggestion.suggestedTags)
-                                .map { t -> t.trim() }
-                                .filter { t -> t.isNotEmpty() }
-                                .distinct()
-                        state.copy(
-                            content = newContent,
-                            tags = mergedTags.joinToString(", "),
-                            mood = state.mood ?: suggestion.suggestedMood,
-                            isAnalyzingImages = false,
-                            errorMessage = null
-                        )
+    private suspend fun runAutoSuggestFromImages(uris: List<String>) {
+        _uiState.update { it.copy(isAnalyzingImages = true, errorMessage = null) }
+        runCatching { suggestCaptionFromImages(uris, null) }
+            .onSuccess { suggestion ->
+                _uiState.update { state ->
+                    val newContent = when {
+                        state.content.isBlank() -> suggestion.suggestedContent
+                        else -> state.content.trimEnd() + "\n\n" + suggestion.suggestedContent
                     }
+                    val mergedTags =
+                        (state.tags.csvValues() + suggestion.suggestedTags)
+                            .map { t -> t.trim() }
+                            .filter { t -> t.isNotEmpty() }
+                            .distinct()
+                    state.copy(
+                        content = newContent,
+                        tags = mergedTags.joinToString(", "),
+                        mood = state.mood,
+                        isAnalyzingImages = false,
+                        errorMessage = null
+                    )
                 }
-                .onFailure {
-                    _uiState.update {
-                        it.copy(
-                            isAnalyzingImages = false,
-                            errorMessage = "识别图片失败，请检查权限或稍后重试"
-                        )
-                    }
+            }
+            .onFailure {
+                _uiState.update {
+                    it.copy(
+                        isAnalyzingImages = false,
+                        errorMessage = "识别图片失败，请检查权限或稍后重试"
+                    )
                 }
-        }
+            }
     }
 
     fun save() {
