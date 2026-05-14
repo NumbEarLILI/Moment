@@ -190,10 +190,11 @@ fun CaptureScreen(
         ) { padding ->
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .padding(padding)
                     .imePadding()
                     .navigationBarsPadding()
+                    .verticalScroll(scrollState)
             ) {
                 CaptureHeader(
                     isEditing = state.editingFragmentId > 0,
@@ -262,8 +263,6 @@ fun CaptureScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f)
-                                .verticalScroll(scrollState)
                                 .padding(horizontal = 20.dp)
                                 .padding(top = 16.dp, bottom = 28.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
