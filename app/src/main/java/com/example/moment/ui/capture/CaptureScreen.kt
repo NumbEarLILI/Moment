@@ -76,6 +76,8 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val ImageThumbSize = 88.dp
+private val HeaderDateFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -177,74 +179,27 @@ fun CaptureScreen(
                     .imePadding()
                     .navigationBarsPadding()
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f),
-                    tonalElevation = 0.dp,
-                    shadowElevation = 0.dp
-                ) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                if (state.editingFragmentId > 0) "继续编辑碎片" else "记录生活碎片",
-                                style = MaterialTheme.typography.headlineSmall,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                        Row(
+                CaptureHeader(
+                    isEditing = state.editingFragmentId > 0,
+                    selectedDate = state.summaryCalendarDay,
+                    canGenerateDiary = state.canGenerateDiary,
+                    onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
+                    onOpenHistory = { navController.navigate(Routes.History) },
+                    onClose = onClose
+                )
+                when {
+                    state.isLoadingDraft ->
+                        CircularProgressIndicator(Modifier.padding(20.dp))
+                    else ->
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                                .weight(1f)
+                                .verticalScroll(scrollState)
+                                .padding(horizontal = 20.dp)
+                                .padding(top = 16.dp, bottom = 28.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            OutlinedButton(
-                                onClick = { state.summaryCalendarDay?.let(onGenerateDiary) },
-                                enabled = state.canGenerateDiary,
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                Text("生成手帐")
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                TextButton(
-                                    onClick = { navController.navigate(Routes.History) },
-                                    shape = MaterialTheme.shapes.small
-                                ) {
-                                    Text("历史", color = MaterialTheme.colorScheme.primary)
-                                }
-                                TextButton(
-                                    onClick = onClose,
-                                    shape = MaterialTheme.shapes.small
-                                ) {
-                                    Text("关闭", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                }
-                HorizontalDivider(
-                    thickness = 0.5.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                )
-            when {
-                state.isLoadingDraft ->
-                    CircularProgressIndicator(Modifier.padding(20.dp))
-                else ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .verticalScroll(scrollState)
-                            .padding(horizontal = 20.dp)
-                            .padding(top = 16.dp, bottom = 28.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
                         state.summaryCalendarDay?.let { day ->
                             Surface(
                                 modifier = Modifier
@@ -532,6 +487,96 @@ fun CaptureScreen(
             }
         )
     }
+    }
+}
+
+@Composable
+private fun CaptureHeader(
+    isEditing: Boolean,
+    selectedDate: LocalDate?,
+    canGenerateDiary: Boolean,
+    onGenerateDiary: () -> Unit,
+    onOpenHistory: () -> Unit,
+    onClose: () -> Unit
+) {
+    val title = if (isEditing) "继续编辑碎片" else "记录生活碎片"
+    val subtitle = selectedDate?.let { "${it.format(HeaderDateFormatter)} · 把这天整理成一页手帐" }
+        ?: "随手记下文字、照片、心情和地点"
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "Moment",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                TextButton(
+                    onClick = onClose,
+                    shape = MaterialTheme.shapes.small
+                ) {
+                    Text("关闭", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onGenerateDiary,
+                    enabled = canGenerateDiary,
+                    modifier = Modifier.weight(1f),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Text("生成手帐")
+                }
+                OutlinedButton(
+                    onClick = onOpenHistory,
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Text("历史")
+                }
+            }
+        }
     }
 }
 
