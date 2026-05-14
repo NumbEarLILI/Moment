@@ -3,14 +3,10 @@ package com.example.moment.ui.theme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
-import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 private val MomentColors = lightColorScheme(
     primary = Color(0xFF7A4E2D),
@@ -47,57 +43,11 @@ private val MomentShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp)
 )
 
-private val MomentTypography = Typography().copy(
-    headlineSmall = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 32.sp,
-        letterSpacing = (-0.3).sp
-    ),
-    titleMedium = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.1.sp
-    ),
-    titleSmall = TextStyle(
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        letterSpacing = 0.1.sp
-    ),
-    bodyLarge = TextStyle(
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.15.sp
-    ),
-    bodyMedium = TextStyle(
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 22.sp,
-        letterSpacing = 0.15.sp
-    ),
-    bodySmall = TextStyle(
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
-        lineHeight = 18.sp,
-        letterSpacing = 0.2.sp
-    ),
-    labelLarge = TextStyle(
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        letterSpacing = 0.1.sp
-    )
-)
-
 @Composable
 fun MomentTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = MomentColors,
         shapes = MomentShapes,
-        typography = MomentTypography,
         content = content
     )
 }
