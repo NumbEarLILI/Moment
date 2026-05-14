@@ -1,27 +1,103 @@
 package com.example.moment.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 private val MomentColors = lightColorScheme(
-    primary = Color(0xFF8B5E34),
-    secondary = Color(0xFFB9845A),
-    tertiary = Color(0xFF6F7D58),
-    background = Color(0xFFFFFBF6),
-    surface = Color(0xFFFFF7ED),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onBackground = Color(0xFF2D2218),
-    onSurface = Color(0xFF2D2218)
+    primary = Color(0xFF7A4E2D),
+    onPrimary = Color(0xFFFFFBF7),
+    primaryContainer = Color(0xFFFFDCC2),
+    onPrimaryContainer = Color(0xFF2C1608),
+    secondary = Color(0xFF6B5B4F),
+    onSecondary = Color(0xFFFFF8F3),
+    secondaryContainer = Color(0xFFF2DFD0),
+    onSecondaryContainer = Color(0xFF261812),
+    tertiary = Color(0xFF5C6B4E),
+    onTertiary = Color(0xFFF5FCEF),
+    tertiaryContainer = Color(0xFFDFEAD2),
+    onTertiaryContainer = Color(0xFF1A2114),
+    background = Color(0xFFFFFAF5),
+    onBackground = Color(0xFF221A14),
+    surface = Color(0xFFFFF6EC),
+    onSurface = Color(0xFF221A14),
+    surfaceVariant = Color(0xFFF0E4D8),
+    onSurfaceVariant = Color(0xFF52473D),
+    outline = Color(0xFFD1BDA8),
+    outlineVariant = Color(0xFFE8D9CA),
+    error = Color(0xFFBA1A1A),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFDAD6),
+    onErrorContainer = Color(0xFF410002)
+)
+
+private val MomentShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp)
+)
+
+private val MomentTypography = Typography().copy(
+    headlineSmall = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
+        letterSpacing = (-0.3).sp
+    ),
+    titleMedium = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.1.sp
+    ),
+    titleSmall = TextStyle(
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    ),
+    bodyLarge = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.15.sp
+    ),
+    bodyMedium = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.15.sp
+    ),
+    bodySmall = TextStyle(
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.2.sp
+    ),
+    labelLarge = TextStyle(
+        fontWeight = FontWeight.Medium,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    )
 )
 
 @Composable
 fun MomentTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = MomentColors,
-        typography = MaterialTheme.typography,
+        shapes = MomentShapes,
+        typography = MomentTypography,
         content = content
     )
 }

@@ -29,24 +29,41 @@ fun DiaryDetailScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    Scaffold { padding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            TextButton(onClick = onBack) { Text("返回") }
+            TextButton(onClick = onBack, shape = MaterialTheme.shapes.small) {
+                Text("返回", color = MaterialTheme.colorScheme.primary)
+            }
             when {
-                state.isLoading -> CircularProgressIndicator()
-                state.errorMessage != null -> Text(state.errorMessage ?: "")
-                state.entry == null -> Text("没有找到这篇日记。")
+                state.isLoading -> CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                state.errorMessage != null -> Text(state.errorMessage ?: "", color = MaterialTheme.colorScheme.error)
+                state.entry == null -> Text(
+                    "没有找到这篇日记。",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 else -> {
                     val entry = checkNotNull(state.entry)
-                    Text(entry.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(entry.date.toString(), color = MaterialTheme.colorScheme.secondary)
-                    Text(entry.body)
+                    Text(
+                        entry.title,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        entry.date.toString(),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(entry.body, style = MaterialTheme.typography.bodyLarge)
                     DiaryLocationPinsRow(
                         pins = entry.locationPins,
                         onPinClick = { pin ->

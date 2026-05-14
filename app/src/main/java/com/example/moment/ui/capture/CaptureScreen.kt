@@ -28,13 +28,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -159,7 +164,9 @@ fun CaptureScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
-        Scaffold { padding ->
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background
+        ) { padding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -167,40 +174,57 @@ fun CaptureScreen(
                     .imePadding()
                     .navigationBarsPadding()
             ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    if (state.editingFragmentId > 0) "继续编辑碎片" else "记录生活碎片",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = { state.summaryCalendarDay?.let(onGenerateDiary) },
-                    enabled = state.canGenerateDiary
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
+                    tonalElevation = 2.dp
                 ) {
-                    Text("生成手帐")
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { navController.navigate(Routes.History) }) {
-                        Text("历史")
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (state.editingFragmentId > 0) "继续编辑碎片" else "记录生活碎片",
+                                style = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = { state.summaryCalendarDay?.let(onGenerateDiary) },
+                                enabled = state.canGenerateDiary,
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                Text("生成手帐")
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                TextButton(
+                                    onClick = { navController.navigate(Routes.History) },
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    Text("历史", color = MaterialTheme.colorScheme.primary)
+                                }
+                                TextButton(
+                                    onClick = onClose,
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    Text("关闭", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
                     }
-                    TextButton(onClick = onClose) { Text("关闭") }
                 }
-            }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             when {
                 state.isLoadingDraft ->
                     CircularProgressIndicator(Modifier.padding(20.dp))
@@ -211,41 +235,54 @@ fun CaptureScreen(
                             .weight(1f)
                             .verticalScroll(scrollState)
                             .padding(horizontal = 20.dp)
-                            .padding(bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                            .padding(top = 16.dp, bottom = 28.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         state.summaryCalendarDay?.let { day ->
-                            Text(
-                                "${day.format(DateTimeFormatter.ISO_LOCAL_DATE)} 已有记录",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (state.otherFragmentsOnDay.isEmpty()) {
-                                Text(
-                                    if (state.editingFragmentId > 0) {
-                                        "今日仅有正在编辑的这条记录，暂无其它已保存碎片。"
-                                    } else {
-                                        "这一天还没有其它已保存碎片，写完后保存即可新增一条。"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                            ElevatedCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large,
+                                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                                 )
-                            } else {
-                                Text(
-                                    "以下为本日已保存内容，避免重复记录。",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                state.otherFragmentsOnDay.forEach { fragment ->
-                                    key(fragment.id) {
-                                        DayFragmentSummaryRow(
-                                            fragment = fragment,
-                                            onOpen = { navController.navigate(Routes.capture(fragment.id)) }
+                            ) {
+                                Column(
+                                    Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Text(
+                                        "${day.format(DateTimeFormatter.ISO_LOCAL_DATE)} · 已有记录",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    if (state.otherFragmentsOnDay.isEmpty()) {
+                                        Text(
+                                            if (state.editingFragmentId > 0) {
+                                                "今日仅有正在编辑的这条记录，暂无其它已保存碎片。"
+                                            } else {
+                                                "这一天还没有其它已保存碎片，写完后保存即可新增一条。"
+                                            },
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                    } else {
+                                        Text(
+                                            "以下为本日已保存内容，避免重复记录。",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        state.otherFragmentsOnDay.forEach { fragment ->
+                                            key(fragment.id) {
+                                                DayFragmentSummaryRow(
+                                                    fragment = fragment,
+                                                    onOpen = { navController.navigate(Routes.capture(fragment.id)) }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            Spacer(Modifier.height(4.dp))
                         }
                         OutlinedTextField(
                             value = state.content,
@@ -253,15 +290,28 @@ fun CaptureScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(150.dp),
-                            label = { Text("发生了什么？") }
+                            label = { Text("发生了什么？") },
+                            shape = MaterialTheme.shapes.medium,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f),
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary
+                            )
                         )
-                        Text("心情", style = MaterialTheme.typography.labelLarge)
+                        Text("心情", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Mood.entries.forEach { mood ->
                                 FilterChip(
                                     selected = state.mood == mood,
                                     onClick = { viewModel.updateMood(if (state.mood == mood) null else mood) },
-                                    label = { Text(mood.displayName) }
+                                    label = { Text(mood.displayName) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                    ),
+                                    shape = MaterialTheme.shapes.small
                                 )
                             }
                         }
@@ -269,9 +319,16 @@ fun CaptureScreen(
                             value = state.tags,
                             onValueChange = viewModel::updateTags,
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("标签，用英文逗号分隔") }
+                            label = { Text("标签，用英文逗号分隔") },
+                            shape = MaterialTheme.shapes.medium,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f),
+                                cursorColor = MaterialTheme.colorScheme.primary,
+                                focusedLabelColor = MaterialTheme.colorScheme.primary
+                            )
                         )
-                        Text("地点", style = MaterialTheme.typography.labelLarge)
+                        Text("地点", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                         val loc = state.locationOverride ?: state.baselineLocation
                         loc?.let {
                             Text(
@@ -313,7 +370,7 @@ fun CaptureScreen(
                         ) {
                             Text("在地图上选择地点名称")
                         }
-                        Text("图片", style = MaterialTheme.typography.labelLarge)
+                        Text("图片", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
                         if (imageUriList.isNotEmpty()) {
                             LazyRow(
                                 modifier = Modifier
@@ -387,7 +444,8 @@ fun CaptureScreen(
                         Button(
                             onClick = { requestSave() },
                             enabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large
                         ) {
                             Text(saveLabel)
                         }
@@ -440,7 +498,12 @@ private fun DayFragmentSummaryRow(
     fragment: LifeFragment,
     onOpen: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.small,
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -461,7 +524,7 @@ private fun DayFragmentSummaryRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            TextButton(onClick = onOpen) { Text("查看") }
+            TextButton(onClick = onOpen, shape = MaterialTheme.shapes.small) { Text("查看") }
         }
     }
 }
@@ -479,7 +542,7 @@ private fun ImageThumbnail(
             contentDescription = null,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(10.dp)),
+                .clip(RoundedCornerShape(12.dp)),
             contentScale = ContentScale.Crop
         )
         Box(
