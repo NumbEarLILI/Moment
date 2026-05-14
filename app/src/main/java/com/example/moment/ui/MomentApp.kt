@@ -17,6 +17,7 @@ import com.example.moment.ui.history.HistoryEvent
 import com.example.moment.ui.history.HistoryScreen
 import com.example.moment.ui.history.HistoryViewModel
 import com.example.moment.ui.place.PlacePickScreen
+import com.example.moment.ui.settings.SettingsScreen
 import java.time.LocalDate
 
 @Composable
@@ -41,7 +42,8 @@ fun MomentApp() {
                         }
                     }
                 },
-                onGenerateDiary = { date -> navController.navigate("preview/$date") }
+                onGenerateDiary = { date -> navController.navigate("preview/$date") },
+                onOpenSettings = { navController.navigate(Routes.Settings) }
             )
         }
         composable(
@@ -67,11 +69,15 @@ fun MomentApp() {
             }
             HistoryScreen(
                 onBack = { navController.popBackStack() },
+                onOpenSettings = { navController.navigate(Routes.Settings) },
                 onAddFragmentForPastDay = { date -> navController.navigate(Routes.capture(0L, date)) },
                 onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
                 onOpenDiary = { id -> navController.navigate("detail/$id") },
                 viewModel = historyViewModel
             )
+        }
+        composable(Routes.Settings) {
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = Routes.Detail,
@@ -107,6 +113,7 @@ object Routes {
     const val Capture = "capture?fragmentId={fragmentId}&forDate={forDate}"
     const val Preview = "preview/{date}"
     const val History = "history"
+    const val Settings = "settings"
     const val Detail = "detail/{id}"
     const val PlacePick = "placePick?lat={lat}&lng={lng}&hint={hint}&fragmentId={fragmentId}&diaryId={diaryId}"
 

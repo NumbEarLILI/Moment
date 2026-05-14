@@ -45,6 +45,7 @@ import java.util.Locale
 @Composable
 fun HistoryScreen(
     onBack: () -> Unit,
+    onOpenSettings: () -> Unit,
     onAddFragmentForPastDay: (LocalDate) -> Unit,
     onContinueEditFragment: (Long) -> Unit,
     onOpenDiary: (Long) -> Unit,
@@ -81,12 +82,23 @@ fun HistoryScreen(
                             ) {
                                 Text("返回", color = MaterialTheme.colorScheme.primary)
                             }
-                            if (state.selectedDate != viewModel.today) {
-                                OutlinedButton(
-                                    onClick = { onAddFragmentForPastDay(state.selectedDate) },
-                                    shape = MaterialTheme.shapes.medium
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = onOpenSettings,
+                                    shape = MaterialTheme.shapes.small
                                 ) {
-                                    Text("为该日新增碎片")
+                                    Text("设置", color = MaterialTheme.colorScheme.primary)
+                                }
+                                if (state.selectedDate != viewModel.today) {
+                                    OutlinedButton(
+                                        onClick = { onAddFragmentForPastDay(state.selectedDate) },
+                                        shape = MaterialTheme.shapes.medium
+                                    ) {
+                                        Text("为该日新增碎片")
+                                    }
                                 }
                             }
                         }
