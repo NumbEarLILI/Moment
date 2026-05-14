@@ -8,39 +8,43 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+/**
+ * Light “zinc” palette inspired by shadcn/ui defaults: neutral surfaces,
+ * near-black primary actions, and hairline borders via [outline].
+ */
 private val MomentColors = lightColorScheme(
-    primary = Color(0xFF7A4E2D),
-    onPrimary = Color(0xFFFFFBF7),
-    primaryContainer = Color(0xFFFFDCC2),
-    onPrimaryContainer = Color(0xFF2C1608),
-    secondary = Color(0xFF6B5B4F),
-    onSecondary = Color(0xFFFFF8F3),
-    secondaryContainer = Color(0xFFF2DFD0),
-    onSecondaryContainer = Color(0xFF261812),
-    tertiary = Color(0xFF5C6B4E),
-    onTertiary = Color(0xFFF5FCEF),
-    tertiaryContainer = Color(0xFFDFEAD2),
-    onTertiaryContainer = Color(0xFF1A2114),
-    background = Color(0xFFFFFAF5),
-    onBackground = Color(0xFF221A14),
-    surface = Color(0xFFFFF6EC),
-    onSurface = Color(0xFF221A14),
-    surfaceVariant = Color(0xFFF0E4D8),
-    onSurfaceVariant = Color(0xFF52473D),
-    outline = Color(0xFFD1BDA8),
-    outlineVariant = Color(0xFFE8D9CA),
-    error = Color(0xFFBA1A1A),
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002)
+    primary = Color(0xFF18181B),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFF4F4F5),
+    onPrimaryContainer = Color(0xFF18181B),
+    secondary = Color(0xFF71717A),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFE4E4E7),
+    onSecondaryContainer = Color(0xFF18181B),
+    tertiary = Color(0xFF3F3F46),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFF4F4F5),
+    onTertiaryContainer = Color(0xFF3F3F46),
+    background = Color(0xFFFAFAFA),
+    onBackground = Color(0xFF18181B),
+    surface = Color(0xFFFFFFFF),
+    onSurface = Color(0xFF18181B),
+    surfaceVariant = Color(0xFFF4F4F5),
+    onSurfaceVariant = Color(0xFF71717A),
+    outline = Color(0xFFE4E4E7),
+    outlineVariant = Color(0xFFF4F4F5),
+    error = Color(0xFFDC2626),
+    onError = Color(0xFFFFFFFF),
+    errorContainer = Color(0xFFFEE2E2),
+    onErrorContainer = Color(0xFF7F1D1D)
 )
 
 private val MomentShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp),
-    extraLarge = RoundedCornerShape(28.dp)
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(6.dp),
+    medium = RoundedCornerShape(8.dp),
+    large = RoundedCornerShape(10.dp),
+    extraLarge = RoundedCornerShape(14.dp)
 )
 
 @Composable

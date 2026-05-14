@@ -30,7 +30,7 @@ import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.Locale
 
-private val DayShape = RoundedCornerShape(12.dp)
+private val DayShape = RoundedCornerShape(8.dp)
 
 @Composable
 fun MonthCalendar(
@@ -52,10 +52,12 @@ fun MonthCalendar(
     val scheme = MaterialTheme.colorScheme
 
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, scheme.outline, MaterialTheme.shapes.medium),
         shape = MaterialTheme.shapes.medium,
         color = scheme.surface,
-        tonalElevation = 1.dp,
+        tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
         Column(
@@ -149,10 +151,10 @@ private fun DayCell(
     val isToday = date == today
     val bg = when {
         isSelected -> scheme.primaryContainer
-        else -> scheme.surfaceVariant.copy(alpha = 0.55f)
+        else -> scheme.surfaceVariant
     }
     val borderModifier = when {
-        isToday && !isSelected -> Modifier.border(1.5.dp, scheme.primary, DayShape)
+        isToday && !isSelected -> Modifier.border(1.dp, scheme.primary, DayShape)
         else -> Modifier
     }
     Box(

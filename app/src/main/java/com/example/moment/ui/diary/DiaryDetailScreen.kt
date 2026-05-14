@@ -61,7 +61,7 @@ fun DiaryDetailScreen(
                     Text(
                         entry.date.toString(),
                         style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(entry.body, style = MaterialTheme.typography.bodyLarge)
                     DiaryLocationPinsRow(
@@ -81,9 +81,15 @@ fun DiaryDetailScreen(
                     )
                     DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
                     if (entry.highlights.isNotEmpty()) {
-                        Text("亮点：${entry.highlights.joinToString(" / ")}")
+                        Text(
+                            "亮点：${entry.highlights.joinToString(" / ")}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    entry.moodSummary?.let { Text(it) }
+                    entry.moodSummary?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }

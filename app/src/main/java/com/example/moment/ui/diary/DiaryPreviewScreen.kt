@@ -118,7 +118,7 @@ fun DiaryPreviewScreen(
                     )
                 }
                 state.moodSummary?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 state.errorMessage?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
@@ -127,7 +127,7 @@ fun DiaryPreviewScreen(
                     onClick = viewModel::save,
                     enabled = !state.isSaving && state.sourceFragmentIds.isNotEmpty(),
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
+                    shape = MaterialTheme.shapes.medium
                 ) {
                     Text(if (state.isSaving) "保存中..." else "保存日记")
                 }

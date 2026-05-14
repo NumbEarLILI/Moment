@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -175,8 +174,15 @@ fun CaptureScreen(
                     .navigationBarsPadding()
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline,
+                            shape = MaterialTheme.shapes.large
+                        ),
+                    shape = MaterialTheme.shapes.large,
+                    color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp,
                     shadowElevation = 0.dp
                 ) {
@@ -191,7 +197,7 @@ fun CaptureScreen(
                                 modifier = Modifier.weight(1f),
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                         Row(
@@ -247,12 +253,12 @@ fun CaptureScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .border(
-                                        width = 0.5.dp,
-                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                                        width = 1.dp,
+                                        color = MaterialTheme.colorScheme.outline,
                                         shape = MaterialTheme.shapes.medium
                                     ),
                                 shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
                                 tonalElevation = 0.dp,
                                 shadowElevation = 0.dp
                             ) {
@@ -322,7 +328,7 @@ fun CaptureScreen(
                                 focusedLabelColor = MaterialTheme.colorScheme.primary
                             )
                         )
-                        Text("心情", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                        Text("心情", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Mood.entries.forEach { mood ->
                                 FilterChip(
@@ -330,9 +336,9 @@ fun CaptureScreen(
                                     onClick = { viewModel.updateMood(if (state.mood == mood) null else mood) },
                                     label = { Text(mood.displayName) },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                        selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        selectedLeadingIconColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary
                                     ),
                                     shape = MaterialTheme.shapes.small
                                 )
@@ -351,7 +357,7 @@ fun CaptureScreen(
                                 focusedLabelColor = MaterialTheme.colorScheme.primary
                             )
                         )
-                        Text("地点", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                        Text("地点", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                         val loc = state.locationOverride ?: state.baselineLocation
                         loc?.let {
                             Text(
@@ -393,7 +399,7 @@ fun CaptureScreen(
                         ) {
                             Text("在地图上选择地点名称")
                         }
-                        Text("图片", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                        Text("图片", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                         if (imageUriList.isNotEmpty()) {
                             LazyRow(
                                 modifier = Modifier
@@ -468,7 +474,7 @@ fun CaptureScreen(
                             onClick = { requestSave() },
                             enabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large
+                            shape = MaterialTheme.shapes.medium
                         ) {
                             Text(saveLabel)
                         }
@@ -566,7 +572,7 @@ private fun ImageThumbnail(
             contentDescription = null,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(12.dp)),
+                .clip(MaterialTheme.shapes.medium),
             contentScale = ContentScale.Crop
         )
         Box(
