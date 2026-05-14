@@ -9,6 +9,7 @@ import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
+import com.example.moment.domain.usecase.DeleteFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
 import com.example.moment.domain.usecase.ObserveFragmentsForDateUseCase
 import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
@@ -37,6 +38,7 @@ import kotlinx.serialization.json.Json
 class CaptureViewModel @Inject constructor(
     private val addFragment: AddFragmentUseCase,
     private val updateFragment: UpdateFragmentUseCase,
+    private val deleteFragment: DeleteFragmentUseCase,
     private val getFragmentById: GetFragmentByIdUseCase,
     private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
     observeFragmentsForDate: ObserveFragmentsForDateUseCase,
@@ -226,7 +228,7 @@ class CaptureViewModel @Inject constructor(
 
     fun save() {
         val state = _uiState.value
-        if (state.isLoadingDraft) return
+        if (state.isLoadingDraft || state.isDeleting) return
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
             runCatching {
@@ -275,6 +277,23 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
+    fun deleteEditingFragment() {
+        val id = _uiState.value.editingFragmentId
+        if (id <= 0L || _uiState.value.isLoadingDraft || _uiState.value.isDeleting) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isDeleting = true, errorMessage = null) }
+            runCatching { deleteFragment(id) }
+                .onSuccess {
+                    _uiState.update { it.copy(isDeleting = false, saved = true) }
+                }
+                .onFailure {
+                    _uiState.update {
+                        it.copy(isDeleting = false, errorMessage = "删除失败，请稍后重试")
+                    }
+                }
+        }
+    }
+
     private fun String.csvValues(): List<String> =
         split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -295,6 +314,7 @@ data class CaptureUiState(
     val locationOverride: FragmentLocation? = null,
     val isAnalyzingImages: Boolean = false,
     val isSaving: Boolean = false,
+    val isDeleting: Boolean = false,
     val saved: Boolean = false,
     val errorMessage: String? = null,
     val summaryCalendarDay: LocalDate? = null,

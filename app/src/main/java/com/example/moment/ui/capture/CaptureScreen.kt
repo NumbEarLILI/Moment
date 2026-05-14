@@ -8,20 +8,19 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,8 +29,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -84,6 +81,8 @@ private val ImageThumbSize = 88.dp
 private val HeaderDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)
 
+private const val CAPTURE_MOMENT_EXPANDED_KEY = "captureMomentExpanded"
+
 @Composable
 fun CaptureScreen(
     navController: NavHostController,
@@ -97,6 +96,9 @@ fun CaptureScreen(
     val pickJson by backStackEntry.savedStateHandle
         .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
         .collectAsStateWithLifecycle()
+    val momentExpanded by backStackEntry.savedStateHandle
+        .getStateFlow(CAPTURE_MOMENT_EXPANDED_KEY, false)
+        .collectAsStateWithLifecycle()
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var pendingSaveAfterLocationPermission by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
@@ -106,7 +108,6 @@ fun CaptureScreen(
     val tagList = remember(state.tags) {
         state.tags.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     }
-    var momentExpanded by remember { mutableStateOf(false) }
     var newTagInput by remember { mutableStateOf("") }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -120,6 +121,7 @@ fun CaptureScreen(
 
     var showPlacePickPermissionDialog by remember { mutableStateOf(false) }
     var pendingPlacePickAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
     val placePickPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
@@ -184,6 +186,7 @@ fun CaptureScreen(
         if (pickJson.isNotBlank()) {
             viewModel.applyPickedLocationFromJson(pickJson)
             backStackEntry.savedStateHandle[MOMENT_PICK_LOCATION_JSON_KEY] = ""
+            backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = true
         }
     }
 
@@ -193,20 +196,22 @@ fun CaptureScreen(
         ) { padding ->
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .padding(padding)
                     .imePadding()
                     .navigationBarsPadding()
+                    .verticalScroll(scrollState)
             ) {
                 CaptureHeader(
-                    isEditing = state.editingFragmentId > 0,
                     selectedDate = state.summaryCalendarDay,
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
                     onOpenHistory = { navController.navigate(Routes.History) },
-                    onClose = onClose,
                     momentExpanded = momentExpanded,
-                    onToggleMomentExpanded = { momentExpanded = !momentExpanded },
+                    onToggleMomentExpanded = {
+                        val cur = backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] ?: false
+                        backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = !cur
+                    },
                     momentContent = state.content,
                     onMomentContentChange = viewModel::updateContent,
                     tagList = tagList,
@@ -248,7 +253,18 @@ fun CaptureScreen(
                     },
                     location = state.locationOverride ?: state.baselineLocation,
                     isAnalyzingImages = state.isAnalyzingImages,
-                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft
+                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
+                    canDeleteFragment = state.editingFragmentId > 0,
+                    isDeleting = state.isDeleting,
+                    onRequestDelete = { showDeleteConfirmDialog = true },
+                    errorMessage = state.errorMessage,
+                    saveLabel = when {
+                        state.isSaving -> "保存中..."
+                        state.editingFragmentId > 0 -> "保存修改"
+                        else -> "保存碎片"
+                    },
+                    onSave = { requestSave() },
+                    saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages && !state.isDeleting
                 )
                 when {
                     state.isLoadingDraft ->
@@ -257,8 +273,6 @@ fun CaptureScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f)
-                                .verticalScroll(scrollState)
                                 .padding(horizontal = 20.dp)
                                 .padding(top = 16.dp, bottom = 28.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -328,23 +342,6 @@ fun CaptureScreen(
                                 }
                             }
                         }
-                        state.errorMessage?.let {
-                            Text(it, color = MaterialTheme.colorScheme.error)
-                        }
-                        val saveLabel = when {
-                            state.isSaving -> "保存中..."
-                            state.editingFragmentId > 0 -> "保存修改"
-                            else -> "保存碎片"
-                        }
-                        Button(
-                            onClick = { requestSave() },
-                            enabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large
-                        ) {
-                            Text(saveLabel)
-                        }
-                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
@@ -386,16 +383,45 @@ fun CaptureScreen(
             }
         )
     }
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!state.isDeleting) showDeleteConfirmDialog = false },
+            title = { Text("删除碎片") },
+            text = {
+                Text(
+                    "确定要删除这条碎片吗？此操作无法撤销。",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        viewModel.deleteEditingFragment()
+                    },
+                    enabled = !state.isDeleting
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmDialog = false },
+                    enabled = !state.isDeleting
+                ) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun CaptureHeader(
-    isEditing: Boolean,
     selectedDate: LocalDate?,
     canGenerateDiary: Boolean,
     onGenerateDiary: () -> Unit,
     onOpenHistory: () -> Unit,
-    onClose: () -> Unit,
     momentExpanded: Boolean,
     onToggleMomentExpanded: () -> Unit,
     momentContent: String,
@@ -413,8 +439,14 @@ private fun CaptureHeader(
     location: FragmentLocation?,
     isAnalyzingImages: Boolean,
     momentInteractionsEnabled: Boolean,
+    errorMessage: String?,
+    saveLabel: String,
+    onSave: () -> Unit,
+    saveEnabled: Boolean,
+    canDeleteFragment: Boolean,
+    isDeleting: Boolean,
+    onRequestDelete: () -> Unit,
 ) {
-    val title = if (isEditing) "继续编辑碎片" else "记录生活碎片"
     val subtitle = selectedDate?.let { "${it.format(HeaderDateFormatter)} · 把这天整理成一页手帐" }
         ?: "随手记下文字、照片与地点"
 
@@ -431,45 +463,25 @@ private fun CaptureHeader(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Row(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        "Moment",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        softWrap = false
-                    )
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                TextButton(
-                    onClick = onClose,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text("关闭", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text(
+                    "Moment",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             CaptureMomentExpandable(
                 expanded = momentExpanded,
@@ -488,7 +500,14 @@ private fun CaptureHeader(
                 onPickPlace = onPickPlace,
                 location = location,
                 isAnalyzingImages = isAnalyzingImages,
-                interactionsEnabled = momentInteractionsEnabled
+                interactionsEnabled = momentInteractionsEnabled,
+                errorMessage = errorMessage,
+                saveLabel = saveLabel,
+                onSave = onSave,
+                saveEnabled = saveEnabled,
+                canDeleteFragment = canDeleteFragment,
+                isDeleting = isDeleting,
+                onRequestDelete = onRequestDelete
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -534,6 +553,13 @@ private fun CaptureMomentExpandable(
     location: FragmentLocation?,
     isAnalyzingImages: Boolean,
     interactionsEnabled: Boolean,
+    errorMessage: String?,
+    saveLabel: String,
+    onSave: () -> Unit,
+    saveEnabled: Boolean,
+    canDeleteFragment: Boolean,
+    isDeleting: Boolean,
+    onRequestDelete: () -> Unit,
 ) {
     val corner = RoundedCornerShape(14.dp)
     Surface(
@@ -598,9 +624,10 @@ private fun CaptureMomentExpandable(
             }
             AnimatedVisibility(
                 visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = fadeIn(animationSpec = tween(220)),
+                exit = fadeOut(animationSpec = tween(180))
             ) {
+                val thumbRowScroll = rememberScrollState()
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -643,17 +670,20 @@ private fun CaptureMomentExpandable(
                         }
                     }
                     if (imageUriList.isNotEmpty()) {
-                        LazyRow(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .horizontalScroll(thumbRowScroll)
                                 .height(ImageThumbSize),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(imageUriList, key = { it }) { uri ->
-                                ImageThumbnail(
-                                    uri = uri,
-                                    onRemove = { onRemoveImage(uri) }
-                                )
+                            imageUriList.forEach { uri ->
+                                key(uri) {
+                                    ImageThumbnail(
+                                        uri = uri,
+                                        onRemove = { onRemoveImage(uri) }
+                                    )
+                                }
                             }
                         }
                     } else {
@@ -701,8 +731,7 @@ private fun CaptureMomentExpandable(
                     }
                     TextButton(
                         onClick = onPickPlace,
-                        enabled = interactionsEnabled,
-                        modifier = Modifier.padding(start = (-4).dp)
+                        enabled = interactionsEnabled
                     ) {
                         Text("在地图上选择地点名称")
                     }
@@ -747,6 +776,33 @@ private fun CaptureMomentExpandable(
                             enabled = interactionsEnabled && newTagInput.trim().isNotEmpty()
                         ) {
                             Text("添加")
+                        }
+                    }
+                    errorMessage?.let { msg ->
+                        Text(
+                            msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Button(
+                        onClick = onSave,
+                        enabled = saveEnabled,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(saveLabel)
+                    }
+                    if (canDeleteFragment) {
+                        TextButton(
+                            onClick = onRequestDelete,
+                            enabled = interactionsEnabled && !isDeleting && !isAnalyzingImages,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (isDeleting) "删除中…" else "删除碎片",
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
