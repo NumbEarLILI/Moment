@@ -2,6 +2,7 @@ package com.example.moment.ui.capture
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -146,7 +147,17 @@ fun CaptureScreen(
         }
     }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+    val imagePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        uris.forEach { uri ->
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+        }
         viewModel.addImageUris(uris.map { it.toString() })
     }
     val takePicture = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -404,7 +415,7 @@ fun CaptureScreen(
                                 Text("相机拍照")
                             }
                             TextButton(
-                                onClick = { imagePicker.launch("image/*") },
+                                onClick = { imagePicker.launch(arrayOf("image/*")) },
                                 enabled = !state.isAnalyzingImages
                             ) {
                                 Text("从相册选择")
