@@ -6,8 +6,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,9 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -49,7 +46,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -176,8 +173,9 @@ fun CaptureScreen(
             ) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f),
-                    tonalElevation = 2.dp
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.22f),
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
                 ) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                         Row(
@@ -224,7 +222,10 @@ fun CaptureScreen(
                         }
                     }
                 }
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(
+                    thickness = 0.5.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                )
             when {
                 state.isLoadingDraft ->
                     CircularProgressIndicator(Modifier.padding(20.dp))
@@ -239,22 +240,28 @@ fun CaptureScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         state.summaryCalendarDay?.let { day ->
-                            ElevatedCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = MaterialTheme.shapes.large,
-                                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
-                                colors = CardDefaults.elevatedCardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                )
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        width = 0.5.dp,
+                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                                        shape = MaterialTheme.shapes.medium
+                                    ),
+                                shape = MaterialTheme.shapes.medium,
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f),
+                                tonalElevation = 0.dp,
+                                shadowElevation = 0.dp
                             ) {
                                 Column(
-                                    Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text(
                                         "${day.format(DateTimeFormatter.ISO_LOCAL_DATE)} · 已有记录",
                                         style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.primary
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     if (state.otherFragmentsOnDay.isEmpty()) {
                                         Text(
@@ -264,20 +271,33 @@ fun CaptureScreen(
                                                 "这一天还没有其它已保存碎片，写完后保存即可新增一条。"
                                             },
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
                                         )
                                     } else {
                                         Text(
                                             "以下为本日已保存内容，避免重复记录。",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
                                         )
-                                        state.otherFragmentsOnDay.forEach { fragment ->
-                                            key(fragment.id) {
-                                                DayFragmentSummaryRow(
-                                                    fragment = fragment,
-                                                    onOpen = { navController.navigate(Routes.capture(fragment.id)) }
-                                                )
+                                        Column(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalArrangement = Arrangement.spacedBy(0.dp)
+                                        ) {
+                                            state.otherFragmentsOnDay.forEachIndexed { index, fragment ->
+                                                key(fragment.id) {
+                                                    DayFragmentSummaryRow(
+                                                        fragment = fragment,
+                                                        onOpen = { navController.navigate(Routes.capture(fragment.id)) }
+                                                    )
+                                                    if (index < state.otherFragmentsOnDay.lastIndex) {
+                                                        HorizontalDivider(
+                                                            thickness = 0.5.dp,
+                                                            color = MaterialTheme.colorScheme.outlineVariant.copy(
+                                                                alpha = 0.45f
+                                                            )
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -294,7 +314,7 @@ fun CaptureScreen(
                             shape = MaterialTheme.shapes.medium,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
                                 cursorColor = MaterialTheme.colorScheme.primary,
                                 focusedLabelColor = MaterialTheme.colorScheme.primary
                             )
@@ -323,7 +343,7 @@ fun CaptureScreen(
                             shape = MaterialTheme.shapes.medium,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
                                 cursorColor = MaterialTheme.colorScheme.primary,
                                 focusedLabelColor = MaterialTheme.colorScheme.primary
                             )
@@ -498,33 +518,34 @@ private fun DayFragmentSummaryRow(
     fragment: LifeFragment,
     onOpen: () -> Unit
 ) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.small,
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                fragment.createdAt.atZone(ZoneId.systemDefault()).toLocalTime().toString().take(5),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.secondary
+            )
+            val preview = fragment.content.trim().ifBlank { "（无文字）" }
+                .let { if (it.length > 120) it.take(120) + "…" else it }
+            Text(
+                preview,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        TextButton(
+            onClick = onOpen,
+            shape = MaterialTheme.shapes.small
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    fragment.createdAt.atZone(ZoneId.systemDefault()).toLocalTime().toString().take(5),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                val preview = fragment.content.trim().ifBlank { "（无文字）" }
-                    .let { if (it.length > 120) it.take(120) + "…" else it }
-                Text(
-                    preview,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            TextButton(onClick = onOpen, shape = MaterialTheme.shapes.small) { Text("查看") }
+            Text("查看", color = MaterialTheme.colorScheme.primary)
         }
     }
 }
