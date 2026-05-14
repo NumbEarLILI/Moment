@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -89,6 +90,17 @@ fun CaptureScreen(
         viewModel.save()
     }
 
+    var showPlacePickPermissionDialog by remember { mutableStateOf(false) }
+    var pendingPlacePickAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val placePickPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ ->
+        val action = pendingPlacePickAction
+        pendingPlacePickAction = null
+        showPlacePickPermissionDialog = false
+        action?.invoke()
+    }
+
     fun hasLocationPermission(): Boolean {
         val coarse = ContextCompat.checkSelfPermission(
             context,
@@ -137,14 +149,15 @@ fun CaptureScreen(
         }
     }
 
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .imePadding()
-                .navigationBarsPadding()
-        ) {
+    Box(Modifier.fillMaxSize()) {
+        Scaffold { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .imePadding()
+                    .navigationBarsPadding()
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -212,16 +225,24 @@ fun CaptureScreen(
                         }
                         TextButton(
                             onClick = {
-                                viewModel.requestPlacePickSeed { lat, lng, hint ->
-                                    navController.navigate(
-                                        Routes.placePick(
-                                            lat,
-                                            lng,
-                                            hint,
-                                            state.editingFragmentId,
-                                            0L
+                                fun navigateToPlacePick() {
+                                    viewModel.requestPlacePickSeed { lat, lng, hint ->
+                                        navController.navigate(
+                                            Routes.placePick(
+                                                lat,
+                                                lng,
+                                                hint,
+                                                state.editingFragmentId,
+                                                0L
+                                            )
                                         )
-                                    )
+                                    }
+                                }
+                                if (hasLocationPermission()) {
+                                    navigateToPlacePick()
+                                } else {
+                                    pendingPlacePickAction = { navigateToPlacePick() }
+                                    showPlacePickPermissionDialog = true
                                 }
                             },
                             enabled = !state.isSaving && !state.isLoadingDraft
@@ -310,6 +331,43 @@ fun CaptureScreen(
                     }
             }
         }
+    }
+    if (showPlacePickPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showPlacePickPermissionDialog = false
+                pendingPlacePickAction = null
+            },
+            title = { Text("需要定位权限") },
+            text = {
+                Text(
+                    "在地图上选点前需要定位权限，用于确定地图中心；保存碎片时也会写入位置信息。",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPlacePickPermissionDialog = false
+                        placePickPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                                Manifest.permission.ACCESS_FINE_LOCATION
+                            )
+                        )
+                    }
+                ) { Text("去授权") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPlacePickPermissionDialog = false
+                        pendingPlacePickAction = null
+                    }
+                ) { Text("取消") }
+            }
+        )
+    }
     }
 }
 

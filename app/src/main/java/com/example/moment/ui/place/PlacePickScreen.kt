@@ -3,19 +3,18 @@ package com.example.moment.ui.place
 import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
+import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -40,13 +39,24 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class PlacePickerJsBridge(
-    private val onPick: (Double, Double) -> Unit,
-    private val onMapError: (String) -> Unit
+    private val onPickFromWeb: (Double, Double) -> Unit,
+    private val onMapError: (String) -> Unit,
+    private val onMapTrace: (String) -> Unit
 ) {
+    /**
+     * 必须用字符串传经纬度：部分 WebView 下从 `evaluateJavascript` 触发的 JS 用 `Number` 调
+     * `onPick(double,double)` 会匹配失败且静默无回调；字符串与高德 LngLat 的 getter 都更稳。
+     */
     @JavascriptInterface
-    fun onPick(latitude: Double, longitude: Double) {
+    fun onPick(latitude: String, longitude: String) {
         Handler(Looper.getMainLooper()).post {
-            onPick(latitude, longitude)
+            val lat = latitude.trim().toDoubleOrNull()
+            val lng = longitude.trim().toDoubleOrNull()
+            if (lat != null && lng != null) {
+                onPickFromWeb(lat, lng)
+            } else {
+                onMapError("onPick 无法解析: lat=\"$latitude\" lng=\"$longitude\"")
+            }
         }
     }
 
@@ -54,6 +64,13 @@ class PlacePickerJsBridge(
     fun onMapError(message: String) {
         Handler(Looper.getMainLooper()).post {
             onMapError(message)
+        }
+    }
+
+    @JavascriptInterface
+    fun onMapTrace(message: String) {
+        Handler(Looper.getMainLooper()).post {
+            onMapTrace(message)
         }
     }
 }
@@ -101,11 +118,6 @@ fun PlacePickScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("选择地点名称", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "底图使用高德地图（官方 loader 加载）。Key 须为控制台里的「Web端（JS API）」类型；若启用了域名白名单，请加入 https://lbs.amap.com/*。local.properties：amap.web.key、amap.security.jscode；CI：AMAP_WEB_KEY、AMAP_SECURITY_JS_CODE。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
             OutlinedTextField(
                 value = state.placeName,
                 onValueChange = viewModel::updatePlaceName,
@@ -119,7 +131,23 @@ fun PlacePickScreen(
             ) {
                 TextButton(
                     onClick = {
-                        webViewRef?.evaluateJavascript("javascript:sendPick();", null)
+                        if (webViewRef == null) return@TextButton
+                        // 主线程调度并读取最新 webViewRef，避免旧 WebView.post 在实例替换后不执行。
+                        Handler(Looper.getMainLooper()).post {
+                            val wv = webViewRef ?: return@post
+                            val js =
+                                "(function(){try{" +
+                                    "if(typeof window.sendPick!=='function'){return 'no_sendPick';}" +
+                                    "window.sendPick();" +
+                                    "return 'ok';" +
+                                    "}catch(e){" +
+                                    "var m=(e&&e.message)?e.message:String(e);" +
+                                    "if(window.AndroidHost&&AndroidHost.onMapError)" +
+                                    "{AndroidHost.onMapError('sendPick:'+m);}" +
+                                    "return 'err';" +
+                                    "}})();"
+                            wv.evaluateJavascript(js, null)
+                        }
                     }
                 ) {
                     Text("读取图钉位置")
@@ -128,14 +156,20 @@ fun PlacePickScreen(
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .defaultMinSize(minHeight = 280.dp)
                     .weight(1f),
                 factory = { context ->
                     WebView(context).apply {
+                        layoutParams = ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT
+                        )
                         configureForPlacePick(viewModel::reportMapDiagnostic)
                         addJavascriptInterface(
                             PlacePickerJsBridge(
-                                onPick = { lat, lng -> viewModel.onMapPosition(lat, lng) },
-                                onMapError = viewModel::reportMapDiagnostic
+                                onPickFromWeb = { lat, lng -> viewModel.onMapPosition(lat, lng) },
+                                onMapError = viewModel::reportMapDiagnostic,
+                                onMapTrace = viewModel::reportMapTrace
                             ),
                             "AndroidHost"
                         )
@@ -148,6 +182,7 @@ fun PlacePickScreen(
                     }
                 },
                 update = { webView ->
+                    webViewRef = webView
                     if (pickerHtml != lastLoadedHtml) {
                         lastLoadedHtml = pickerHtml
                         webView.loadPlacePickerHtml(pickerHtml)
@@ -157,17 +192,6 @@ fun PlacePickScreen(
                     }
                 }
             )
-            if (state.mapDiagnostics.isNotBlank()) {
-                Text(
-                    state.mapDiagnostics,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 120.dp)
-                        .verticalScroll(rememberScrollState()),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
             state.errorMessage?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
             }

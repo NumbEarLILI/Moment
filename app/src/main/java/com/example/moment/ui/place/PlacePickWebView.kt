@@ -11,6 +11,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.example.moment.BuildConfig
 
 @SuppressLint("SetJavaScriptEnabled")
 internal fun WebView.configureForPlacePick(onLoadingDiagnostic: ((String) -> Unit)? = null) {
@@ -62,12 +63,24 @@ internal fun WebView.configureForPlacePick(onLoadingDiagnostic: ((String) -> Uni
         }
     }
     webChromeClient = object : WebChromeClient() {
+        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+            if (newProgress == 100) {
+                view?.post {
+                    view.requestPlaceMapResize()
+                    view.postDelayed({ view.requestPlaceMapResize() }, 200L)
+                }
+            }
+            super.onProgressChanged(view, newProgress)
+        }
+
         override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-            consoleMessage?.let {
-                Log.d(
-                    "MomentPlacePickJs",
-                    "${it.messageLevel()} ${it.message()} (${it.sourceId()}:${it.lineNumber()})"
-                )
+            if (BuildConfig.DEBUG) {
+                consoleMessage?.let {
+                    Log.d(
+                        "MomentPlacePickJs",
+                        "${it.messageLevel()} ${it.message()} (${it.sourceId()}:${it.lineNumber()})"
+                    )
+                }
             }
             return super.onConsoleMessage(consoleMessage)
         }
