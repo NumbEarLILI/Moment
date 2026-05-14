@@ -386,7 +386,6 @@ fun CaptureScreen(
             }
         )
     }
-    }
 }
 
 @Composable
