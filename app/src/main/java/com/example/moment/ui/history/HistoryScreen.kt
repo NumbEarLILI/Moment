@@ -132,7 +132,7 @@ fun HistoryScreen(
                 state.fragments.isEmpty() -> item {
                     EmptyDayHint(state.selectedDate, viewModel.today)
                 }
-                else -> items(state.fragments, key = { it.id }) { fragment ->
+                else -> items(state.fragments, key = { "fragment-${it.id}" }) { fragment ->
                     FragmentCard(
                         fragment = fragment,
                         onContinueEdit = { onContinueEditFragment(fragment.id) },
@@ -159,7 +159,7 @@ fun HistoryScreen(
                     )
                 }
             } else {
-                items(state.diaryEntries, key = { it.id }) { entry ->
+                items(state.diaryEntries, key = { "diary-${it.id}" }) { entry ->
                     DiaryCard(entry = entry, onClick = { onOpenDiary(entry.id) })
                 }
             }
