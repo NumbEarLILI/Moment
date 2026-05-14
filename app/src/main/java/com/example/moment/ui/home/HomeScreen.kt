@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,7 +50,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
-import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -182,10 +182,11 @@ private fun MonthCalendar(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit
 ) {
-    val weekFields = WeekFields.of(Locale.getDefault())
-    val weekDayLabels = remember(weekFields) {
+    val locale = LocalLocale.current.platformLocale
+    val weekFields = remember(locale) { WeekFields.of(locale) }
+    val weekDayLabels = remember(locale, weekFields) {
         List(7) { i ->
-            weekFields.firstDayOfWeek.plus(i.toLong()).getDisplayName(TextStyle.SHORT, Locale.getDefault())
+            weekFields.firstDayOfWeek.plus(i.toLong()).getDisplayName(TextStyle.SHORT, locale)
         }
     }
     val cells = remember(visibleMonth, weekFields) { calendarCellsForMonth(visibleMonth, weekFields) }
@@ -341,8 +342,8 @@ private fun FragmentCard(
                 Text(fragment.tags.joinToString(prefix = "#", separator = " #"))
             }
             fragment.location?.let { loc ->
-                val line = loc.label ?: "${String.format(Locale.getDefault(), "%.4f", loc.latitude)}, " +
-                    String.format(Locale.getDefault(), "%.4f", loc.longitude)
+                val line = loc.label ?: "${String.format(java.util.Locale.US, "%.4f", loc.latitude)}, " +
+                    String.format(java.util.Locale.US, "%.4f", loc.longitude)
                 Text("位置：$line", color = MaterialTheme.colorScheme.secondary)
             }
             if (fragment.imageUris.isNotEmpty()) {
