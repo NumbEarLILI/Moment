@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -246,7 +245,15 @@ fun CaptureScreen(
                     },
                     location = state.locationOverride ?: state.baselineLocation,
                     isAnalyzingImages = state.isAnalyzingImages,
-                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft
+                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft,
+                    errorMessage = state.errorMessage,
+                    saveLabel = when {
+                        state.isSaving -> "保存中..."
+                        state.editingFragmentId > 0 -> "保存修改"
+                        else -> "保存碎片"
+                    },
+                    onSave = { requestSave() },
+                    saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages
                 )
                 when {
                     state.isLoadingDraft ->
@@ -326,23 +333,6 @@ fun CaptureScreen(
                                 }
                             }
                         }
-                        state.errorMessage?.let {
-                            Text(it, color = MaterialTheme.colorScheme.error)
-                        }
-                        val saveLabel = when {
-                            state.isSaving -> "保存中..."
-                            state.editingFragmentId > 0 -> "保存修改"
-                            else -> "保存碎片"
-                        }
-                        Button(
-                            onClick = { requestSave() },
-                            enabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large
-                        ) {
-                            Text(saveLabel)
-                        }
-                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
@@ -411,6 +401,10 @@ private fun CaptureHeader(
     location: FragmentLocation?,
     isAnalyzingImages: Boolean,
     momentInteractionsEnabled: Boolean,
+    errorMessage: String?,
+    saveLabel: String,
+    onSave: () -> Unit,
+    saveEnabled: Boolean,
 ) {
     val title = if (isEditing) "继续编辑碎片" else "记录生活碎片"
     val subtitle = selectedDate?.let { "${it.format(HeaderDateFormatter)} · 把这天整理成一页手帐" }
@@ -486,7 +480,11 @@ private fun CaptureHeader(
                 onPickPlace = onPickPlace,
                 location = location,
                 isAnalyzingImages = isAnalyzingImages,
-                interactionsEnabled = momentInteractionsEnabled
+                interactionsEnabled = momentInteractionsEnabled,
+                errorMessage = errorMessage,
+                saveLabel = saveLabel,
+                onSave = onSave,
+                saveEnabled = saveEnabled
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -532,6 +530,10 @@ private fun CaptureMomentExpandable(
     location: FragmentLocation?,
     isAnalyzingImages: Boolean,
     interactionsEnabled: Boolean,
+    errorMessage: String?,
+    saveLabel: String,
+    onSave: () -> Unit,
+    saveEnabled: Boolean,
 ) {
     val corner = RoundedCornerShape(14.dp)
     Surface(
@@ -749,6 +751,21 @@ private fun CaptureMomentExpandable(
                         ) {
                             Text("添加")
                         }
+                    }
+                    errorMessage?.let { msg ->
+                        Text(
+                            msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Button(
+                        onClick = onSave,
+                        enabled = saveEnabled,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text(saveLabel)
                     }
                 }
             }
