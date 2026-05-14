@@ -5,10 +5,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.location.FragmentLocationCapture
 import com.example.moment.domain.model.FragmentLocation
+import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
+import com.example.moment.domain.usecase.ObserveFragmentsForDateUseCase
 import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
 import com.example.moment.domain.time.resolveNewFragmentRecordedAt
 import com.example.moment.domain.usecase.UpdateFragmentResult
@@ -19,7 +21,12 @@ import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
@@ -30,16 +37,50 @@ class CaptureViewModel @Inject constructor(
     private val updateFragment: UpdateFragmentUseCase,
     private val getFragmentById: GetFragmentByIdUseCase,
     private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
+    observeFragmentsForDate: ObserveFragmentsForDateUseCase,
     private val fragmentLocationCapture: FragmentLocationCapture,
     savedStateHandle: SavedStateHandle,
     private val zoneId: ZoneId,
     private val clock: Clock
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(CaptureUiState())
-    val uiState: StateFlow<CaptureUiState> = _uiState
 
     private val newFragmentForDate: LocalDate? =
         savedStateHandle.get<String>(ARG_FOR_DATE)?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
+
+    private val contextDay = MutableStateFlow<LocalDate?>(
+        if ((savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L) > 0L) {
+            null
+        } else {
+            newFragmentForDate ?: clock.instant().atZone(zoneId).toLocalDate()
+        }
+    )
+
+    val uiState: StateFlow<CaptureUiState> = contextDay
+        .flatMapLatest { dayNullable ->
+            if (dayNullable == null) {
+                _uiState.map { state ->
+                    state.copy(
+                        summaryCalendarDay = null,
+                        otherFragmentsOnDay = emptyList(),
+                        canGenerateDiary = false
+                    )
+                }
+            } else {
+                combine(_uiState, observeFragmentsForDate(dayNullable)) { state, fragments ->
+                    state.copy(
+                        summaryCalendarDay = dayNullable,
+                        otherFragmentsOnDay = if (state.editingFragmentId > 0) {
+                            fragments.filter { it.id != state.editingFragmentId }
+                        } else {
+                            fragments
+                        },
+                        canGenerateDiary = fragments.isNotEmpty()
+                    )
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CaptureUiState())
 
     init {
         val id = savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L
@@ -49,6 +90,7 @@ class CaptureViewModel @Inject constructor(
                 runCatching { getFragmentById(id) }
                     .onSuccess { fragment ->
                         if (fragment != null) {
+                            contextDay.value = fragment.createdAt.atZone(zoneId).toLocalDate()
                             _uiState.update {
                                 it.copy(
                                     isLoadingDraft = false,
@@ -233,5 +275,8 @@ data class CaptureUiState(
     val isAnalyzingImages: Boolean = false,
     val isSaving: Boolean = false,
     val saved: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val summaryCalendarDay: LocalDate? = null,
+    val otherFragmentsOnDay: List<LifeFragment> = emptyList(),
+    val canGenerateDiary: Boolean = false
 )

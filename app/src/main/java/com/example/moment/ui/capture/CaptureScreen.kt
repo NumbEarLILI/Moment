@@ -28,7 +28,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -38,9 +40,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,10 +58,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.ui.Routes
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 import java.io.File
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val ImageThumbSize = 88.dp
@@ -67,6 +75,7 @@ fun CaptureScreen(
     navController: NavHostController,
     backStackEntry: NavBackStackEntry,
     onClose: () -> Unit,
+    onGenerateDiary: (LocalDate) -> Unit,
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -162,18 +171,35 @@ fun CaptureScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     if (state.editingFragmentId > 0) "继续编辑碎片" else "记录生活碎片",
                     style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-                TextButton(onClick = { navController.navigate(Routes.History) }) {
-                    Text("历史")
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = { state.summaryCalendarDay?.let(onGenerateDiary) },
+                    enabled = state.canGenerateDiary
+                ) {
+                    Text("生成手帐")
                 }
-                TextButton(onClick = onClose) { Text("关闭") }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { navController.navigate(Routes.History) }) {
+                        Text("历史")
+                    }
+                    TextButton(onClick = onClose) { Text("关闭") }
+                }
             }
             when {
                 state.isLoadingDraft ->
@@ -188,6 +214,39 @@ fun CaptureScreen(
                             .padding(bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
+                        state.summaryCalendarDay?.let { day ->
+                            Text(
+                                "${day.format(DateTimeFormatter.ISO_LOCAL_DATE)} 已有记录",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (state.otherFragmentsOnDay.isEmpty()) {
+                                Text(
+                                    if (state.editingFragmentId > 0) {
+                                        "今日仅有正在编辑的这条记录，暂无其它已保存碎片。"
+                                    } else {
+                                        "这一天还没有其它已保存碎片，写完后保存即可新增一条。"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                Text(
+                                    "以下为本日已保存内容，避免重复记录。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                state.otherFragmentsOnDay.forEach { fragment ->
+                                    key(fragment.id) {
+                                        DayFragmentSummaryRow(
+                                            fragment = fragment,
+                                            onOpen = { navController.navigate(Routes.capture(fragment.id)) }
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                        }
                         OutlinedTextField(
                             value = state.content,
                             onValueChange = viewModel::updateContent,
@@ -373,6 +432,37 @@ fun CaptureScreen(
             }
         )
     }
+    }
+}
+
+@Composable
+private fun DayFragmentSummaryRow(
+    fragment: LifeFragment,
+    onOpen: () -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    fragment.createdAt.atZone(ZoneId.systemDefault()).toLocalTime().toString().take(5),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                val preview = fragment.content.trim().ifBlank { "（无文字）" }
+                    .let { if (it.length > 120) it.take(120) + "…" else it }
+                Text(
+                    preview,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            TextButton(onClick = onOpen) { Text("查看") }
+        }
     }
 }
 
