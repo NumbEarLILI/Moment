@@ -2,7 +2,6 @@ package com.example.moment.ui.history
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,15 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -26,13 +20,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,14 +38,12 @@ import java.util.Locale
 @Composable
 fun HistoryScreen(
     onBack: () -> Unit,
-    onAddFragment: (LocalDate) -> Unit,
+    onAddFragmentForPastDay: (LocalDate) -> Unit,
     onContinueEditFragment: (Long) -> Unit,
-    onGenerateDiary: (LocalDate) -> Unit,
     onOpenDiary: (Long) -> Unit,
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var recordMenuExpanded by remember { mutableStateOf(false) }
 
     Scaffold { padding ->
         LazyColumn(
@@ -66,70 +54,35 @@ fun HistoryScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                TextButton(onClick = onBack) { Text("返回") }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onBack) { Text("返回") }
+                    if (state.selectedDate != viewModel.today) {
+                        OutlinedButton(onClick = { onAddFragmentForPastDay(state.selectedDate) }) {
+                            Text("为该日新增碎片")
+                        }
+                    }
+                }
                 Text("历史与日历", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(
                     state.selectedDate.format(DateTimeFormatter.ISO_DATE),
                     color = MaterialTheme.colorScheme.secondary
                 )
+                if (state.selectedDate == viewModel.today) {
+                    Text(
+                        "查看今天请返回首页；在首页记录新碎片。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
             }
             item {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.wrapContentSize(Alignment.TopStart)) {
-                                Button(onClick = { recordMenuExpanded = true }) {
-                                    Text("记录碎片")
-                                    Text(" ▾", style = MaterialTheme.typography.labelMedium)
-                                }
-                                DropdownMenu(
-                                    expanded = recordMenuExpanded,
-                                    onDismissRequest = { recordMenuExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("新建碎片") },
-                                        onClick = {
-                                            recordMenuExpanded = false
-                                            onAddFragment(state.selectedDate)
-                                        }
-                                    )
-                                    HorizontalDivider()
-                                    if (state.fragments.isEmpty()) {
-                                        DropdownMenuItem(
-                                            text = { Text("该日暂无已保存碎片") },
-                                            onClick = { recordMenuExpanded = false },
-                                            enabled = false
-                                        )
-                                    } else {
-                                        state.fragments.forEach { fragment ->
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        fragmentSummary(fragment),
-                                                        maxLines = 2,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                },
-                                                onClick = {
-                                                    recordMenuExpanded = false
-                                                    onContinueEditFragment(fragment.id)
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            OutlinedButton(
-                                onClick = { onGenerateDiary(state.selectedDate) },
-                                enabled = state.fragments.isNotEmpty()
-                            ) {
-                                Text("生成手帐")
-                            }
-                        }
                         MonthCalendar(
                             visibleMonth = state.visibleMonth,
                             selectedDate = state.selectedDate,
@@ -184,20 +137,15 @@ fun HistoryScreen(
     }
 }
 
-private fun fragmentSummary(fragment: LifeFragment): String {
-    val base = fragment.content.trim().ifBlank { "（无文字）" }
-    return if (base.length > 48) base.take(48) + "…" else base
-}
-
 @Composable
 private fun EmptyDayHint(selected: LocalDate, today: LocalDate) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("这一天还没有记录", style = MaterialTheme.typography.titleMedium)
             val hint = if (selected == today) {
-                "写下一句话、一种心情，晚上就能生成一篇日记手帐。在日历上点某一天可查看或生成该日手帐。"
+                "返回首页即可写新碎片并生成手帐。在日历上点某一天可查看或生成该日手帐。"
             } else {
-                "可在上方「记录碎片」中新建，或点选别日。在日历上点某一天可打开该日手帐（已保存则直接查看，否则进入生成预览）。"
+                "可使用右上角「为该日新增碎片」补记，或在日历上点选其它日期。点日历某一天可打开该日手帐（已保存则直接查看，否则进入生成预览）。"
             }
             Text(hint)
         }

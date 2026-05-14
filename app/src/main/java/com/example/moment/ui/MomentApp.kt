@@ -40,7 +40,8 @@ fun MomentApp() {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
                         }
                     }
-                }
+                },
+                onGenerateDiary = { date -> navController.navigate("preview/$date") }
             )
         }
         composable(
@@ -66,9 +67,8 @@ fun MomentApp() {
             }
             HistoryScreen(
                 onBack = { navController.popBackStack() },
-                onAddFragment = { date -> navController.navigate(Routes.capture(0L, date)) },
+                onAddFragmentForPastDay = { date -> navController.navigate(Routes.capture(0L, date)) },
                 onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
-                onGenerateDiary = { date -> navController.navigate("preview/$date") },
                 onOpenDiary = { id -> navController.navigate("detail/$id") },
                 viewModel = historyViewModel
             )
