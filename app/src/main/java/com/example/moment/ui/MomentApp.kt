@@ -43,6 +43,7 @@ fun MomentApp() {
                     }
                 },
                 onGenerateDiary = { date -> navController.navigate("preview/$date") },
+                onOpenDiary = { id -> navController.navigate("detail/$id") },
                 onOpenSettings = { navController.navigate(Routes.Settings) }
             )
         }

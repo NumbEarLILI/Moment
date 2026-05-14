@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.location.FragmentLocationCapture
+import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
@@ -11,6 +12,7 @@ import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.DeleteFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
+import com.example.moment.domain.usecase.ObserveDiaryEntriesUseCase
 import com.example.moment.domain.usecase.ObserveFragmentsForDateUseCase
 import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
 import com.example.moment.domain.time.resolveNewFragmentRecordedAt
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -42,6 +45,7 @@ class CaptureViewModel @Inject constructor(
     private val getFragmentById: GetFragmentByIdUseCase,
     private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
     observeFragmentsForDate: ObserveFragmentsForDateUseCase,
+    observeDiaryEntries: ObserveDiaryEntriesUseCase,
     private val fragmentLocationCapture: FragmentLocationCapture,
     savedStateHandle: SavedStateHandle,
     private val zoneId: ZoneId,
@@ -61,18 +65,25 @@ class CaptureViewModel @Inject constructor(
         }
     )
 
-    val uiState: StateFlow<CaptureUiState> = contextDay
-        .flatMapLatest { dayNullable ->
+    val uiState: StateFlow<CaptureUiState> = combine(
+        contextDay,
+        _uiState,
+        observeDiaryEntries()
+    ) { dayNullable, state, diaryEntries ->
+        Triple(dayNullable, state, diaryEntries)
+    }
+        .flatMapLatest { (dayNullable, state, diaryEntries) ->
             if (dayNullable == null) {
-                _uiState.map { state ->
+                flowOf(
                     state.copy(
                         summaryCalendarDay = null,
                         otherFragmentsOnDay = emptyList(),
-                        canGenerateDiary = false
+                        canGenerateDiary = false,
+                        savedDiaryEntries = diaryEntries
                     )
-                }
+                )
             } else {
-                combine(_uiState, observeFragmentsForDate(dayNullable)) { state, fragments ->
+                observeFragmentsForDate(dayNullable).map { fragments ->
                     state.copy(
                         summaryCalendarDay = dayNullable,
                         otherFragmentsOnDay = if (state.editingFragmentId > 0) {
@@ -80,7 +91,8 @@ class CaptureViewModel @Inject constructor(
                         } else {
                             fragments
                         },
-                        canGenerateDiary = fragments.isNotEmpty()
+                        canGenerateDiary = fragments.isNotEmpty(),
+                        savedDiaryEntries = diaryEntries
                     )
                 }
             }
@@ -319,5 +331,6 @@ data class CaptureUiState(
     val errorMessage: String? = null,
     val summaryCalendarDay: LocalDate? = null,
     val otherFragmentsOnDay: List<LifeFragment> = emptyList(),
-    val canGenerateDiary: Boolean = false
+    val canGenerateDiary: Boolean = false,
+    val savedDiaryEntries: List<DiaryEntry> = emptyList()
 )

@@ -70,6 +70,7 @@ import coil.compose.AsyncImage
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.Routes
+import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 import java.io.File
 import java.time.LocalDate
@@ -89,6 +90,7 @@ fun CaptureScreen(
     backStackEntry: NavBackStackEntry,
     onClose: () -> Unit,
     onGenerateDiary: (LocalDate) -> Unit,
+    onOpenDiary: (Long) -> Unit,
     onOpenSettings: () -> Unit,
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
@@ -279,6 +281,27 @@ fun CaptureScreen(
                                 .padding(top = 16.dp, bottom = 28.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
+                        if (state.savedDiaryEntries.isNotEmpty()) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    "已保存的手帐",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                state.savedDiaryEntries.forEach { entry ->
+                                    key(entry.id) {
+                                        DiarySummaryCard(
+                                            entry = entry,
+                                            onClick = { onOpenDiary(entry.id) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         state.summaryCalendarDay?.let { day ->
                             Surface(
                                 modifier = Modifier
@@ -298,7 +321,7 @@ fun CaptureScreen(
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text(
-                                        "${day.format(DateTimeFormatter.ISO_LOCAL_DATE)} · 已有记录",
+                                        "${day.format(DateTimeFormatter.ISO_LOCAL_DATE)} · 碎片历史",
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
