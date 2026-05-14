@@ -37,6 +37,7 @@ fun MonthCalendar(
     visibleMonth: YearMonth,
     selectedDate: LocalDate,
     today: LocalDate,
+    datesWithSavedDiary: Set<LocalDate> = emptySet(),
     onDayClick: (LocalDate) -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -107,6 +108,7 @@ fun MonthCalendar(
                             date = date,
                             selectedDate = selectedDate,
                             today = today,
+                            hasSavedDiary = date != null && date in datesWithSavedDiary,
                             onClick = onDayClick,
                             modifier = Modifier.weight(1f)
                         )
@@ -137,6 +139,7 @@ private fun DayCell(
     date: LocalDate?,
     selectedDate: LocalDate,
     today: LocalDate,
+    hasSavedDiary: Boolean,
     onClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -149,6 +152,7 @@ private fun DayCell(
     val isToday = date == today
     val bg = when {
         isSelected -> scheme.primaryContainer
+        hasSavedDiary -> scheme.tertiaryContainer.copy(alpha = 0.88f)
         else -> scheme.surfaceVariant.copy(alpha = 0.55f)
     }
     val borderModifier = when {
@@ -167,9 +171,10 @@ private fun DayCell(
         Text(
             text = "${date.dayOfMonth}",
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isToday || isSelected) FontWeight.SemiBold else FontWeight.Medium,
+            fontWeight = if (isToday || isSelected || hasSavedDiary) FontWeight.SemiBold else FontWeight.Medium,
             color = when {
                 isSelected -> scheme.onPrimaryContainer
+                hasSavedDiary -> scheme.onTertiaryContainer
                 else -> scheme.onSurface
             }
         )
