@@ -35,12 +35,24 @@ class PlacePickViewModel @Inject constructor(
         PlacePickUiState(
             placeName = initialHint,
             mapLat = initialLat,
-            mapLng = initialLng
+            mapLng = initialLng,
+            placeNameUserLocked = false
         )
     )
     val uiState: StateFlow<PlacePickUiState> = _uiState.asStateFlow()
 
-    fun updatePlaceName(value: String) = _uiState.update { it.copy(placeName = value, errorMessage = null) }
+    fun updatePlaceName(value: String) = _uiState.update { s ->
+        if (value.isBlank()) {
+            s.copy(placeName = "", errorMessage = null, placeNameUserLocked = false)
+        } else {
+            val userEdited = value != s.placeName
+            s.copy(
+                placeName = value,
+                errorMessage = null,
+                placeNameUserLocked = s.placeNameUserLocked || userEdited
+            )
+        }
+    }
 
     fun reportMapDiagnostic(line: String) {
         val trimmed = line.trim()
@@ -67,11 +79,11 @@ class PlacePickViewModel @Inject constructor(
     fun onMapPosition(latitude: Double, longitude: Double) {
         _uiState.update { it.copy(mapLat = latitude, mapLng = longitude, errorMessage = null) }
         viewModelScope.launch {
-            val name = _uiState.value.placeName.trim()
-            if (name.isNotEmpty()) return@launch
-            val suggested = amapReverseGeocoder.reverseLabel(latitude, longitude)
-                ?: nominatim.reverseLabel(latitude, longitude)
-            if (!suggested.isNullOrBlank()) {
+            val locked = _uiState.value.placeNameUserLocked
+            val amap = amapReverseGeocoder.reverseGeocode(latitude, longitude)
+            amap.failureDetail?.let { reportMapTrace("高德逆地理: $it") }
+            val suggested = amap.label ?: nominatim.reverseLabel(latitude, longitude)
+            if (!suggested.isNullOrBlank() && !locked) {
                 _uiState.update { s -> s.copy(placeName = suggested) }
             }
         }
@@ -130,5 +142,7 @@ data class PlacePickUiState(
     val mapDiagnostics: String = "",
     /** 地图脚本生命周期（非错误），用于确认是否执行到某一步。 */
     val mapTrace: String = "",
+    /** 用户是否手动改过地点名称；为 true 时移动图钉只更新坐标，不覆盖名称。 */
+    val placeNameUserLocked: Boolean = false,
     val finishedLocation: FragmentLocation? = null
 )

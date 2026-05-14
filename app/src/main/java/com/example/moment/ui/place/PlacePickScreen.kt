@@ -6,6 +6,7 @@ import android.os.Looper
 import android.view.ViewGroup
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import java.util.Locale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -129,7 +130,7 @@ fun PlacePickScreen(
             ) {
                 TextButton(
                     onClick = {
-                        webViewRef?.evaluateJavascript("javascript:sendPick();", null)
+                        webViewRef?.evaluateJavascript("(function(){try{if(window.sendPick)window.sendPick();}catch(e){}})();", null)
                     }
                 ) {
                     Text("读取图钉位置")
@@ -172,6 +173,11 @@ fun PlacePickScreen(
                         webView.postDelayed({ webView.requestPlaceMapResize() }, 1200L)
                     }
                 }
+            )
+            Text(
+                "当前图钉：" + String.format(Locale.CHINA, "%.6f，%.6f", state.mapLat, state.mapLng),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (state.mapTrace.isNotBlank()) {
                 Text(

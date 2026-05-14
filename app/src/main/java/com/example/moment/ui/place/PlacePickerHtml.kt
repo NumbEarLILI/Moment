@@ -92,18 +92,30 @@ function initWithAMap(AMap) {
         try { map.resize(); } catch (e1) {}
       }, 50);
     });
+    function notifyPickFromMarker(m) {
+      try {
+        var p = m.getPosition();
+        if (window.AndroidHost && AndroidHost.onPick) {
+          AndroidHost.onPick(p.lat, p.lng);
+        }
+      } catch (err) {}
+    }
     var marker = new AMap.Marker({
       position: [lng, lat],
       map: map,
       draggable: true
     });
+    marker.on('dragend', function() {
+      notifyPickFromMarker(marker);
+    });
     map.on('click', function(ev) {
       marker.setPosition(ev.lnglat);
+      notifyPickFromMarker(marker);
     });
     window.sendPick = function() {
-      var p = marker.getPosition();
-      AndroidHost.onPick(p.lat, p.lng);
+      notifyPickFromMarker(marker);
     };
+    setTimeout(function() { notifyPickFromMarker(marker); }, 200);
     window.__momentResizeMap = function() {
       try { map.resize(); } catch (e2) {}
     };
