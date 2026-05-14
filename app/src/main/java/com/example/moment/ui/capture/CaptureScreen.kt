@@ -81,6 +81,8 @@ private val ImageThumbSize = 88.dp
 private val HeaderDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)
 
+private const val CAPTURE_MOMENT_EXPANDED_KEY = "captureMomentExpanded"
+
 @Composable
 fun CaptureScreen(
     navController: NavHostController,
@@ -94,6 +96,9 @@ fun CaptureScreen(
     val pickJson by backStackEntry.savedStateHandle
         .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
         .collectAsStateWithLifecycle()
+    val momentExpanded by backStackEntry.savedStateHandle
+        .getStateFlow(CAPTURE_MOMENT_EXPANDED_KEY, false)
+        .collectAsStateWithLifecycle()
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var pendingSaveAfterLocationPermission by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
@@ -103,7 +108,6 @@ fun CaptureScreen(
     val tagList = remember(state.tags) {
         state.tags.split(",").map { it.trim() }.filter { it.isNotEmpty() }
     }
-    var momentExpanded by remember { mutableStateOf(false) }
     var newTagInput by remember { mutableStateOf("") }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -181,6 +185,7 @@ fun CaptureScreen(
         if (pickJson.isNotBlank()) {
             viewModel.applyPickedLocationFromJson(pickJson)
             backStackEntry.savedStateHandle[MOMENT_PICK_LOCATION_JSON_KEY] = ""
+            backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = true
         }
     }
 
@@ -204,7 +209,10 @@ fun CaptureScreen(
                     onOpenHistory = { navController.navigate(Routes.History) },
                     onClose = onClose,
                     momentExpanded = momentExpanded,
-                    onToggleMomentExpanded = { momentExpanded = !momentExpanded },
+                    onToggleMomentExpanded = {
+                        val cur = backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] ?: false
+                        backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = !cur
+                    },
                     momentContent = state.content,
                     onMomentContentChange = viewModel::updateContent,
                     tagList = tagList,
