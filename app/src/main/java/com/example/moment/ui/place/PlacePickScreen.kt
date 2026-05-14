@@ -131,7 +131,27 @@ fun PlacePickScreen(
             ) {
                 TextButton(
                     onClick = {
-                        webViewRef?.evaluateJavascript("(function(){try{if(window.sendPick)window.sendPick();}catch(e){}})();", null)
+                        viewModel.reportMapTrace("【读取图钉】已点击")
+                        val wv = webViewRef
+                        if (wv == null) {
+                            viewModel.reportMapTrace("【读取图钉】WebView 未就绪，请等地图加载后再试")
+                            return@TextButton
+                        }
+                        wv.post {
+                            wv.evaluateJavascript(
+                                "(function(){try{" +
+                                    "if(typeof window.sendPick!=='function'){" +
+                                    "if(window.AndroidHost&&AndroidHost.onMapTrace)" +
+                                    "AndroidHost.onMapTrace('sendPick 未定义，地图脚本可能未跑完');" +
+                                    "return;}" +
+                                    "window.sendPick();" +
+                                    "}catch(e){" +
+                                    "if(window.AndroidHost&&AndroidHost.onMapError)" +
+                                    "AndroidHost.onMapError('sendPick: '+(e&&e.message?e.message:String(e)));" +
+                                    "}})();",
+                                null
+                            )
+                        }
                     }
                 ) {
                     Text("读取图钉位置")
@@ -166,6 +186,7 @@ fun PlacePickScreen(
                     }
                 },
                 update = { webView ->
+                    webViewRef = webView
                     if (pickerHtml != lastLoadedHtml) {
                         lastLoadedHtml = pickerHtml
                         webView.loadPlacePickerHtml(pickerHtml)
