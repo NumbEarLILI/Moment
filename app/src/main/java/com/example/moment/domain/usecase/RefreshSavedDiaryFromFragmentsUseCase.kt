@@ -16,7 +16,7 @@ class RefreshSavedDiaryFromFragmentsUseCase @Inject constructor(
     suspend operator fun invoke(diaryId: Long) {
         val entry = diaryRepository.getDiaryById(diaryId) ?: return
         val fragments = fragmentRepository.getFragmentsForDate(entry.date).sortedBy { it.createdAt }
-        val draft = diaryGenerator.generate(entry.date, fragments)
+        val draft = diaryGenerator.generate(entry.date, fragments, null)
         val imageUris = fragments.flatMap { it.imageUris }
         val pins = pinsFromFragments(fragments)
         diaryRepository.saveDiary(

@@ -3,17 +3,20 @@ package com.example.moment.domain.usecase
 import com.example.moment.domain.generator.RuleBasedDiaryGenerator
 import com.example.moment.domain.llm.AiDiaryDraftGenerator
 import com.example.moment.domain.model.DiaryDraft
+import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.LlmConnectionConfig
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.domain.preferences.UserPreferencesAccessor
+import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -31,6 +34,7 @@ class GenerateDiaryDraftUseCaseTest {
         )
         val useCase = GenerateDiaryDraftUseCase(
             repository,
+            StubDiaryRepository(null),
             RuleBasedDiaryGenerator(),
             StaticUserPreferences(UserAppPreferences()),
             NeverCalledAi
@@ -67,17 +71,20 @@ class GenerateDiaryDraftUseCaseTest {
             override suspend fun generateDraft(
                 date: LocalDate,
                 fragments: List<LifeFragment>,
-                config: LlmConnectionConfig
+                config: LlmConnectionConfig,
+                priorSavedDiary: DiaryEntry?
             ): Result<DiaryDraft> {
                 assertEquals("https://example.com/v1", config.baseUrl)
                 assertEquals("k", config.apiKey)
                 assertEquals("m", config.model)
                 assertEquals(1, fragments.size)
+                assertEquals(null, priorSavedDiary)
                 return Result.success(aiDraft)
             }
         }
         val useCase = GenerateDiaryDraftUseCase(
             repository,
+            StubDiaryRepository(null),
             RuleBasedDiaryGenerator(),
             StaticUserPreferences(prefs),
             fakeAi
@@ -102,6 +109,7 @@ class GenerateDiaryDraftUseCaseTest {
         )
         val useCase = GenerateDiaryDraftUseCase(
             repository,
+            StubDiaryRepository(null),
             RuleBasedDiaryGenerator(),
             StaticUserPreferences(UserAppPreferences()),
             NeverCalledAi
@@ -141,6 +149,7 @@ class GenerateDiaryDraftUseCaseTest {
         )
         val useCase = GenerateDiaryDraftUseCase(
             repository,
+            StubDiaryRepository(null),
             RuleBasedDiaryGenerator(),
             StaticUserPreferences(UserAppPreferences()),
             NeverCalledAi
@@ -152,6 +161,104 @@ class GenerateDiaryDraftUseCaseTest {
             listOf("content://early1", "content://early2", "content://late"),
             result.imageUris
         )
+    }
+
+    @Test
+    fun invokeMergesPriorSavedDiaryWhenRuleBasedAndNewFragmentsExist() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "旧标题",
+            body = "已保存的手帐正文。",
+            highlights = listOf("旧亮点"),
+            moodSummary = "今天整体偏平静。",
+            sourceFragmentIds = listOf(1L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(1, "早上喝了咖啡。", Mood.CALM, "2026-05-13T07:30:00Z"),
+                fragment(2, "晚上吃了火锅。", Mood.HAPPY, "2026-05-13T19:00:00Z")
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(java.time.ZoneOffset.UTC),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+
+        assertTrue(result.body.contains("已保存的手帐正文。"))
+        assertTrue(result.body.contains("新增碎片"))
+        assertTrue(result.body.contains("19:00") && result.body.contains("火锅"))
+        assertEquals(listOf(1L, 2L), result.sourceFragmentIds)
+    }
+
+    @Test
+    fun invokePassesPriorSavedDiaryToAiWhenPresent() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 9,
+            date = date,
+            title = "已保存",
+            body = "底稿",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(1L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(1, "旧碎片。", Mood.CALM, "2026-05-13T08:00:00Z"),
+                fragment(2, "新碎片。", Mood.HAPPY, "2026-05-13T18:00:00Z")
+            )
+        )
+        val prefs = UserAppPreferences(
+            aiBaseUrl = "https://example.com/v1",
+            aiApiKey = "k",
+            aiModel = "m"
+        )
+        val outDraft = DiaryDraft(
+            title = "合并后",
+            body = "合并正文",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(2L)
+        )
+        val fakeAi = object : AiDiaryDraftGenerator {
+            override suspend fun generateDraft(
+                date: LocalDate,
+                fragments: List<LifeFragment>,
+                config: LlmConnectionConfig,
+                priorSavedDiary: DiaryEntry?
+            ): Result<DiaryDraft> {
+                assertEquals(prior, priorSavedDiary)
+                assertEquals(2, fragments.size)
+                return Result.success(outDraft)
+            }
+        }
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(prefs),
+            fakeAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.AUTO)
+
+        assertEquals("合并后", result.title)
+        assertEquals(listOf(1L, 2L), result.sourceFragmentIds)
     }
 
     @Test
@@ -175,8 +282,26 @@ class GenerateDiaryDraftUseCaseTest {
         override suspend fun generateDraft(
             date: LocalDate,
             fragments: List<LifeFragment>,
-            config: LlmConnectionConfig
+            config: LlmConnectionConfig,
+            priorSavedDiary: DiaryEntry?
         ): Result<DiaryDraft> = error("AI must not be used in this test")
+    }
+
+    private class StubDiaryRepository(
+        private val entry: DiaryEntry?
+    ) : DiaryRepository {
+        override fun observeDiaries(): Flow<List<DiaryEntry>> = flowOf(emptyList())
+
+        override fun observeDiary(id: Long): Flow<DiaryEntry?> = flowOf(null)
+
+        override suspend fun getDiaryForDate(date: LocalDate): DiaryEntry? =
+            entry?.takeIf { it.date == date }
+
+        override suspend fun getDiaryById(id: Long): DiaryEntry? = null
+
+        override suspend fun getAllDiaries(): List<DiaryEntry> = emptyList()
+
+        override suspend fun saveDiary(entry: DiaryEntry): Long = 0L
     }
 
     private class FakeFragmentRepository(

@@ -1,6 +1,7 @@
 package com.example.moment.domain.generator
 
 import com.example.moment.domain.model.DiaryDraft
+import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import java.time.LocalDate
@@ -13,7 +14,7 @@ class RuleBasedDiaryGenerator(
 ) : DiaryGenerator {
     private val clockFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
-    override fun generate(date: LocalDate, fragments: List<LifeFragment>): DiaryDraft {
+    override fun generate(date: LocalDate, fragments: List<LifeFragment>, priorSavedDiary: DiaryEntry?): DiaryDraft {
         val sorted = fragments.sortedBy { it.createdAt }
         if (sorted.isEmpty()) {
             return DiaryDraft(
@@ -22,6 +23,16 @@ class RuleBasedDiaryGenerator(
                 highlights = emptyList(),
                 moodSummary = null
             )
+        }
+
+        val priorIds = priorSavedDiary?.sourceFragmentIds?.toSet().orEmpty()
+        val newFragments = if (priorIds.isEmpty()) {
+            emptyList()
+        } else {
+            sorted.filter { it.id !in priorIds }
+        }
+        if (priorSavedDiary != null && newFragments.isNotEmpty()) {
+            return mergeOntoPriorDiary(priorSavedDiary, sorted, newFragments)
         }
 
         val mainMood = sorted.mapNotNull { it.mood }
@@ -42,6 +53,47 @@ class RuleBasedDiaryGenerator(
             moodSummary = mainMood?.let { "今天整体偏${it.displayName}。" },
             sourceFragmentIds = sorted.map { it.id }
         )
+    }
+
+    private fun mergeOntoPriorDiary(
+        prior: DiaryEntry,
+        sorted: List<LifeFragment>,
+        newFragments: List<LifeFragment>
+    ): DiaryDraft {
+        val newBodyLines = newFragments.mapNotNull { lineForFragment(it) }
+        val newSection = newBodyLines.joinToString(separator = "\n\n").ifBlank {
+            "新留下了 ${newFragments.sumOf { it.imageUris.size }} 张图片碎片。"
+        }
+        val mergedBody = prior.body.trimEnd() + "\n\n" + "—— 新增碎片 ——\n\n" + newSection
+        val mergedHighlights = (prior.highlights + highlights(newFragments))
+            .asSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(8)
+            .toList()
+        val mainMood = sorted.mapNotNull { it.mood }
+            .groupingBy { it }
+            .eachCount()
+            .maxWithOrNull(compareBy<Map.Entry<Mood, Int>> { it.value }.thenBy { it.key.ordinal })
+            ?.key
+        val mergedMood = mergeMoodLine(prior.moodSummary, mainMood)
+        return DiaryDraft(
+            title = prior.title.ifBlank { "${mainMood?.displayName ?: "有记录"}的一天" },
+            body = mergedBody,
+            highlights = mergedHighlights,
+            moodSummary = mergedMood,
+            sourceFragmentIds = sorted.map { it.id }
+        )
+    }
+
+    private fun mergeMoodLine(prior: String?, mainMood: Mood?): String? {
+        val tail = mainMood?.let { "纳入新碎片后，整体仍偏${it.displayName}。" }
+        return when {
+            prior.isNullOrBlank() -> tail
+            tail == null -> prior
+            else -> prior.trimEnd().trimEnd('。') + "；" + tail
+        }
     }
 
     private fun formatClock(fragment: LifeFragment): String =
