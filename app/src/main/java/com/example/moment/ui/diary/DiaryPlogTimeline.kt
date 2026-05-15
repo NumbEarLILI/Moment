@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,7 +32,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.moment.domain.model.LifeFragment
-import com.example.moment.domain.model.Mood
 import com.example.moment.ui.common.FullscreenImageViewer
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -146,8 +145,7 @@ private fun DiaryPlogMomentCard(
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
-                                    .height(72.dp)
-                                    .width(72.dp)
+                                    .size(72.dp)
                                     .clip(RoundedCornerShape(8.dp))
                                     .clickable { onImageClick(uris, globalIndex) }
                             )
