@@ -1,10 +1,16 @@
 package com.example.moment.domain.usecase
 
+import com.example.moment.domain.diary.AiDiarySynthesizer
+import com.example.moment.domain.diary.DiaryDraftComposer
 import com.example.moment.domain.generator.RuleBasedDiaryGenerator
+import com.example.moment.domain.model.AppThemeMode
+import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
+import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.domain.repository.FragmentRepository
+import com.example.moment.domain.repository.UserPreferencesRepository
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
@@ -24,7 +30,7 @@ class GenerateDiaryDraftUseCaseTest {
                 fragment(2, "前一天的记录不应该进入今天的日记。", Mood.CALM, "2026-05-12T14:00:00Z")
             )
         )
-        val useCase = GenerateDiaryDraftUseCase(repository, RuleBasedDiaryGenerator())
+        val useCase = defaultGenerateDiaryDraftUseCase(repository)
 
         val result = useCase(date)
 
@@ -43,7 +49,7 @@ class GenerateDiaryDraftUseCaseTest {
                 )
             )
         )
-        val useCase = GenerateDiaryDraftUseCase(repository, RuleBasedDiaryGenerator())
+        val useCase = defaultGenerateDiaryDraftUseCase(repository)
 
         val result = useCase(date)
 
@@ -77,7 +83,7 @@ class GenerateDiaryDraftUseCaseTest {
                 )
             )
         )
-        val useCase = GenerateDiaryDraftUseCase(repository, RuleBasedDiaryGenerator())
+        val useCase = defaultGenerateDiaryDraftUseCase(repository)
 
         val result = useCase(date)
 
@@ -85,6 +91,41 @@ class GenerateDiaryDraftUseCaseTest {
             listOf("content://early1", "content://early2", "content://late"),
             result.imageUris
         )
+    }
+
+    @Test
+    fun invokeUsesAiDraftWhenModelConfigured() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val repository = FakeFragmentRepository(
+            listOf(fragment(1, "手帐来源句", Mood.HAPPY, "2026-05-13T09:00:00Z"))
+        )
+        val prefs = UserAppPreferences(
+            aiBaseUrl = "https://api.x/v1",
+            aiApiKey = "k",
+            aiModel = "m"
+        )
+        val aiDraft = DiaryDraft(
+            title = "云端标题",
+            body = "云端正文",
+            highlights = listOf("亮"),
+            moodSummary = "上扬",
+            sourceFragmentIds = listOf(1L)
+        )
+        val ai = object : AiDiarySynthesizer {
+            override suspend fun synthesize(
+                preferences: UserAppPreferences,
+                d: LocalDate,
+                fragments: List<LifeFragment>
+            ): DiaryDraft {
+                assertEquals(prefs.aiModel, preferences.aiModel)
+                return aiDraft
+            }
+        }
+        val useCase = defaultGenerateDiaryDraftUseCase(repository, prefs, ai)
+        val result = useCase(date)
+        assertEquals("云端标题", result.title)
+        assertEquals("云端正文", result.body)
+        assertEquals(listOf(1L), result.sourceFragmentIds)
     }
 
     @Test
@@ -122,6 +163,38 @@ class GenerateDiaryDraftUseCaseTest {
         }
 
         override suspend fun deleteFragment(id: Long) = Unit
+    }
+
+    private fun defaultGenerateDiaryDraftUseCase(
+        repository: FragmentRepository,
+        prefs: UserAppPreferences = UserAppPreferences(),
+        ai: AiDiarySynthesizer = object : AiDiarySynthesizer {
+            override suspend fun synthesize(
+                preferences: UserAppPreferences,
+                date: LocalDate,
+                fragments: List<LifeFragment>
+            ): DiaryDraft = error("unexpected_ai")
+        }
+    ): GenerateDiaryDraftUseCase {
+        val composer = DiaryDraftComposer(RuleBasedDiaryGenerator(), ai)
+        return GenerateDiaryDraftUseCase(
+            fragmentRepository = repository,
+            userPreferencesRepository = FakeUserPreferencesRepository(prefs),
+            diaryDraftComposer = composer
+        )
+    }
+
+    private class FakeUserPreferencesRepository(
+        initial: UserAppPreferences = UserAppPreferences()
+    ) : UserPreferencesRepository {
+        private val backing = MutableStateFlow(initial)
+        override val preferences: Flow<UserAppPreferences> = backing
+        override suspend fun setThemeMode(mode: AppThemeMode) {
+            backing.value = backing.value.copy(themeMode = mode)
+        }
+        override suspend fun setAiSettings(baseUrl: String, apiKey: String, model: String) {
+            backing.value = backing.value.copy(aiBaseUrl = baseUrl, aiApiKey = apiKey, aiModel = model)
+        }
     }
 
     private fun fragment(

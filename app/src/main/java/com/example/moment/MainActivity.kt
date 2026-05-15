@@ -5,7 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.moment.data.preferences.UserPreferencesRepository
+import com.example.moment.domain.repository.UserPreferencesRepository
 import com.example.moment.domain.model.AppThemeMode
 import com.example.moment.ui.MomentApp
 import com.example.moment.ui.theme.MomentTheme

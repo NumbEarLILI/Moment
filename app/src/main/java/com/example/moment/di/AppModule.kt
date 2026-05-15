@@ -8,12 +8,16 @@ import com.example.moment.data.local.MIGRATION_1_2
 import com.example.moment.data.local.MIGRATION_2_3
 import com.example.moment.data.local.MIGRATION_3_4
 import com.example.moment.data.local.MomentDatabase
+import com.example.moment.data.preferences.DataStoreUserPreferencesRepository
+import com.example.moment.data.remote.openai.OpenAiCompatibleDiarySynthesizer
 import com.example.moment.data.repository.DiaryRepositoryImpl
 import com.example.moment.data.repository.FragmentRepositoryImpl
+import com.example.moment.domain.diary.AiDiarySynthesizer
 import com.example.moment.domain.generator.DiaryGenerator
 import com.example.moment.domain.generator.RuleBasedDiaryGenerator
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
+import com.example.moment.domain.repository.UserPreferencesRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -32,6 +36,16 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindDiaryRepository(impl: DiaryRepositoryImpl): DiaryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUserPreferencesRepository(
+        impl: DataStoreUserPreferencesRepository
+    ): UserPreferencesRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAiDiarySynthesizer(impl: OpenAiCompatibleDiarySynthesizer): AiDiarySynthesizer
 }
 
 @Module

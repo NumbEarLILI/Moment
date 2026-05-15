@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.moment.domain.model.AppThemeMode
 import com.example.moment.domain.model.UserAppPreferences
+import com.example.moment.domain.repository.UserPreferencesRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,12 +20,12 @@ private val Context.userPreferencesDataStore: DataStore<Preferences> by preferen
 )
 
 @Singleton
-class UserPreferencesRepository @Inject constructor(
+class DataStoreUserPreferencesRepository @Inject constructor(
     @ApplicationContext private val context: Context
-) {
+) : UserPreferencesRepository {
     private val dataStore = context.userPreferencesDataStore
 
-    val preferences: Flow<UserAppPreferences> = dataStore.data.map { prefs ->
+    override val preferences: Flow<UserAppPreferences> = dataStore.data.map { prefs ->
         val themeRaw = prefs[Keys.THEME_MODE].orEmpty()
         val themeMode = AppThemeMode.entries.find { it.name == themeRaw } ?: AppThemeMode.SYSTEM
         UserAppPreferences(
@@ -35,11 +36,11 @@ class UserPreferencesRepository @Inject constructor(
         )
     }
 
-    suspend fun setThemeMode(mode: AppThemeMode) {
+    override suspend fun setThemeMode(mode: AppThemeMode) {
         dataStore.edit { it[Keys.THEME_MODE] = mode.name }
     }
 
-    suspend fun setAiSettings(baseUrl: String, apiKey: String, model: String) {
+    override suspend fun setAiSettings(baseUrl: String, apiKey: String, model: String) {
         dataStore.edit { prefs ->
             prefs[Keys.AI_BASE_URL] = baseUrl.trim()
             prefs[Keys.AI_API_KEY] = apiKey.trim()
