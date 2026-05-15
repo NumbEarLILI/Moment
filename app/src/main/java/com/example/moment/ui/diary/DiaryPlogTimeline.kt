@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -31,21 +32,29 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.moment.domain.location.shortenedDiaryPlaceLabel
+import com.example.moment.domain.model.DiaryLocationPin
+import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.FullscreenImageViewer
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** 按时间顺序：每条碎片一张主图 + 文字，类似 plog。 */
 @Composable
 fun DiaryPlogTimeline(
     fragments: List<LifeFragment>,
     modifier: Modifier = Modifier,
+    fragmentStories: List<FragmentAiStory> = emptyList(),
+    locationPins: List<DiaryLocationPin> = emptyList(),
+    onLocationPinClick: ((DiaryLocationPin) -> Unit)? = null,
     zoneId: ZoneId = ZoneId.systemDefault()
 ) {
     if (fragments.isEmpty()) return
     val timeFmt = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val storyById = remember(fragmentStories) {
+        fragmentStories.associateBy { it.fragmentId }
+    }
     var fullscreen by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
     fullscreen?.let { (uris, start) ->
         FullscreenImageViewer(
@@ -62,10 +71,14 @@ fun DiaryPlogTimeline(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         fragments.forEach { fragment ->
+            val pin = locationPins.firstOrNull { it.fragmentId == fragment.id }
             DiaryPlogMomentCard(
                 fragment = fragment,
                 zoneId = zoneId,
                 timeFormatter = timeFmt,
+                storyText = storyById[fragment.id]?.text?.trim().orEmpty(),
+                locationPin = pin,
+                onLocationPinClick = onLocationPinClick,
                 onImageClick = { uris, index -> fullscreen = uris to index }
             )
         }
@@ -78,12 +91,15 @@ private fun DiaryPlogMomentCard(
     fragment: LifeFragment,
     zoneId: ZoneId,
     timeFormatter: DateTimeFormatter,
+    storyText: String,
+    locationPin: DiaryLocationPin?,
+    onLocationPinClick: ((DiaryLocationPin) -> Unit)?,
     onImageClick: (List<String>, Int) -> Unit
 ) {
     val time = remember(fragment.id, fragment.createdAt, zoneId) {
         fragment.createdAt.atZone(zoneId).toLocalTime().format(timeFormatter)
     }
-    val text = fragment.content.trim()
+    val rawContent = fragment.content.trim()
     val uris = fragment.imageUris.map { it.trim() }.filter { it.isNotEmpty() }
 
     Card(
@@ -155,9 +171,16 @@ private fun DiaryPlogMomentCard(
             }
 
             when {
-                text.isNotEmpty() -> {
+                storyText.isNotEmpty() -> {
                     Text(
-                        text,
+                        storyText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                rawContent.isNotEmpty() -> {
+                    Text(
+                        rawContent,
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -172,16 +195,33 @@ private fun DiaryPlogMomentCard(
                 }
             }
 
-            fragment.location?.let { loc ->
-                val label = loc.label?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: String.format(Locale.CHINA, "约 %.4f，%.4f", loc.latitude, loc.longitude)
-                Text(
-                    "地点 · $label",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+            when {
+                locationPin != null && onLocationPinClick != null -> {
+                    AssistChip(
+                        onClick = { onLocationPinClick(locationPin) },
+                        label = {
+                            Text(
+                                "地点 · ${shortenedDiaryPlaceLabel(locationPin.placeName)}",
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    )
+                }
+                else -> {
+                    fragment.location?.let { loc ->
+                        val label = loc.label?.trim()?.takeIf { it.isNotEmpty() }
+                            ?: String.format(Locale.CHINA, "约 %.4f，%.4f", loc.latitude, loc.longitude)
+                        Text(
+                            "地点 · $label",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
 
             if (fragment.tags.isNotEmpty()) {

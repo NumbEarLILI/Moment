@@ -4,6 +4,7 @@ import com.example.moment.domain.generator.RuleBasedDiaryGenerator
 import com.example.moment.domain.llm.AiDiaryDraftGenerator
 import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.LlmConnectionConfig
@@ -42,7 +43,7 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
-        assertTrue(result.body.contains("今天午后完成了拖延很久的小任务"))
+        assertTrue(result.fragmentStories.any { it.text.contains("今天午后完成了拖延很久的小任务") })
         assertTrue(result.sourceFragmentIds.contains(1))
         assertTrue(!result.sourceFragmentIds.contains(2))
     }
@@ -62,10 +63,11 @@ class GenerateDiaryDraftUseCaseTest {
         )
         val aiDraft = DiaryDraft(
             title = "AI 标题",
-            body = "AI 正文",
+            body = "AI 总述",
             highlights = listOf("AI 亮点"),
             moodSummary = "开心",
-            sourceFragmentIds = listOf(99L)
+            sourceFragmentIds = listOf(99L),
+            fragmentStories = listOf(FragmentAiStory(1L, "AI 为这一则写的短文。"))
         )
         val fakeAi = object : AiDiaryDraftGenerator {
             override suspend fun generateDraft(
@@ -93,8 +95,9 @@ class GenerateDiaryDraftUseCaseTest {
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
         assertEquals("AI 标题", result.title)
-        assertEquals("AI 正文", result.body)
+        assertEquals("AI 总述", result.body)
         assertEquals(listOf(1L), result.sourceFragmentIds)
+        assertEquals(listOf(FragmentAiStory(1L, "AI 为这一则写的短文。")), result.fragmentStories)
     }
 
     @Test
@@ -278,7 +281,8 @@ class GenerateDiaryDraftUseCaseTest {
             body = "合并正文",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(2L)
+            sourceFragmentIds = listOf(2L),
+            fragmentStories = emptyList()
         )
         val fakeAi = object : AiDiaryDraftGenerator {
             override suspend fun generateDraft(
@@ -304,6 +308,8 @@ class GenerateDiaryDraftUseCaseTest {
 
         assertEquals("合并后", result.title)
         assertEquals(listOf(1L, 2L), result.sourceFragmentIds)
+        assertEquals("旧碎片。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
     }
 
     @Test
@@ -347,6 +353,8 @@ class GenerateDiaryDraftUseCaseTest {
         override suspend fun getAllDiaries(): List<DiaryEntry> = emptyList()
 
         override suspend fun saveDiary(entry: DiaryEntry): Long = 0L
+
+        override suspend fun deleteDiaryById(id: Long) = Unit
     }
 
     private class FakeFragmentRepository(

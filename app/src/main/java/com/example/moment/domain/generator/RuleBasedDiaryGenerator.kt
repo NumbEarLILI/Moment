@@ -2,6 +2,7 @@ package com.example.moment.domain.generator
 
 import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import java.time.LocalDate
@@ -21,7 +22,8 @@ class RuleBasedDiaryGenerator(
                 title = "还没有记录的一天",
                 body = "今天还没有记录。先写下一点生活碎片，再回来生成属于今天的手帐吧。",
                 highlights = emptyList(),
-                moodSummary = null
+                moodSummary = null,
+                fragmentStories = emptyList()
             )
         }
 
@@ -41,17 +43,16 @@ class RuleBasedDiaryGenerator(
             .maxWithOrNull(compareBy<Map.Entry<Mood, Int>> { it.value }.thenBy { it.key.ordinal })
             ?.key
 
-        val bodyLines = sorted.mapNotNull { lineForFragment(it) }
-        val body = bodyLines.joinToString(separator = "\n\n").ifBlank {
-            "今天留下了 ${sorted.sumOf { it.imageUris.size }} 张图片碎片，适合稍后补上一些文字。"
-        }
+        val stories = fragmentStoriesFor(sorted)
+        val body = buildShortDaySummary(sorted, mainMood)
 
         return DiaryDraft(
             title = "${mainMood?.displayName ?: "有记录"}的一天",
             body = body,
             highlights = highlights(sorted),
             moodSummary = mainMood?.let { "今天整体偏${it.displayName}。" },
-            sourceFragmentIds = sorted.map { it.id }
+            sourceFragmentIds = sorted.map { it.id },
+            fragmentStories = stories
         )
     }
 
@@ -83,7 +84,8 @@ class RuleBasedDiaryGenerator(
             body = mergedBody,
             highlights = mergedHighlights,
             moodSummary = mergedMood,
-            sourceFragmentIds = sorted.map { it.id }
+            sourceFragmentIds = sorted.map { it.id },
+            fragmentStories = fragmentStoriesFor(sorted)
         )
     }
 
@@ -94,6 +96,30 @@ class RuleBasedDiaryGenerator(
             tail == null -> prior
             else -> prior.trimEnd().trimEnd('。') + "；" + tail
         }
+    }
+
+    private fun fragmentStoriesFor(sorted: List<LifeFragment>): List<FragmentAiStory> =
+        sorted.mapNotNull { f ->
+            val s = storyForFragment(f)
+            if (s.isBlank()) null else FragmentAiStory(f.id, s)
+        }
+
+    /** 单条时间线主文案：用户原话优先，否则图片提示；不含地点后缀（地点单独展示）。 */
+    private fun storyForFragment(fragment: LifeFragment): String {
+        val text = fragment.content.trim()
+        if (text.isNotEmpty()) return text
+        if (fragment.imageUris.isNotEmpty()) return "${fragment.imageUris.size} 张图片记录"
+        return ""
+    }
+
+    private fun buildShortDaySummary(sorted: List<LifeFragment>, mainMood: Mood?): String {
+        val moodPart = mainMood?.let { "整体偏${it.displayName}。" } ?: ""
+        val rangePart = if (sorted.size == 1) {
+            "今日一则瞬间，细节见下方时间线。"
+        } else {
+            "今日共 ${sorted.size} 则瞬间，按时间陈列于下。"
+        }
+        return (moodPart + rangePart).trim()
     }
 
     private fun formatClock(fragment: LifeFragment): String =

@@ -28,6 +28,7 @@ class RefreshSavedDiaryFromFragmentsUseCase @Inject constructor(
                 sourceFragmentIds = draft.sourceFragmentIds,
                 imageUris = imageUris,
                 locationPins = pins,
+                fragmentStories = draft.fragmentStories,
                 updatedAt = clock.instant()
             )
         )

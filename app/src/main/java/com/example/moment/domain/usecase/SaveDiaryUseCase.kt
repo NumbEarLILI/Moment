@@ -2,6 +2,7 @@ package com.example.moment.domain.usecase
 
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.DiaryLocationPin
+import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.repository.DiaryRepository
 import java.time.Clock
 import java.time.LocalDate
@@ -19,7 +20,8 @@ class SaveDiaryUseCase @Inject constructor(
         moodSummary: String?,
         sourceFragmentIds: List<Long>,
         imageUris: List<String>,
-        locationPins: List<DiaryLocationPin>
+        locationPins: List<DiaryLocationPin>,
+        fragmentStories: List<FragmentAiStory>
     ): Long {
         val now = clock.instant()
         val existing = repository.getDiaryForDate(date)
@@ -33,6 +35,7 @@ class SaveDiaryUseCase @Inject constructor(
             sourceFragmentIds = sourceFragmentIds,
             imageUris = imageUris,
             locationPins = locationPins,
+            fragmentStories = fragmentStories,
             createdAt = existing?.createdAt ?: now,
             updatedAt = now
         )

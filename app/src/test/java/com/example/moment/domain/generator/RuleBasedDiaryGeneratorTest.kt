@@ -23,10 +23,11 @@ class RuleBasedDiaryGeneratorTest {
         assertTrue(draft.body.contains("今天还没有记录"))
         assertTrue(draft.highlights.isEmpty())
         assertEquals(null, draft.moodSummary)
+        assertTrue(draft.fragmentStories.isEmpty())
     }
 
     @Test
-    fun generateIncludesSingleTextFragmentWithClockPrefixInBodyAndHighlight() {
+    fun generateIncludesSingleTextFragmentStoryAndShortSummaryBody() {
         val fragment = fragment(
             id = 1,
             content = "早上喝了一杯热咖啡，感觉整个人慢慢醒过来了。",
@@ -37,33 +38,31 @@ class RuleBasedDiaryGeneratorTest {
         val draft = generator.generate(date, listOf(fragment))
 
         assertEquals("平静的一天", draft.title)
-        assertTrue(draft.body.startsWith("07:30 "))
-        assertTrue(draft.body.contains("早上喝了一杯热咖啡"))
+        assertTrue(draft.body.contains("一则瞬间") || draft.body.contains("整体偏平静"))
         assertEquals(
             listOf("07:30 早上喝了一杯热咖啡，感觉整个人慢慢醒过来了。"),
             draft.highlights
         )
         assertEquals("今天整体偏平静。", draft.moodSummary)
+        assertEquals(1, draft.fragmentStories.size)
+        assertEquals(1L, draft.fragmentStories.first().fragmentId)
+        assertTrue(draft.fragmentStories.first().text.contains("热咖啡"))
     }
 
     @Test
-    fun generateOrdersBodyLinesChronologicallyByClockTime() {
+    fun generateOrdersFragmentStoriesChronologically() {
         val fragments = listOf(
             fragment(1, "晚上读了几页书。", Mood.CALM, "2026-05-13T20:10:00Z"),
             fragment(2, "午后完成了拖延很久的小任务。", Mood.HAPPY, "2026-05-13T14:20:00Z"),
             fragment(3, "上午和同事确认了项目方向。", Mood.FOCUSED, "2026-05-13T10:15:00Z")
         )
 
-        val body = generator.generate(date, fragments).body
+        val stories = generator.generate(date, fragments).fragmentStories.map { it.fragmentId to it.text }
 
-        val i10 = body.indexOf("10:15")
-        val i14 = body.indexOf("14:20")
-        val i20 = body.indexOf("20:10")
-        assertTrue(i10 < i14)
-        assertTrue(i14 < i20)
-        assertTrue(body.contains("10:15 上午和同事确认了项目方向。"))
-        assertTrue(body.contains("14:20 午后完成了拖延很久的小任务。"))
-        assertTrue(body.contains("20:10 晚上读了几页书。"))
+        assertEquals(listOf(3L, 2L, 1L), stories.map { it.first })
+        assertTrue(stories[0].second.contains("项目方向"))
+        assertTrue(stories[1].second.contains("小任务"))
+        assertTrue(stories[2].second.contains("读了几页书"))
     }
 
     @Test
@@ -94,7 +93,7 @@ class RuleBasedDiaryGeneratorTest {
     }
 
     @Test
-    fun generateAppendsReadableLocationSuffixWhenFragmentHasLocation() {
+    fun generateStoryOmitsLocationSuffixFragmentHasLocation() {
         val fragment = fragment(
             id = 1,
             content = "在公园散步。",
@@ -108,10 +107,10 @@ class RuleBasedDiaryGeneratorTest {
             )
         )
 
-        val body = generator.generate(date, listOf(fragment)).body
+        val draft = generator.generate(date, listOf(fragment))
 
-        assertTrue(body.contains("16:00 在公园散步。"))
-        assertTrue(body.contains("📍测试公园"))
+        assertEquals("在公园散步。", draft.fragmentStories.single().text)
+        assertTrue(!draft.fragmentStories.single().text.contains("测试公园"))
     }
 
     @Test
@@ -141,6 +140,9 @@ class RuleBasedDiaryGeneratorTest {
         assertTrue(draft.body.contains("14:00 午后去公园散步。"))
         assertEquals(listOf(1L, 2L), draft.sourceFragmentIds)
         assertEquals("原标题", draft.title)
+        assertEquals(2, draft.fragmentStories.size)
+        assertEquals("早上喝了咖啡。", draft.fragmentStories.find { it.fragmentId == 1L }?.text)
+        assertEquals("午后去公园散步。", draft.fragmentStories.find { it.fragmentId == 2L }?.text)
     }
 
     private fun fragment(

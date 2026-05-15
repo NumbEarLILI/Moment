@@ -55,6 +55,19 @@ fun DiaryEditorForm(
             if (state.plogFragments.isNotEmpty()) {
                 DiaryPlogTimeline(
                     fragments = state.plogFragments,
+                    fragmentStories = state.fragmentStories,
+                    locationPins = state.locationPins,
+                    onLocationPinClick = { pin ->
+                        navController.navigate(
+                            Routes.placePick(
+                                pin.latitude,
+                                pin.longitude,
+                                pin.placeName,
+                                pin.fragmentId,
+                                placePickDiaryId
+                            )
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -72,21 +85,23 @@ fun DiaryEditorForm(
                 colors = fieldColors,
                 minLines = if (state.plogFragments.isNotEmpty()) 4 else 6
             )
-            DiaryLocationPinsRow(
-                pins = state.locationPins,
-                onPinClick = { pin ->
-                    navController.navigate(
-                        Routes.placePick(
-                            pin.latitude,
-                            pin.longitude,
-                            pin.placeName,
-                            pin.fragmentId,
-                            placePickDiaryId
+            if (state.plogFragments.isEmpty()) {
+                DiaryLocationPinsRow(
+                    pins = state.locationPins,
+                    onPinClick = { pin ->
+                        navController.navigate(
+                            Routes.placePick(
+                                pin.latitude,
+                                pin.longitude,
+                                pin.placeName,
+                                pin.fragmentId,
+                                placePickDiaryId
+                            )
                         )
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             if (state.plogFragments.isEmpty() && state.imageUris.isNotEmpty()) {
                 DiaryImageGallery(imageUris = state.imageUris, modifier = Modifier.fillMaxWidth())
             }

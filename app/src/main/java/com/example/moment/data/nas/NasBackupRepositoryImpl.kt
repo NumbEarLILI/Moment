@@ -195,6 +195,7 @@ class NasBackupRepositoryImpl @Inject constructor(
             sourceFragmentIds = dto.sourceFragmentIds,
             imageUris = localImages,
             locationPins = dto.locationPins,
+            fragmentStories = dto.fragmentStories,
             createdAt = Instant.ofEpochMilli(dto.createdAtEpochMillis),
             updatedAt = clock.instant()
         )
@@ -274,6 +275,7 @@ class NasBackupRepositoryImpl @Inject constructor(
             sourceFragmentIds = entry.sourceFragmentIds,
             imageRelativePaths = relativePaths,
             locationPins = entry.locationPins,
+            fragmentStories = entry.fragmentStories,
             createdAtEpochMillis = entry.createdAt.toEpochMilli(),
             updatedAtEpochMillis = entry.updatedAt.toEpochMilli()
         )

@@ -109,6 +109,19 @@ fun DiaryDetailScreen(
                     if (hasPlog) {
                         DiaryPlogTimeline(
                             fragments = state.plogFragments,
+                            fragmentStories = entry.fragmentStories,
+                            locationPins = entry.locationPins,
+                            onLocationPinClick = { pin ->
+                                navController.navigate(
+                                    Routes.placePick(
+                                        pin.latitude,
+                                        pin.longitude,
+                                        pin.placeName,
+                                        pin.fragmentId,
+                                        diaryId
+                                    )
+                                )
+                            },
                             modifier = Modifier.fillMaxWidth()
                         )
                     } else {
@@ -130,21 +143,23 @@ fun DiaryDetailScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    DiaryLocationPinsRow(
-                        pins = entry.locationPins,
-                        onPinClick = { pin ->
-                            navController.navigate(
-                                Routes.placePick(
-                                    pin.latitude,
-                                    pin.longitude,
-                                    pin.placeName,
-                                    pin.fragmentId,
-                                    diaryId
+                    if (!hasPlog) {
+                        DiaryLocationPinsRow(
+                            pins = entry.locationPins,
+                            onPinClick = { pin ->
+                                navController.navigate(
+                                    Routes.placePick(
+                                        pin.latitude,
+                                        pin.longitude,
+                                        pin.placeName,
+                                        pin.fragmentId,
+                                        diaryId
+                                    )
                                 )
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     if (!hasPlog && entry.imageUris.isNotEmpty()) {
                         DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
                     }

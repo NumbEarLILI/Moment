@@ -1,6 +1,7 @@
 package com.example.moment.ui.diary
 
 import com.example.moment.domain.model.DiaryLocationPin
+import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
 import java.time.LocalDate
 
@@ -13,7 +14,7 @@ data class DiaryEditorUiState(
     val highlights: List<String> = emptyList(),
     val moodSummary: String? = null,
     val sourceFragmentIds: List<Long> = emptyList(),
-    /** 按时间排序的碎片，用于 plog 式一图一文展示。 */
+    val fragmentStories: List<FragmentAiStory> = emptyList(),
     val plogFragments: List<LifeFragment> = emptyList(),
     val imageUris: List<String> = emptyList(),
     val locationPins: List<DiaryLocationPin> = emptyList(),
