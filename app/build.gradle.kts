@@ -99,6 +99,7 @@ dependencies {
     implementation("androidx.room:room-runtime:2.8.4")
     implementation("com.google.dagger:hilt-android:2.56.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     ksp("androidx.room:room-compiler:2.8.4")
     ksp("com.google.dagger:hilt-compiler:2.56.2")

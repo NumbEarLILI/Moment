@@ -101,12 +101,12 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Text(
-                "大模型（预留）",
+                "大模型",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "填写接口地址、密钥与模型名，供后续接入对话或生成能力时使用。",
+                "填写 OpenAI 兼容接口（如 /v1/chat/completions）、密钥与模型名。已配置时，「生成手帐」会调用模型整合当日碎片；未配置则使用内置规则。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -115,7 +115,7 @@ fun SettingsScreen(
                 onValueChange = viewModel::setAiBaseUrl,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API 根地址") },
-                placeholder = { Text("例如 https://api.example.com/v1") },
+                placeholder = { Text("例如 https://api.openai.com/v1") },
                 singleLine = true
             )
             OutlinedTextField(

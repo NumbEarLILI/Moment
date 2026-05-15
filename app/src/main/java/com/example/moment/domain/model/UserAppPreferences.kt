@@ -8,4 +8,7 @@ data class UserAppPreferences(
     val aiBaseUrl: String = "",
     val aiApiKey: String = "",
     val aiModel: String = ""
-)
+) {
+    /** 已填写 API 根地址与模型名时，生成手帐可走大模型（Key 可为空，例如本地服务）。 */
+    fun isAiDiaryConfigured(): Boolean = aiBaseUrl.isNotBlank() && aiModel.isNotBlank()
+}
