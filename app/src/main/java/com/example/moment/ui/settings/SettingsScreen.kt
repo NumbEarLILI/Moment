@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -272,15 +273,17 @@ fun SettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    nasBackupRunIds.forEach { runId ->
-                        val label = runId.removePrefix("run_").let { t ->
-                            if (t.length > 14) "…${t.takeLast(12)}" else t
+                    for (runId in nasBackupRunIds) {
+                        key(runId) {
+                            val label = runId.removePrefix("run_").let { t ->
+                                if (t.length > 14) "…${t.takeLast(12)}" else t
+                            }
+                            FilterChip(
+                                selected = runId == selectedNasRunId,
+                                onClick = { viewModel.selectNasBackupRun(runId) },
+                                label = { Text(label) }
+                            )
                         }
-                        FilterChip(
-                            selected = runId == selectedNasRunId,
-                            onClick = { viewModel.selectNasBackupRun(runId) },
-                            label = { Text(label) }
-                        )
                     }
                 }
             }
