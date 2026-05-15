@@ -476,31 +476,31 @@ private fun CaptureHeader(
     val subtitle = selectedDate?.let { "${it.format(HeaderDateFormatter)} · 把这天整理成一页手帐" }
         ?: "随手记下文字、照片与地点"
 
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        Text(
+            "Moment",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            softWrap = false
+        )
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text(
-                    "Moment",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    softWrap = false
-                )
                 Text(
                     subtitle,
                     style = MaterialTheme.typography.bodySmall,
@@ -508,63 +508,63 @@ private fun CaptureHeader(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-            }
-            CaptureMomentExpandable(
-                expanded = momentExpanded,
-                onToggleExpanded = onToggleMomentExpanded,
-                content = momentContent,
-                onContentChange = onMomentContentChange,
-                tagList = tagList,
-                onRemoveTag = onRemoveTag,
-                newTagInput = newTagInput,
-                onNewTagInputChange = onNewTagInputChange,
-                onCommitNewTag = onCommitNewTag,
-                imageUriList = imageUriList,
-                onRemoveImage = onRemoveImage,
-                onCamera = onCamera,
-                onGallery = onGallery,
-                onPickPlace = onPickPlace,
-                location = location,
-                isAnalyzingImages = isAnalyzingImages,
-                interactionsEnabled = momentInteractionsEnabled,
-                errorMessage = errorMessage,
-                saveLabel = saveLabel,
-                onSave = onSave,
-                saveEnabled = saveEnabled,
-                canDeleteFragment = canDeleteFragment,
-                isDeleting = isDeleting,
-                onRequestDelete = onRequestDelete
-            )
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = onGenerateDiary,
-                    enabled = canGenerateDiary,
+                CaptureMomentExpandable(
+                    expanded = momentExpanded,
+                    onToggleExpanded = onToggleMomentExpanded,
+                    content = momentContent,
+                    onContentChange = onMomentContentChange,
+                    tagList = tagList,
+                    onRemoveTag = onRemoveTag,
+                    newTagInput = newTagInput,
+                    onNewTagInputChange = onNewTagInputChange,
+                    onCommitNewTag = onCommitNewTag,
+                    imageUriList = imageUriList,
+                    onRemoveImage = onRemoveImage,
+                    onCamera = onCamera,
+                    onGallery = onGallery,
+                    onPickPlace = onPickPlace,
+                    location = location,
+                    isAnalyzingImages = isAnalyzingImages,
+                    interactionsEnabled = momentInteractionsEnabled,
+                    errorMessage = errorMessage,
+                    saveLabel = saveLabel,
+                    onSave = onSave,
+                    saveEnabled = saveEnabled,
+                    canDeleteFragment = canDeleteFragment,
+                    isDeleting = isDeleting,
+                    onRequestDelete = onRequestDelete
+                )
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("生成手帐")
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onOpenHistory,
-                        modifier = Modifier.weight(1f),
+                    Button(
+                        onClick = onGenerateDiary,
+                        enabled = canGenerateDiary,
+                        modifier = Modifier.fillMaxWidth(),
                         shape = MaterialTheme.shapes.large
                     ) {
-                        Text("历史")
+                        Text("生成手帐")
                     }
-                    OutlinedButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.large
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("设置")
+                        OutlinedButton(
+                            onClick = onOpenHistory,
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Text("历史")
+                        }
+                        OutlinedButton(
+                            onClick = onOpenSettings,
+                            modifier = Modifier.weight(1f),
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Text("设置")
+                        }
                     }
                 }
             }
