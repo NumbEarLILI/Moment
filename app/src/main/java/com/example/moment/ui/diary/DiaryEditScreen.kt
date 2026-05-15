@@ -3,7 +3,11 @@ package com.example.moment.ui.diary
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -55,16 +59,23 @@ fun DiaryEditScreen(
             TextButton(onClick = onClose, shape = MaterialTheme.shapes.small) {
                 Text("返回", color = MaterialTheme.colorScheme.primary)
             }
-            DiaryEditorForm(
-                state = state,
-                headline = "编辑手帐",
-                saveButtonLabel = "保存修改",
-                placePickDiaryId = editBackStackEntry.arguments?.getLong("id") ?: 0L,
-                navController = navController,
-                onTitleChange = viewModel::updateTitle,
-                onBodyChange = viewModel::updateBody,
-                onSave = viewModel::save
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                DiaryEditorForm(
+                    state = state,
+                    headline = "编辑手帐",
+                    saveButtonLabel = "保存修改",
+                    placePickDiaryId = editBackStackEntry.arguments?.getLong("id") ?: 0L,
+                    navController = navController,
+                    onTitleChange = viewModel::updateTitle,
+                    onBodyChange = viewModel::updateBody,
+                    onSave = viewModel::save
+                )
+            }
         }
     }
 }

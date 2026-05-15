@@ -3,17 +3,20 @@ package com.example.moment.domain.usecase
 import com.example.moment.domain.generator.RuleBasedDiaryGenerator
 import com.example.moment.domain.llm.AiDiaryDraftGenerator
 import com.example.moment.domain.model.DiaryDraft
+import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.LlmConnectionConfig
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.domain.preferences.UserPreferencesAccessor
+import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -31,6 +34,7 @@ class GenerateDiaryDraftUseCaseTest {
         )
         val useCase = GenerateDiaryDraftUseCase(
             repository,
+            StubDiaryRepository(null),
             RuleBasedDiaryGenerator(),
             StaticUserPreferences(UserAppPreferences()),
             NeverCalledAi
@@ -78,6 +82,7 @@ class GenerateDiaryDraftUseCaseTest {
         }
         val useCase = GenerateDiaryDraftUseCase(
             repository,
+            StubDiaryRepository(null),
             RuleBasedDiaryGenerator(),
             StaticUserPreferences(prefs),
             fakeAi
@@ -102,6 +107,7 @@ class GenerateDiaryDraftUseCaseTest {
         )
         val useCase = GenerateDiaryDraftUseCase(
             repository,
+            StubDiaryRepository(null),
             RuleBasedDiaryGenerator(),
             StaticUserPreferences(UserAppPreferences()),
             NeverCalledAi
@@ -141,6 +147,7 @@ class GenerateDiaryDraftUseCaseTest {
         )
         val useCase = GenerateDiaryDraftUseCase(
             repository,
+            StubDiaryRepository(null),
             RuleBasedDiaryGenerator(),
             StaticUserPreferences(UserAppPreferences()),
             NeverCalledAi
@@ -152,6 +159,42 @@ class GenerateDiaryDraftUseCaseTest {
             listOf("content://early1", "content://early2", "content://late"),
             result.imageUris
         )
+    }
+
+    @Test
+    fun invokeKeepsPriorSavedImageUrisWhenRegenerating() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1L,
+            date = date,
+            title = "旧",
+            body = "旧正文",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(1L),
+            imageUris = listOf("content://old_only"),
+            locationPins = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(1, "碎片一", Mood.CALM, "2026-05-13T09:00:00Z").copy(
+                    imageUris = listOf("content://from_fragment")
+                )
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(java.time.ZoneOffset.UTC),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+
+        assertEquals(listOf("content://old_only", "content://from_fragment"), result.imageUris)
     }
 
     @Test
@@ -177,6 +220,25 @@ class GenerateDiaryDraftUseCaseTest {
             fragments: List<LifeFragment>,
             config: LlmConnectionConfig
         ): Result<DiaryDraft> = error("AI must not be used in this test")
+    }
+
+    private class StubDiaryRepository(
+        private val entry: DiaryEntry?
+    ) : DiaryRepository {
+        override fun observeDiaries(): Flow<List<DiaryEntry>> = flowOf(emptyList())
+
+        override fun observeDiary(id: Long): Flow<DiaryEntry?> = flowOf(null)
+
+        override suspend fun getDiaryForDate(date: LocalDate): DiaryEntry? =
+            entry?.takeIf { it.date == date }
+
+        override suspend fun getDiaryById(id: Long): DiaryEntry? = null
+
+        override suspend fun getAllDiaries(): List<DiaryEntry> = emptyList()
+
+        override suspend fun saveDiary(entry: DiaryEntry): Long = 0L
+
+        override suspend fun deleteDiaryById(id: Long) = Unit
     }
 
     private class FakeFragmentRepository(
