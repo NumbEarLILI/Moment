@@ -3,8 +3,8 @@ package com.example.moment.ui.diary
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.moment.domain.model.DiaryDraft
-import com.example.moment.domain.usecase.GenerateDiaryDraftUseCase
+import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.usecase.SaveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -15,48 +15,47 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class DiaryPreviewViewModel @Inject constructor(
+class DiaryEditViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val generateDiaryDraft: GenerateDiaryDraftUseCase,
+    private val diaryRepository: DiaryRepository,
     private val saveDiary: SaveDiaryUseCase
 ) : ViewModel() {
-    private val date: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle["date"]))
-    private val _uiState = MutableStateFlow(DiaryEditorUiState(date = date))
+    private val diaryId: Long = checkNotNull(savedStateHandle.get<Long>("id"))
+    private val _uiState = MutableStateFlow(DiaryEditorUiState(date = LocalDate.EPOCH))
     val uiState: StateFlow<DiaryEditorUiState> = _uiState
 
     init {
-        viewModelScope.launch { loadDraft() }
+        viewModelScope.launch { loadEntry() }
     }
 
-    fun reloadDraft() {
+    fun reloadEntry() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
-            loadDraft()
+            loadEntry()
         }
     }
 
-    private suspend fun loadDraft() {
-        try {
-            val draft = generateDiaryDraft(date)
-            applyDraft(draft)
-        } catch (e: Throwable) {
-            val detail = e.message?.takeIf { it.isNotBlank() }
-            val msg = detail?.let { "生成日记失败：$it" } ?: "生成日记失败，请稍后重试"
-            _uiState.update { it.copy(isLoading = false, errorMessage = msg) }
+    private suspend fun loadEntry() {
+        val entry = diaryRepository.getDiaryById(diaryId)
+        if (entry == null) {
+            _uiState.update { it.copy(isLoading = false, errorMessage = "没有找到这篇手帐") }
+            return
         }
+        applyEntry(entry)
     }
 
-    private fun applyDraft(draft: DiaryDraft) {
+    private fun applyEntry(entry: DiaryEntry) {
         _uiState.update {
             it.copy(
                 isLoading = false,
-                title = draft.title,
-                body = draft.body,
-                highlights = draft.highlights,
-                moodSummary = draft.moodSummary,
-                sourceFragmentIds = draft.sourceFragmentIds,
-                imageUris = draft.imageUris,
-                locationPins = draft.locationPins
+                date = entry.date,
+                title = entry.title,
+                body = entry.body,
+                highlights = entry.highlights,
+                moodSummary = entry.moodSummary,
+                sourceFragmentIds = entry.sourceFragmentIds,
+                imageUris = entry.imageUris,
+                locationPins = entry.locationPins
             )
         }
     }
@@ -67,7 +66,7 @@ class DiaryPreviewViewModel @Inject constructor(
     fun save() {
         val state = _uiState.value
         if (state.sourceFragmentIds.isEmpty()) {
-            _uiState.update { it.copy(errorMessage = "今天还没有碎片，不能保存空手帐") }
+            _uiState.update { it.copy(errorMessage = "缺少关联碎片记录，无法保存。请从日历重新生成手帐。") }
             return
         }
         viewModelScope.launch {
@@ -86,7 +85,7 @@ class DiaryPreviewViewModel @Inject constructor(
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false, saved = true) }
             }.onFailure {
-                _uiState.update { it.copy(isSaving = false, errorMessage = "保存日记失败，请稍后重试") }
+                _uiState.update { it.copy(isSaving = false, errorMessage = "保存失败，请稍后重试") }
             }
         }
     }

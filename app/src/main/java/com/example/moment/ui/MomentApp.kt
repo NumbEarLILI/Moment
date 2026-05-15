@@ -12,6 +12,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.moment.ui.capture.CaptureScreen
 import com.example.moment.ui.diary.DiaryDetailScreen
+import com.example.moment.ui.diary.DiaryEditScreen
 import com.example.moment.ui.diary.DiaryPreviewScreen
 import com.example.moment.ui.history.HistoryEvent
 import com.example.moment.ui.history.HistoryScreen
@@ -88,7 +89,18 @@ fun MomentApp() {
             DiaryDetailScreen(
                 navController = navController,
                 diaryId = diaryId,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onEditDiary = { id -> navController.navigate(Routes.editDiary(id)) }
+            )
+        }
+        composable(
+            route = Routes.DiaryEdit,
+            arguments = listOf(navArgument("id") { type = NavType.LongType })
+        ) { entry ->
+            DiaryEditScreen(
+                navController = navController,
+                editBackStackEntry = entry,
+                onClose = { navController.popBackStack() }
             )
         }
         composable(
@@ -116,7 +128,10 @@ object Routes {
     const val History = "history"
     const val Settings = "settings"
     const val Detail = "detail/{id}"
+    const val DiaryEdit = "edit/{id}"
     const val PlacePick = "placePick?lat={lat}&lng={lng}&hint={hint}&fragmentId={fragmentId}&diaryId={diaryId}"
+
+    fun editDiary(id: Long): String = "edit/$id"
 
     fun capture(fragmentId: Long, forDate: LocalDate? = null): String =
         buildString {

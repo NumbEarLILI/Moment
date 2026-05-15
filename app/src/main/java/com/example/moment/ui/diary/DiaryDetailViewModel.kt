@@ -4,29 +4,71 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.usecase.DeleteDiaryUseCase
 import com.example.moment.domain.usecase.ObserveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 @HiltViewModel
 class DiaryDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    observeDiary: ObserveDiaryUseCase
+    observeDiary: ObserveDiaryUseCase,
+    private val deleteDiary: DeleteDiaryUseCase
 ) : ViewModel() {
     private val id: Long = checkNotNull(savedStateHandle["id"])
-    val uiState: StateFlow<DiaryDetailUiState> = observeDiary(id)
-        .map { DiaryDetailUiState(entry = it, isLoading = false) }
-        .catch { emit(DiaryDetailUiState(isLoading = false, errorMessage = "读取日记失败")) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DiaryDetailUiState())
+    private val _uiState = MutableStateFlow(DiaryDetailUiState())
+    val uiState: StateFlow<DiaryDetailUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            observeDiary(id)
+                .catch {
+                    _uiState.update { it.copy(isLoading = false, errorMessage = "读取日记失败") }
+                }
+                .collect { entry ->
+                    _uiState.update { prev ->
+                        prev.copy(
+                            entry = entry,
+                            isLoading = false
+                        )
+                    }
+                }
+        }
+    }
+
+    fun requestDeleteConfirmation() {
+        _uiState.update { it.copy(showDeleteConfirm = true) }
+    }
+
+    fun dismissDeleteConfirmation() {
+        _uiState.update { it.copy(showDeleteConfirm = false) }
+    }
+
+    fun confirmDelete() {
+        viewModelScope.launch {
+            runCatching { deleteDiary(id) }
+                .onSuccess {
+                    _uiState.update { it.copy(showDeleteConfirm = false, deleted = true) }
+                }
+                .onFailure {
+                    _uiState.update {
+                        it.copy(showDeleteConfirm = false, errorMessage = "删除失败，请稍后重试")
+                    }
+                }
+        }
+    }
 }
 
 data class DiaryDetailUiState(
     val isLoading: Boolean = true,
     val entry: DiaryEntry? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val showDeleteConfirm: Boolean = false,
+    val deleted: Boolean = false
 )

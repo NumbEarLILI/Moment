@@ -26,4 +26,7 @@ interface DiaryDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entry: DiaryEntity): Long
+
+    @Query("DELETE FROM diaries WHERE id = :id")
+    suspend fun deleteById(id: Long)
 }

@@ -1,18 +1,21 @@
 package com.example.moment.ui.diary
 
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -29,9 +32,32 @@ fun DiaryDetailScreen(
     navController: NavHostController,
     diaryId: Long,
     onBack: () -> Unit,
+    onEditDiary: (Long) -> Unit,
     viewModel: DiaryDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(state.deleted) {
+        if (state.deleted) onBack()
+    }
+
+    if (state.showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissDeleteConfirmation,
+            title = { Text("删除这篇手帐？") },
+            text = { Text("删除后无法恢复。") },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmDelete) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissDeleteConfirmation) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -68,6 +94,17 @@ fun DiaryDetailScreen(
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.secondary
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { onEditDiary(diaryId) }) {
+                            Text("编辑", color = MaterialTheme.colorScheme.primary)
+                        }
+                        TextButton(onClick = viewModel::requestDeleteConfirmation) {
+                            Text("删除", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
                     Text(
                         entry.body,
                         style = MaterialTheme.typography.bodyLarge,
