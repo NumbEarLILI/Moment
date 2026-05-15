@@ -23,6 +23,9 @@ class DiaryRepositoryImpl @Inject constructor(
     override suspend fun getDiaryById(id: Long): DiaryEntry? =
         dao.getById(id)?.toDomain()
 
+    override suspend fun getAllDiaries(): List<DiaryEntry> =
+        dao.getAll().map { it.toDomain() }
+
     override suspend fun saveDiary(entry: DiaryEntry): Long =
         dao.upsert(entry.toEntity())
 }
