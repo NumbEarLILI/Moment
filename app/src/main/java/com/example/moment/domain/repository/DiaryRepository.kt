@@ -11,4 +11,6 @@ interface DiaryRepository {
     suspend fun getDiaryById(id: Long): DiaryEntry?
     suspend fun getAllDiaries(): List<DiaryEntry>
     suspend fun saveDiary(entry: DiaryEntry): Long
+
+    suspend fun deleteDiaryById(id: Long)
 }

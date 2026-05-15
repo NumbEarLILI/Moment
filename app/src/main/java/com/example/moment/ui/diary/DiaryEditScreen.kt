@@ -20,22 +20,21 @@ import androidx.navigation.NavHostController
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 
 @Composable
-fun DiaryPreviewScreen(
+fun DiaryEditScreen(
     navController: NavHostController,
-    previewBackStackEntry: NavBackStackEntry,
-    diaryId: Long,
+    editBackStackEntry: NavBackStackEntry,
     onClose: () -> Unit,
-    viewModel: DiaryPreviewViewModel = hiltViewModel()
+    viewModel: DiaryEditViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val pickJson by previewBackStackEntry.savedStateHandle
+    val pickJson by editBackStackEntry.savedStateHandle
         .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
         .collectAsStateWithLifecycle()
 
     LaunchedEffect(pickJson) {
         if (pickJson.isNotBlank()) {
-            viewModel.reloadDraft()
-            previewBackStackEntry.savedStateHandle[MOMENT_PICK_LOCATION_JSON_KEY] = ""
+            viewModel.reloadEntry()
+            editBackStackEntry.savedStateHandle[MOMENT_PICK_LOCATION_JSON_KEY] = ""
         }
     }
 
@@ -58,9 +57,9 @@ fun DiaryPreviewScreen(
             }
             DiaryEditorForm(
                 state = state,
-                headline = "生成手帐",
-                saveButtonLabel = "保存日记",
-                placePickDiaryId = diaryId,
+                headline = "编辑手帐",
+                saveButtonLabel = "保存修改",
+                placePickDiaryId = editBackStackEntry.arguments?.getLong("id") ?: 0L,
                 navController = navController,
                 onTitleChange = viewModel::updateTitle,
                 onBodyChange = viewModel::updateBody,

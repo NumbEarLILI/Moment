@@ -28,4 +28,8 @@ class DiaryRepositoryImpl @Inject constructor(
 
     override suspend fun saveDiary(entry: DiaryEntry): Long =
         dao.upsert(entry.toEntity())
+
+    override suspend fun deleteDiaryById(id: Long) {
+        dao.deleteById(id)
+    }
 }
