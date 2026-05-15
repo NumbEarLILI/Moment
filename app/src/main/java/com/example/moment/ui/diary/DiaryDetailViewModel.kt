@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.repository.FragmentRepository
 import com.example.moment.domain.usecase.DeleteDiaryUseCase
 import com.example.moment.domain.usecase.ObserveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +21,8 @@ import kotlinx.coroutines.launch
 class DiaryDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     observeDiary: ObserveDiaryUseCase,
-    private val deleteDiary: DeleteDiaryUseCase
+    private val deleteDiary: DeleteDiaryUseCase,
+    private val fragmentRepository: FragmentRepository
 ) : ViewModel() {
     private val id: Long = checkNotNull(savedStateHandle["id"])
     private val _uiState = MutableStateFlow(DiaryDetailUiState())
@@ -32,9 +35,18 @@ class DiaryDetailViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = false, errorMessage = "读取日记失败") }
                 }
                 .collect { entry ->
+                    val plog = if (entry != null && entry.sourceFragmentIds.isNotEmpty()) {
+                        val idSet = entry.sourceFragmentIds.toSet()
+                        fragmentRepository.getFragmentsForDate(entry.date)
+                            .filter { it.id in idSet }
+                            .sortedBy { it.createdAt }
+                    } else {
+                        emptyList()
+                    }
                     _uiState.update { prev ->
                         prev.copy(
                             entry = entry,
+                            plogFragments = plog,
                             isLoading = false
                         )
                     }
@@ -68,6 +80,7 @@ class DiaryDetailViewModel @Inject constructor(
 data class DiaryDetailUiState(
     val isLoading: Boolean = true,
     val entry: DiaryEntry? = null,
+    val plogFragments: List<LifeFragment> = emptyList(),
     val errorMessage: String? = null,
     val showDeleteConfirm: Boolean = false,
     val deleted: Boolean = false

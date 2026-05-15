@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.repository.DiaryRepository
+import com.example.moment.domain.repository.FragmentRepository
 import com.example.moment.domain.usecase.SaveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -18,6 +19,7 @@ import kotlinx.coroutines.launch
 class DiaryEditViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val diaryRepository: DiaryRepository,
+    private val fragmentRepository: FragmentRepository,
     private val saveDiary: SaveDiaryUseCase
 ) : ViewModel() {
     private val diaryId: Long = checkNotNull(savedStateHandle.get<Long>("id"))
@@ -44,7 +46,15 @@ class DiaryEditViewModel @Inject constructor(
         applyEntry(entry)
     }
 
-    private fun applyEntry(entry: DiaryEntry) {
+    private suspend fun applyEntry(entry: DiaryEntry) {
+        val plog = if (entry.sourceFragmentIds.isNotEmpty()) {
+            val idSet = entry.sourceFragmentIds.toSet()
+            fragmentRepository.getFragmentsForDate(entry.date)
+                .filter { it.id in idSet }
+                .sortedBy { it.createdAt }
+        } else {
+            emptyList()
+        }
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -54,6 +64,7 @@ class DiaryEditViewModel @Inject constructor(
                 highlights = entry.highlights,
                 moodSummary = entry.moodSummary,
                 sourceFragmentIds = entry.sourceFragmentIds,
+                plogFragments = plog,
                 imageUris = entry.imageUris,
                 locationPins = entry.locationPins
             )
