@@ -15,6 +15,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -23,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -47,6 +49,8 @@ fun SettingsScreen(
     val nasTrustSelfSigned by viewModel.nasTrustSelfSigned.collectAsStateWithLifecycle()
     val nasBusy by viewModel.nasBusy.collectAsStateWithLifecycle()
     val nasStatusMessage by viewModel.nasStatusMessage.collectAsStateWithLifecycle()
+    val nasBackupRunIds by viewModel.nasBackupRunIds.collectAsStateWithLifecycle()
+    val selectedNasRunId by viewModel.selectedNasRunId.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.reloadDraftFieldsFromStore()
@@ -159,7 +163,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "用于将已保存的手帐日记与图片备份到 NAS。请在 NAS 上启用 WebDAV，并填写根路径（通常为某个共享文件夹的 WebDAV 地址）。每次备份会新建 MomentBackup/runs/run_时间戳/ 目录。",
+                "用于将已保存的手帐备份到 NAS，或从 NAS 读回备份。请在 NAS 上启用 WebDAV，并填写根路径（通常为某个共享文件夹的 WebDAV 地址）。每次备份会新建 MomentBackup/runs/run_时间戳/ 目录。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -230,6 +234,66 @@ fun SettingsScreen(
                 ) {
                     Text("备份日记")
                 }
+            }
+            Text(
+                "从 NAS 读回备份",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "从 MomentBackup/runs/ 下列出本机备份，按日期合并到本地手帐（同一天会覆盖本地该日手帐）。图片会下载到应用私有目录。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { viewModel.refreshNasBackupRuns() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !nasBusy
+                ) {
+                    Text("刷新备份列表")
+                }
+                OutlinedButton(
+                    onClick = { viewModel.restoreNasLatestBackup() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !nasBusy
+                ) {
+                    Text("同步最新")
+                }
+            }
+            if (nasBackupRunIds.isNotEmpty()) {
+                Text(
+                    "选择备份",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    for (runId in nasBackupRunIds) {
+                        key(runId) {
+                            val label = runId.removePrefix("run_").let { t ->
+                                if (t.length > 14) "…${t.takeLast(12)}" else t
+                            }
+                            FilterChip(
+                                selected = runId == selectedNasRunId,
+                                onClick = { viewModel.selectNasBackupRun(runId) },
+                                label = { Text(label) }
+                            )
+                        }
+                    }
+                }
+            }
+            Button(
+                onClick = { viewModel.restoreNasSelectedBackup() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !nasBusy && selectedNasRunId != null
+            ) {
+                Text("同步选中备份到本机")
             }
             if (nasBusy) {
                 CircularProgressIndicator(modifier = Modifier.padding(top = 4.dp))

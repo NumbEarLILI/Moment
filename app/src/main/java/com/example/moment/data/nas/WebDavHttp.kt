@@ -170,6 +170,44 @@ class WebDavHttp @Inject constructor(
         }
     }
 
+    suspend fun propfindDirectChildNames(client: OkHttpClient, collectionUrl: HttpUrl): List<String> =
+        withContext(Dispatchers.IO) {
+            val url = collectionUrlForPropfind(collectionUrl)
+            val propfindBody = PROPFIND_BODY.toRequestBody("application/xml; charset=utf-8".toMediaType())
+            val req = Request.Builder()
+                .url(url)
+                .method("PROPFIND", propfindBody)
+                .header("Depth", "1")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (resp.code !in 200..299 && resp.code != 207) {
+                    throw IOException("PROPFIND 失败（HTTP ${resp.code}）")
+                }
+                val xml = resp.body?.string().orEmpty()
+                WebDavHrefParser.directChildNames(url, xml)
+            }
+        }
+
+    suspend fun getBytes(client: OkHttpClient, url: HttpUrl): ByteArray =
+        withContext(Dispatchers.IO) {
+            val req = Request.Builder().url(url).get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    throw IOException("GET 失败（HTTP ${resp.code}）")
+                }
+                resp.body?.bytes() ?: throw IOException("空响应体")
+            }
+        }
+
+    private fun collectionUrlForPropfind(url: HttpUrl): HttpUrl {
+        val p = url.encodedPath
+        return if (p.endsWith("/")) {
+            url
+        } else {
+            url.newBuilder().encodedPath("$p/").build()
+        }
+    }
+
     companion object {
         private val PROPFIND_BODY =
             """

@@ -51,6 +51,12 @@ class SettingsViewModel @Inject constructor(
     private val _nasStatusMessage = MutableStateFlow<String?>(null)
     val nasStatusMessage: StateFlow<String?> = _nasStatusMessage.asStateFlow()
 
+    private val _nasBackupRunIds = MutableStateFlow<List<String>>(emptyList())
+    val nasBackupRunIds: StateFlow<List<String>> = _nasBackupRunIds.asStateFlow()
+
+    private val _selectedNasRunId = MutableStateFlow<String?>(null)
+    val selectedNasRunId: StateFlow<String?> = _selectedNasRunId.asStateFlow()
+
     fun reloadDraftFieldsFromStore() {
         viewModelScope.launch {
             val p = userPreferencesRepository.preferences.first()
@@ -150,6 +156,81 @@ class SettingsViewModel @Inject constructor(
                     "备份完成：${s.diaryCount} 篇日记，图片上传 ${s.imagesUploaded}，跳过 ${s.imagesSkipped}。目录：${s.runFolder}"
                 },
                 onFailure = { e -> "备份失败：${e.message ?: e.javaClass.simpleName}" }
+            )
+        }
+    }
+
+    fun refreshNasBackupRuns() {
+        viewModelScope.launch {
+            _nasBusy.value = true
+            _nasStatusMessage.value = null
+            val config = currentNasConfigFromForm()
+            val runs = nasBackupRepository.listBackupRuns(config).getOrElse { e ->
+                _nasBusy.value = false
+                _nasStatusMessage.value = "读取备份列表失败：${e.message ?: e.javaClass.simpleName}"
+                return@launch
+            }
+            _nasBackupRunIds.value = runs
+            if (_selectedNasRunId.value !in runs) {
+                _selectedNasRunId.value = runs.firstOrNull()
+            }
+            _nasBusy.value = false
+            _nasStatusMessage.value = when {
+                runs.isEmpty() -> "未找到备份目录（MomentBackup/runs/）"
+                else -> "找到 ${runs.size} 个备份，请选择一个后点「同步到本机」"
+            }
+        }
+    }
+
+    fun selectNasBackupRun(runId: String) {
+        _selectedNasRunId.value = runId
+    }
+
+    fun restoreNasSelectedBackup() {
+        viewModelScope.launch {
+            val runId = _selectedNasRunId.value
+            if (runId == null) {
+                _nasStatusMessage.value = "请先「刷新备份列表」并选择一个备份"
+                return@launch
+            }
+            _nasBusy.value = true
+            _nasStatusMessage.value = null
+            val r = nasBackupRepository.restoreBackupRun(currentNasConfigFromForm(), runId)
+            _nasBusy.value = false
+            _nasStatusMessage.value = r.fold(
+                onSuccess = { s ->
+                    "同步完成：恢复 ${s.diariesRestored} 篇手帐，跳过 ${s.diariesSkipped} 个目录，图片 ${s.imagesRestored} 张（${s.runId}）"
+                },
+                onFailure = { e -> "同步失败：${e.message ?: e.javaClass.simpleName}" }
+            )
+        }
+    }
+
+    fun restoreNasLatestBackup() {
+        viewModelScope.launch {
+            _nasBusy.value = true
+            _nasStatusMessage.value = null
+            val config = currentNasConfigFromForm()
+            val runs = nasBackupRepository.listBackupRuns(config).getOrElse { e ->
+                _nasBusy.value = false
+                _nasStatusMessage.value = "读取备份列表失败：${e.message ?: e.javaClass.simpleName}"
+                return@launch
+            }
+            _nasBackupRunIds.value = runs
+            val latest = runs.firstOrNull()
+            if (latest == null) {
+                _nasBusy.value = false
+                _nasStatusMessage.value = "未找到可同步的备份"
+                return@launch
+            }
+            _selectedNasRunId.value = latest
+            val r = nasBackupRepository.restoreBackupRun(config, latest)
+            _nasBusy.value = false
+            _nasStatusMessage.value = r.fold(
+                onSuccess = { s ->
+                    "已同步最新备份：恢复 ${s.diariesRestored} 篇，跳过 ${s.diariesSkipped}，图片 ${s.imagesRestored} 张"
+                },
+                onFailure = { e -> "同步失败：${e.message ?: e.javaClass.simpleName}" }
             )
         }
     }
