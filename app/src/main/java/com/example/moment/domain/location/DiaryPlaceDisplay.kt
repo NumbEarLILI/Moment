@@ -24,7 +24,7 @@ fun shortenedDiaryPlaceLabel(fullAddress: String): String {
         first.contains("省") ||
             first.contains("自治区") ||
             first.contains("特别行政区") -> true
-        first.contains("市") && !first.contains("区") && !first.contains("县") && first.length > 3 -> true
+        first.contains("市") && !first.contains("区") && !first.contains("县") && first.length >= 3 -> true
         else -> false
     }
     return if (broadFirst) last else first

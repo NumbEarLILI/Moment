@@ -1,9 +1,14 @@
 package com.example.moment.domain.usecase
 
 import com.example.moment.domain.generator.RuleBasedDiaryGenerator
+import com.example.moment.domain.llm.AiDiaryDraftGenerator
+import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.model.LlmConnectionConfig
 import com.example.moment.domain.model.Mood
+import com.example.moment.domain.model.UserAppPreferences
+import com.example.moment.domain.preferences.UserPreferencesAccessor
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.Instant
 import java.time.LocalDate
@@ -24,13 +29,65 @@ class GenerateDiaryDraftUseCaseTest {
                 fragment(2, "前一天的记录不应该进入今天的日记。", Mood.CALM, "2026-05-12T14:00:00Z")
             )
         )
-        val useCase = GenerateDiaryDraftUseCase(repository, RuleBasedDiaryGenerator())
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
 
-        val result = useCase(date)
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
         assertTrue(result.body.contains("今天午后完成了拖延很久的小任务"))
         assertTrue(result.sourceFragmentIds.contains(1))
         assertTrue(!result.sourceFragmentIds.contains(2))
+    }
+
+    @Test
+    fun invokeUsesAiWhenConfiguredAndModeAuto() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(1, "只言片语。", Mood.HAPPY, "2026-05-13T10:00:00Z")
+            )
+        )
+        val prefs = UserAppPreferences(
+            aiBaseUrl = "https://example.com/v1",
+            aiApiKey = "k",
+            aiModel = "m"
+        )
+        val aiDraft = DiaryDraft(
+            title = "AI 标题",
+            body = "AI 正文",
+            highlights = listOf("AI 亮点"),
+            moodSummary = "开心",
+            sourceFragmentIds = listOf(99L)
+        )
+        val fakeAi = object : AiDiaryDraftGenerator {
+            override suspend fun generateDraft(
+                date: LocalDate,
+                fragments: List<LifeFragment>,
+                config: LlmConnectionConfig
+            ): Result<DiaryDraft> {
+                assertEquals("https://example.com/v1", config.baseUrl)
+                assertEquals("k", config.apiKey)
+                assertEquals("m", config.model)
+                assertEquals(1, fragments.size)
+                return Result.success(aiDraft)
+            }
+        }
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(prefs),
+            fakeAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.AUTO)
+
+        assertEquals("AI 标题", result.title)
+        assertEquals("AI 正文", result.body)
+        assertEquals(listOf(1L), result.sourceFragmentIds)
     }
 
     @Test
@@ -43,9 +100,14 @@ class GenerateDiaryDraftUseCaseTest {
                 )
             )
         )
-        val useCase = GenerateDiaryDraftUseCase(repository, RuleBasedDiaryGenerator())
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
 
-        val result = useCase(date)
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
         assertEquals(1, result.locationPins.size)
         assertEquals(1L, result.locationPins.first().fragmentId)
@@ -77,9 +139,14 @@ class GenerateDiaryDraftUseCaseTest {
                 )
             )
         )
-        val useCase = GenerateDiaryDraftUseCase(repository, RuleBasedDiaryGenerator())
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
 
-        val result = useCase(date)
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
         assertEquals(
             listOf("content://early1", "content://early2", "content://late"),
@@ -96,6 +163,20 @@ class GenerateDiaryDraftUseCaseTest {
 
         assertEquals(AddFragmentResult.Empty, result)
         assertTrue(repository.savedFragments.isEmpty())
+    }
+
+    private class StaticUserPreferences(
+        private val value: UserAppPreferences
+    ) : UserPreferencesAccessor {
+        override suspend fun current(): UserAppPreferences = value
+    }
+
+    private object NeverCalledAi : AiDiaryDraftGenerator {
+        override suspend fun generateDraft(
+            date: LocalDate,
+            fragments: List<LifeFragment>,
+            config: LlmConnectionConfig
+        ): Result<DiaryDraft> = error("AI must not be used in this test")
     }
 
     private class FakeFragmentRepository(

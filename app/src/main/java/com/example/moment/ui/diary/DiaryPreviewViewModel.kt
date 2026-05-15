@@ -37,11 +37,14 @@ class DiaryPreviewViewModel @Inject constructor(
     }
 
     private suspend fun loadDraft() {
-        runCatching { generateDiaryDraft(date) }
-            .onSuccess { draft -> applyDraft(draft) }
-            .onFailure {
-                _uiState.update { it.copy(isLoading = false, errorMessage = "生成日记失败，请稍后重试") }
-            }
+        try {
+            val draft = generateDiaryDraft(date)
+            applyDraft(draft)
+        } catch (e: Throwable) {
+            val detail = e.message?.takeIf { it.isNotBlank() }
+            val msg = detail?.let { "生成日记失败：$it" } ?: "生成日记失败，请稍后重试"
+            _uiState.update { it.copy(isLoading = false, errorMessage = msg) }
+        }
     }
 
     private fun applyDraft(draft: DiaryDraft) {
