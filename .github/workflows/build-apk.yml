@@ -1,3 +1,9 @@
+# Debug APK 默认用 ~/.android/debug.keystore。CI 每次都是干净环境时会「现造」一把新钥匙，
+# 导致与上一版 CI 包签名不同、无法覆盖安装。下面通过「缓存 keystore」或可选 Secret 固定同一把钥匙。
+#
+# 可选：在仓库 Settings → Secrets 添加 ANDROID_DEBUG_KEYSTORE_BASE64（本机 debug.keystore 的 base64，
+# 例如 Linux: base64 -w0 < ~/.android/debug.keystore），则每次构建都会用该文件，不依赖缓存是否命中。
+
 name: Build APK
 
 on:
@@ -39,6 +45,22 @@ jobs:
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
+
+      # 命中缓存时复用同一把 debug 签名；未命中时由 Gradle 首次生成，本 job 结束会写入缓存供后续 run 使用。
+      - name: Cache Android debug keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: ${{ runner.os }}-moment-debug-keystore-v1
+
+      - name: Install fixed debug keystore from secret (optional)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "${KEYSTORE_B64}" ]; then
+            mkdir -p "${HOME}/.android"
+            echo "${KEYSTORE_B64}" | base64 -d > "${HOME}/.android/debug.keystore"
+          fi
 
       - name: Assemble debug APK
         env:
