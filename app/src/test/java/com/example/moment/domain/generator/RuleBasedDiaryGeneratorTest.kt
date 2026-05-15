@@ -1,5 +1,6 @@
 package com.example.moment.domain.generator
 
+import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
@@ -111,6 +112,35 @@ class RuleBasedDiaryGeneratorTest {
 
         assertTrue(body.contains("16:00 在公园散步。"))
         assertTrue(body.contains("📍测试公园"))
+    }
+
+    @Test
+    fun generateAppendsNewFragmentsOntoPriorSavedBody() {
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "原标题",
+            body = "已写好的手帐正文。",
+            highlights = listOf("亮点 A"),
+            moodSummary = "今天整体偏平静。",
+            sourceFragmentIds = listOf(1L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            createdAt = Instant.parse("2026-05-13T07:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T07:00:00Z")
+        )
+        val fragments = listOf(
+            fragment(1, "早上喝了咖啡。", Mood.CALM, "2026-05-13T07:30:00Z"),
+            fragment(2, "午后去公园散步。", Mood.HAPPY, "2026-05-13T14:00:00Z")
+        )
+
+        val draft = generator.generate(date, fragments, prior)
+
+        assertTrue(draft.body.contains("已写好的手帐正文。"))
+        assertTrue(draft.body.contains("新增碎片"))
+        assertTrue(draft.body.contains("14:00 午后去公园散步。"))
+        assertEquals(listOf(1L, 2L), draft.sourceFragmentIds)
+        assertEquals("原标题", draft.title)
     }
 
     private fun fragment(

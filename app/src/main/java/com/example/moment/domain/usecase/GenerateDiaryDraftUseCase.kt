@@ -25,16 +25,16 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         date: LocalDate,
         mode: DiaryGenerationMode = DiaryGenerationMode.AUTO
     ): DiaryDraft {
-        val prior = diaryRepository.getDiaryForDate(date)
+        val priorSaved = diaryRepository.getDiaryForDate(date)
         val fragments = fragmentRepository.getFragmentsForDate(date)
         val sorted = fragments.sortedBy { it.createdAt }
         val fragmentImageUris = sorted.flatMap { it.imageUris }
         val fragmentPins = pinsFromFragments(sorted)
-        val mergedImageUris = mergeImageUrisWithPrior(prior?.imageUris, fragmentImageUris)
-        val mergedPins = mergePinsWithPrior(prior, sorted, fragmentPins)
+        val mergedImageUris = mergeImageUrisWithPrior(priorSaved?.imageUris, fragmentImageUris)
+        val mergedPins = mergePinsWithPrior(priorSaved, sorted, fragmentPins)
 
         if (sorted.isEmpty()) {
-            val emptyDraft = diaryGenerator.generate(date, sorted)
+            val emptyDraft = diaryGenerator.generate(date, sorted, priorSaved)
             return emptyDraft.copy(
                 imageUris = mergedImageUris,
                 locationPins = mergedPins
@@ -42,16 +42,16 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         }
 
         if (mode == DiaryGenerationMode.RULE_BASED_ONLY) {
-            return finalizeWithRuleGenerator(date, sorted, fragmentImageUris, fragmentPins, prior)
+            return finalizeWithRuleGenerator(date, sorted, fragmentImageUris, fragmentPins, priorSaved)
         }
 
         val prefs = userPreferencesAccessor.current()
         val config = prefs.toLlmConnectionConfig()
         if (config == null) {
-            return finalizeWithRuleGenerator(date, sorted, fragmentImageUris, fragmentPins, prior)
+            return finalizeWithRuleGenerator(date, sorted, fragmentImageUris, fragmentPins, priorSaved)
         }
 
-        val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config).getOrElse { throw it }
+        val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config, priorSaved).getOrElse { throw it }
         return aiDraft.copy(
             sourceFragmentIds = sorted.map { it.id },
             imageUris = mergedImageUris,
@@ -64,13 +64,13 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         sorted: List<LifeFragment>,
         fragmentImageUris: List<String>,
         fragmentPins: List<DiaryLocationPin>,
-        prior: DiaryEntry?
+        priorSaved: DiaryEntry?
     ): DiaryDraft {
-        val draft = diaryGenerator.generate(date, sorted)
+        val draft = diaryGenerator.generate(date, sorted, priorSaved)
         return draft.copy(
             sourceFragmentIds = sorted.map { it.id },
-            imageUris = mergeImageUrisWithPrior(prior?.imageUris, fragmentImageUris),
-            locationPins = mergePinsWithPrior(prior, sorted, fragmentPins)
+            imageUris = mergeImageUrisWithPrior(priorSaved?.imageUris, fragmentImageUris),
+            locationPins = mergePinsWithPrior(priorSaved, sorted, fragmentPins)
         )
     }
 
