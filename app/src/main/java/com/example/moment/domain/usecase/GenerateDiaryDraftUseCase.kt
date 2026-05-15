@@ -28,28 +28,29 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         val priorSaved = diaryRepository.getDiaryForDate(date)
         val fragments = fragmentRepository.getFragmentsForDate(date)
         val sorted = fragments.sortedBy { it.createdAt }
-        val imageUris = sorted.flatMap { it.imageUris }
+        val fragmentImageUris = sorted.flatMap { it.imageUris }
+        val mergedImageUris = mergeDiaryImageUris(fragmentImageUris, priorSaved)
         val pins = pinsFromFragments(sorted)
 
         if (sorted.isEmpty()) {
             val emptyDraft = diaryGenerator.generate(date, sorted, priorSaved)
-            return emptyDraft.copy(imageUris = imageUris, locationPins = pins)
+            return emptyDraft.copy(imageUris = mergedImageUris, locationPins = pins)
         }
 
         if (mode == DiaryGenerationMode.RULE_BASED_ONLY) {
-            return finalizeWithRuleGenerator(date, sorted, imageUris, pins, priorSaved)
+            return finalizeWithRuleGenerator(date, sorted, mergedImageUris, pins, priorSaved)
         }
 
         val prefs = userPreferencesAccessor.current()
         val config = prefs.toLlmConnectionConfig()
         if (config == null) {
-            return finalizeWithRuleGenerator(date, sorted, imageUris, pins, priorSaved)
+            return finalizeWithRuleGenerator(date, sorted, mergedImageUris, pins, priorSaved)
         }
 
         val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config, priorSaved).getOrElse { throw it }
         return aiDraft.copy(
             sourceFragmentIds = sorted.map { it.id },
-            imageUris = imageUris,
+            imageUris = mergedImageUris,
             locationPins = pins
         )
     }
@@ -57,15 +58,30 @@ class GenerateDiaryDraftUseCase @Inject constructor(
     private fun finalizeWithRuleGenerator(
         date: LocalDate,
         sorted: List<LifeFragment>,
-        imageUris: List<String>,
+        mergedImageUris: List<String>,
         pins: List<DiaryLocationPin>,
         priorSaved: DiaryEntry?
     ): DiaryDraft {
         val draft = diaryGenerator.generate(date, sorted, priorSaved)
         return draft.copy(
             sourceFragmentIds = sorted.map { it.id },
-            imageUris = imageUris,
+            imageUris = mergedImageUris,
             locationPins = pins
         )
+    }
+
+    /** 碎片图片在前，再把已保存手帐中的 URI 追加进来（去重）。 */
+    private fun mergeDiaryImageUris(fragmentImages: List<String>, priorSaved: DiaryEntry?): List<String> {
+        val seen = LinkedHashSet<String>()
+        val out = ArrayList<String>()
+        fun addAll(uris: Iterable<String>) {
+            for (u in uris) {
+                val t = u.trim()
+                if (t.isNotEmpty() && seen.add(t)) out.add(t)
+            }
+        }
+        addAll(fragmentImages)
+        addAll(priorSaved?.imageUris.orEmpty())
+        return out
     }
 }

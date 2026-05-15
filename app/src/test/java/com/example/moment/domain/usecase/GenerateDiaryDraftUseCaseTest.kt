@@ -164,6 +164,51 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun invokeKeepsPriorSavedDiaryImageUrisWhenRegenerating() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "旧",
+            body = "旧正文",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(1L),
+            imageUris = listOf("content://from-saved-diary", "content://early1"),
+            locationPins = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                LifeFragment(
+                    id = 1,
+                    content = "早",
+                    imageUris = listOf("content://early1", "content://early2"),
+                    mood = Mood.CALM,
+                    tags = emptyList(),
+                    createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+                    updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+                )
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+
+        assertEquals(
+            listOf("content://early1", "content://early2", "content://from-saved-diary"),
+            result.imageUris
+        )
+    }
+
+    @Test
     fun invokeMergesPriorSavedDiaryWhenRuleBasedAndNewFragmentsExist() = runTest {
         val date = LocalDate.of(2026, 5, 13)
         val prior = DiaryEntry(
