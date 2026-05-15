@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,15 +12,18 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -37,9 +41,15 @@ fun SettingsScreen(
     val aiBaseUrl by viewModel.aiBaseUrl.collectAsStateWithLifecycle()
     val aiApiKey by viewModel.aiApiKey.collectAsStateWithLifecycle()
     val aiModel by viewModel.aiModel.collectAsStateWithLifecycle()
+    val nasBaseUrl by viewModel.nasBaseUrl.collectAsStateWithLifecycle()
+    val nasUsername by viewModel.nasUsername.collectAsStateWithLifecycle()
+    val nasPassword by viewModel.nasPassword.collectAsStateWithLifecycle()
+    val nasTrustSelfSigned by viewModel.nasTrustSelfSigned.collectAsStateWithLifecycle()
+    val nasBusy by viewModel.nasBusy.collectAsStateWithLifecycle()
+    val nasStatusMessage by viewModel.nasStatusMessage.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
-        viewModel.reloadAiDraftsFromStore()
+        viewModel.reloadDraftFieldsFromStore()
     }
 
     Scaffold(
@@ -139,6 +149,97 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("保存大模型配置")
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text(
+                "家庭 NAS（WebDAV）",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "用于将已保存的手帐日记与图片备份到 NAS。请在 NAS 上启用 WebDAV，并填写根路径（通常为某个共享文件夹的 WebDAV 地址）。每次备份会新建 MomentBackup/runs/run_时间戳/ 目录。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = nasBaseUrl,
+                onValueChange = viewModel::setNasBaseUrl,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("WebDAV 根地址") },
+                placeholder = { Text("例如 https://192.168.1.10:5006/backup") },
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = nasUsername,
+                onValueChange = viewModel::setNasUsername,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("用户名（可留空）") },
+                singleLine = true
+            )
+            OutlinedTextField(
+                value = nasPassword,
+                onValueChange = viewModel::setNasPassword,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("密码（可留空）") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "信任自签名证书",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Switch(
+                    checked = nasTrustSelfSigned,
+                    onCheckedChange = viewModel::setNasTrustSelfSigned
+                )
+            }
+            Text(
+                "仅在 NAS 使用 HTTPS 且证书非系统信任时开启；会降低连接安全性。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Button(
+                onClick = { viewModel.saveNasWebdavSettings() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !nasBusy
+            ) {
+                Text("保存 NAS 配置")
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = { viewModel.testNasWebdavConnection() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !nasBusy
+                ) {
+                    Text("测试连接")
+                }
+                Button(
+                    onClick = { viewModel.backupDiariesToNas() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !nasBusy
+                ) {
+                    Text("备份日记")
+                }
+            }
+            if (nasBusy) {
+                CircularProgressIndicator(modifier = Modifier.padding(top = 4.dp))
+            }
+            nasStatusMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

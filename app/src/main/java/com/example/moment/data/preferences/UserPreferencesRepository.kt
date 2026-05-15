@@ -3,6 +3,7 @@ package com.example.moment.data.preferences
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -31,7 +32,11 @@ class UserPreferencesRepository @Inject constructor(
             themeMode = themeMode,
             aiBaseUrl = prefs[Keys.AI_BASE_URL].orEmpty(),
             aiApiKey = prefs[Keys.AI_API_KEY].orEmpty(),
-            aiModel = prefs[Keys.AI_MODEL].orEmpty()
+            aiModel = prefs[Keys.AI_MODEL].orEmpty(),
+            nasWebdavBaseUrl = prefs[Keys.NAS_WEBDAV_BASE_URL].orEmpty(),
+            nasWebdavUsername = prefs[Keys.NAS_WEBDAV_USERNAME].orEmpty(),
+            nasWebdavPassword = prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty(),
+            nasWebdavTrustSelfSignedCertificates = prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] ?: false
         )
     }
 
@@ -47,10 +52,28 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    suspend fun setNasWebdavSettings(
+        baseUrl: String,
+        username: String,
+        password: String,
+        trustSelfSignedCertificates: Boolean
+    ) {
+        dataStore.edit { prefs ->
+            prefs[Keys.NAS_WEBDAV_BASE_URL] = baseUrl.trim()
+            prefs[Keys.NAS_WEBDAV_USERNAME] = username.trim()
+            prefs[Keys.NAS_WEBDAV_PASSWORD] = password
+            prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] = trustSelfSignedCertificates
+        }
+    }
+
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val AI_BASE_URL = stringPreferencesKey("ai_base_url")
         val AI_API_KEY = stringPreferencesKey("ai_api_key")
         val AI_MODEL = stringPreferencesKey("ai_model")
+        val NAS_WEBDAV_BASE_URL = stringPreferencesKey("nas_webdav_base_url")
+        val NAS_WEBDAV_USERNAME = stringPreferencesKey("nas_webdav_username")
+        val NAS_WEBDAV_PASSWORD = stringPreferencesKey("nas_webdav_password")
+        val NAS_WEBDAV_TRUST_SELF_SIGNED = booleanPreferencesKey("nas_webdav_trust_self_signed")
     }
 }

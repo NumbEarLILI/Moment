@@ -12,6 +12,8 @@ import com.example.moment.data.repository.DiaryRepositoryImpl
 import com.example.moment.data.repository.FragmentRepositoryImpl
 import com.example.moment.domain.generator.DiaryGenerator
 import com.example.moment.domain.generator.RuleBasedDiaryGenerator
+import com.example.moment.data.nas.NasBackupRepositoryImpl
+import com.example.moment.domain.repository.NasBackupRepository
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import dagger.Binds
@@ -34,6 +36,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindDiaryRepository(impl: DiaryRepositoryImpl): DiaryRepository
+
+    @Binds
+    abstract fun bindNasBackupRepository(impl: NasBackupRepositoryImpl): NasBackupRepository
 }
 
 @Module
