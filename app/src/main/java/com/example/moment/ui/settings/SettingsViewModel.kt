@@ -60,9 +60,10 @@ class SettingsViewModel @Inject constructor(
     fun reloadDraftFieldsFromStore() {
         viewModelScope.launch {
             val p = userPreferencesRepository.preferences.first()
-            _aiBaseUrl.value = p.aiBaseUrl
+            val bothAiBlank = p.aiBaseUrl.isBlank() && p.aiModel.isBlank()
+            _aiBaseUrl.value = if (bothAiBlank) UserAppPreferences.DEFAULT_AI_BASE_URL else p.aiBaseUrl
             _aiApiKey.value = p.aiApiKey
-            _aiModel.value = p.aiModel
+            _aiModel.value = if (bothAiBlank) UserAppPreferences.DEFAULT_AI_MODEL else p.aiModel
             _nasBaseUrl.value = p.nasWebdavBaseUrl
             _nasUsername.value = p.nasWebdavUsername
             _nasPassword.value = p.nasWebdavPassword

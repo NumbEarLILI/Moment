@@ -120,7 +120,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "填写 OpenAI 兼容接口（如 /v1/chat/completions）、密钥与模型名。已配置时，「生成手帐」会调用模型整合当日碎片；未配置则使用内置规则。",
+                "填写 OpenAI 兼容接口（如 DeepSeek、/chat/completions）、密钥与模型名。已配置时，「生成手帐」会调用模型整合当日碎片；未配置则使用内置规则。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -129,7 +129,7 @@ fun SettingsScreen(
                 onValueChange = viewModel::setAiBaseUrl,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API 根地址") },
-                placeholder = { Text("例如 https://api.openai.com/v1") },
+                placeholder = { Text("例如 https://api.deepseek.com") },
                 singleLine = true
             )
             OutlinedTextField(
@@ -145,7 +145,7 @@ fun SettingsScreen(
                 onValueChange = viewModel::setAiModel,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("模型名称") },
-                placeholder = { Text("例如 gpt-4o-mini") },
+                placeholder = { Text("例如 deepseek-v4-flash") },
                 singleLine = true
             )
             Button(
