@@ -8,6 +8,8 @@ import javax.inject.Singleton
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
+import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Credentials
@@ -249,6 +251,26 @@ class WebDavHttp @Inject constructor(
                 resp.body?.bytes() ?: throw IOException("空响应体")
             }
         }
+
+    /** 流式写入本地文件，避免大图整包进内存；失败时删除不完整文件。 */
+    suspend fun getToFile(client: OkHttpClient, url: HttpUrl, destination: File) {
+        withContext(Dispatchers.IO) {
+            val parent = destination.parentFile
+            if (parent != null && !parent.exists()) parent.mkdirs()
+            val req = Request.Builder().url(url).get().build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    throw IOException("GET 失败（HTTP ${resp.code}）")
+                }
+                val body = resp.body ?: throw IOException("空响应体")
+                FileOutputStream(destination).use { out ->
+                    body.byteStream().use { input ->
+                        input.copyTo(out)
+                    }
+                }
+            }
+        }
+    }
 
     private fun collectionUrlForPropfind(url: HttpUrl): HttpUrl {
         val p = url.encodedPath

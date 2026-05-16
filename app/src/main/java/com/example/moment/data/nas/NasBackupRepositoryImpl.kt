@@ -2,6 +2,7 @@ package com.example.moment.data.nas
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.content.FileProvider
 import com.example.moment.BuildConfig
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.NasWebdavConfig
@@ -11,6 +12,7 @@ import com.example.moment.domain.repository.NasBackupResult
 import com.example.moment.domain.repository.NasRestoreResult
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.time.Clock
@@ -19,6 +21,11 @@ import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -185,22 +192,43 @@ class NasBackupRepositoryImpl @Inject constructor(
         val date = LocalDate.ofEpochDay(dto.dateEpochDay)
         val existing = diaryRepository.getDiaryForDate(date)
         val localDir = File(context.filesDir, "nas_restore/$runId/$diaryFolderName").apply { mkdirs() }
-        val localImages = mutableListOf<String>()
-        dto.imageRelativePaths.forEachIndexed { idx, rel ->
-            if (rel.isNullOrBlank()) return@forEachIndexed
-            val segments = rel.split('/').filter { it.isNotEmpty() }
-            val imgUrl = childUrl(
-                root,
-                listOf("MomentBackup", "runs", runId, "diaries", diaryFolderName) + segments
-            )
-            try {
-                val imgBytes = webDavHttp.getBytes(client, imgUrl)
-                val ext = guessImageExtension(imgBytes)
-                val out = File(localDir, "img_$idx$ext")
-                FileOutputStream(out).use { stream -> stream.write(imgBytes) }
-                localImages.add(Uri.fromFile(out).toString())
-            } catch (_: Exception) {
-            }
+        val authority = "${context.packageName}.fileprovider"
+        val localImages = coroutineScope {
+            val concurrency = 4
+            val sem = Semaphore(concurrency)
+            dto.imageRelativePaths.indices.map { idx ->
+                async {
+                    val rel = dto.imageRelativePaths[idx]
+                    if (rel.isNullOrBlank()) return@async idx to null
+                    sem.withPermit {
+                        idx to runCatching {
+                            val segments = rel.split('/').filter { it.isNotEmpty() }
+                            val imgUrl = childUrl(
+                                root,
+                                listOf("MomentBackup", "runs", runId, "diaries", diaryFolderName) + segments
+                            )
+                            val tmp = File(localDir, "img_${idx}.part")
+                            try {
+                                webDavHttp.getToFile(client, imgUrl, tmp)
+                                val ext = guessImageExtensionFromFileHead(tmp)
+                                val out = File(localDir, "img_$idx$ext")
+                                if (out.exists()) out.delete()
+                                if (!tmp.renameTo(out)) {
+                                    FileInputStream(tmp).use { input ->
+                                        FileOutputStream(out).use { output -> input.copyTo(output) }
+                                    }
+                                    tmp.delete()
+                                }
+                                FileProvider.getUriForFile(context, authority, out).toString()
+                            } finally {
+                                if (tmp.exists()) tmp.delete()
+                            }
+                        }.getOrNull()
+                    }
+                }
+            }.awaitAll()
+                .sortedBy { it.first }
+                .mapNotNull { it.second }
         }
         val entry = DiaryEntry(
             id = existing?.id ?: 0L,
@@ -242,6 +270,43 @@ class NasBackupRepositoryImpl @Inject constructor(
         return ".bin"
     }
 
+    private fun guessImageExtensionFromFileHead(file: File): String {
+        val buf = ByteArray(32)
+        val n = FileInputStream(file).use { it.read(buf) }
+        if (n <= 0) return ".bin"
+        return guessImageExtension(buf.copyOf(n))
+    }
+
+    private suspend fun backupOneImage(
+        client: OkHttpClient,
+        root: HttpUrl,
+        diaryBase: List<String>,
+        index: Int,
+        uriString: String
+    ): Pair<String?, Boolean> {
+        val name = "$index.bin"
+        val relative = "images/$name"
+        val putUrl = childUrl(root, diaryBase + listOf("images", name))
+        val uri = Uri.parse(uriString)
+        val length = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
+        if (length == 0L) return null to false
+        val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+        return try {
+            webDavHttp.putStream(
+                client,
+                putUrl,
+                length,
+                mime
+            ) {
+                context.contentResolver.openInputStream(uri)
+                    ?: throw IOException("无法读取图片")
+            }
+            relative to true
+        } catch (_: Exception) {
+            null to false
+        }
+    }
+
     private suspend fun backupOneDiary(
         client: OkHttpClient,
         root: HttpUrl,
@@ -250,37 +315,24 @@ class NasBackupRepositoryImpl @Inject constructor(
     ): Pair<Int, Int> {
         val diaryBase = listOf("MomentBackup", "runs", runId, "diaries", entry.id.toString())
         webDavHttp.ensureCollectionPath(client, root, diaryBase + listOf("images"))
+        val relativePaths = MutableList<String?>(entry.imageUris.size) { null }
+        val sem = Semaphore(4)
+        val results = coroutineScope {
+            entry.imageUris.indices.map { index ->
+                async {
+                    sem.withPermit {
+                        val uriString = entry.imageUris[index]
+                        val (rel, ok) = backupOneImage(client, root, diaryBase, index, uriString)
+                        Triple(index, rel, ok)
+                    }
+                }
+            }.awaitAll()
+        }
         var uploaded = 0
         var skipped = 0
-        val relativePaths = mutableListOf<String?>()
-        entry.imageUris.forEachIndexed { index, uriString ->
-            val name = "$index.bin"
-            val relative = "images/$name"
-            val putUrl = childUrl(root, diaryBase + listOf("images", name))
-            val uri = Uri.parse(uriString)
-            val length = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
-            if (length == 0L) {
-                skipped++
-                relativePaths.add(null)
-                return@forEachIndexed
-            }
-            val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
-            try {
-                webDavHttp.putStream(
-                    client,
-                    putUrl,
-                    length,
-                    mime
-                ) {
-                    context.contentResolver.openInputStream(uri)
-                        ?: throw IOException("无法读取图片")
-                }
-                uploaded++
-                relativePaths.add(relative)
-            } catch (_: Exception) {
-                skipped++
-                relativePaths.add(null)
-            }
+        for ((index, rel, ok) in results) {
+            relativePaths[index] = rel
+            if (ok) uploaded++ else skipped++
         }
         val dto = NasBackupDiaryFileDto(
             id = entry.id,

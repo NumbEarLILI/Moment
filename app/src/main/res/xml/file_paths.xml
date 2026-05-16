@@ -3,4 +3,8 @@
     <cache-path
         name="camera_captures"
         path="camera/" />
+    <!-- NAS 恢复的图片写入 files/nas_restore/…，需通过 FileProvider 暴露为 content:// 供 Coil 等稳定加载 -->
+    <files-path
+        name="nas_restore"
+        path="nas_restore/" />
 </paths>
