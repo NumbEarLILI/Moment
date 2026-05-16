@@ -113,13 +113,18 @@ fun SettingsScreen(
                     onClick = { viewModel.selectTheme(AppThemeMode.ORIGINAL) }
                 )
                 ThemeChip(
+                    label = "冷色",
+                    selected = prefs.themeMode == AppThemeMode.COOL,
+                    onClick = { viewModel.selectTheme(AppThemeMode.COOL) }
+                )
+                ThemeChip(
                     label = "跟随系统",
                     selected = prefs.themeMode == AppThemeMode.SYSTEM,
                     onClick = { viewModel.selectTheme(AppThemeMode.SYSTEM) }
                 )
             }
             Text(
-                "跟随系统：设备为深色时使用暗黑主题，否则使用浅色（白）主题。",
+                "冷色：深色底与 App 图标一致，蓝青强调。跟随系统：设备为深色时使用暗黑主题，否则使用浅色（白）。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

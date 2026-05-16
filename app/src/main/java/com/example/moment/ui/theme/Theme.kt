@@ -93,6 +93,34 @@ private val MomentDarkColors = darkColorScheme(
     onErrorContainer = Color(0xFFFFDAD6)
 )
 
+/** 冷色深色：与 `ic_launcher_background`（#0F1422）一致，蓝青强调。 */
+private val MomentCoolColors = darkColorScheme(
+    primary = Color(0xFF8EC5FF),
+    onPrimary = Color(0xFF003258),
+    primaryContainer = Color(0xFF004A77),
+    onPrimaryContainer = Color(0xFFD0E4FF),
+    secondary = Color(0xFFB8C8DC),
+    onSecondary = Color(0xFF233240),
+    secondaryContainer = Color(0xFF3B4758),
+    onSecondaryContainer = Color(0xFFD4E4F7),
+    tertiary = Color(0xFF7FD0D4),
+    onTertiary = Color(0xFF003739),
+    tertiaryContainer = Color(0xFF004F52),
+    onTertiaryContainer = Color(0xFFB8F4F8),
+    background = Color(0xFF0F1422),
+    onBackground = Color(0xFFE5E7F0),
+    surface = Color(0xFF131924),
+    onSurface = Color(0xFFE5E7F0),
+    surfaceVariant = Color(0xFF252D3D),
+    onSurfaceVariant = Color(0xFFBFC6D4),
+    outline = Color(0xFF8B94A8),
+    outlineVariant = Color(0xFF3D4656),
+    error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
+    errorContainer = Color(0xFF93000A),
+    onErrorContainer = Color(0xFFFFDAD6)
+)
+
 private val MomentShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
     small = RoundedCornerShape(12.dp),
@@ -111,6 +139,7 @@ fun MomentTheme(
         AppThemeMode.DARK -> MomentDarkColors
         AppThemeMode.LIGHT -> MomentLightColors
         AppThemeMode.ORIGINAL -> MomentOriginalColors
+        AppThemeMode.COOL -> MomentCoolColors
         AppThemeMode.SYSTEM -> if (systemDark) MomentDarkColors else MomentLightColors
     }
     MaterialTheme(
