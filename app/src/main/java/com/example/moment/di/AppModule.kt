@@ -16,10 +16,12 @@ import com.example.moment.data.repository.FragmentRepositoryImpl
 import com.example.moment.domain.generator.DiaryGenerator
 import com.example.moment.domain.generator.RuleBasedDiaryGenerator
 import com.example.moment.data.nas.NasArchiveSyncLauncher
+import com.example.moment.data.nas.NasMomentAccountRepositoryImpl
 import com.example.moment.data.nas.NasBackupRepositoryImpl
 import com.example.moment.domain.nas.NasArchiveSyncCoordinator
 import com.example.moment.domain.repository.NasArchiveRepository
 import com.example.moment.domain.repository.NasBackupRepository
+import com.example.moment.domain.repository.NasMomentAccountRepository
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import dagger.Binds
@@ -52,6 +54,9 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindNasArchiveSyncCoordinator(impl: NasArchiveSyncLauncher): NasArchiveSyncCoordinator
+
+    @Binds
+    abstract fun bindNasMomentAccountRepository(impl: NasMomentAccountRepositoryImpl): NasMomentAccountRepository
 }
 
 @Module

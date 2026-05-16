@@ -62,6 +62,8 @@ fun SettingsScreen(
     val nasTrustSelfSigned by viewModel.nasTrustSelfSigned.collectAsStateWithLifecycle()
     val nasBusy by viewModel.nasBusy.collectAsStateWithLifecycle()
     val nasStatusMessage by viewModel.nasStatusMessage.collectAsStateWithLifecycle()
+    val nasMomentAccountUsernameDraft by viewModel.nasMomentAccountUsernameDraft.collectAsStateWithLifecycle()
+    val nasMomentAccountPasswordDraft by viewModel.nasMomentAccountPasswordDraft.collectAsStateWithLifecycle()
     val nasBackupRunIds by viewModel.nasBackupRunIds.collectAsStateWithLifecycle()
     val selectedNasRunId by viewModel.selectedNasRunId.collectAsStateWithLifecycle()
     var showDeleteNasConfirm by remember { mutableStateOf(false) }
@@ -225,7 +227,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "用于将已保存的手帐备份到 NAS，或从 NAS 读回备份。请在 NAS 上启用 WebDAV，并填写根路径（通常为某个共享文件夹的 WebDAV 地址）。每次备份会新建 MomentBackup/runs/run_时间戳/ 目录。",
+                "用于将已保存的手帐备份到 NAS，或从 NAS 读回备份。请先保存 WebDAV 根地址与鉴权。若使用下方「Moment 账号」，备份与存档会写到 MomentApp/users/ 下各账号专属子目录，与未登录时的根目录路径相互独立。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -279,12 +281,80 @@ fun SettingsScreen(
                 Text("保存 NAS 配置")
             }
             Text(
+                "Moment 账号（可选）",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "同一 WebDAV 可被多人共用：在 MomentApp/account_registry.json 中登记账户名与密码摘要，注册时会检查用户名是否已存在。登录后快照备份与手帐存档均只读写当前账号目录。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (prefs.nasMomentStorageUserId.isNotBlank()) {
+                Text(
+                    "当前已登录：${prefs.nasMomentAccountUsername.ifBlank { prefs.nasMomentStorageUserId }}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            } else {
+                Text(
+                    "当前未登录 Moment 账号（使用根目录 MomentBackup / MomentArchive，与旧版一致）。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            OutlinedTextField(
+                value = nasMomentAccountUsernameDraft,
+                onValueChange = viewModel::setNasMomentAccountUsernameDraft,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Moment 账户名") },
+                placeholder = { Text("字母数字中文等，最多 32 字符") },
+                singleLine = true,
+                enabled = !nasBusy
+            )
+            OutlinedTextField(
+                value = nasMomentAccountPasswordDraft,
+                onValueChange = viewModel::setNasMomentAccountPasswordDraft,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Moment 密码") },
+                placeholder = { Text("至少 8 位") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                enabled = !nasBusy
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = { viewModel.registerNasMomentAccount() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !nasBusy
+                ) {
+                    Text("注册并登录")
+                }
+                Button(
+                    onClick = { viewModel.loginNasMomentAccount() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !nasBusy
+                ) {
+                    Text("登录")
+                }
+            }
+            OutlinedButton(
+                onClick = { viewModel.logoutNasMomentAccount() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !nasBusy && prefs.nasMomentStorageUserId.isNotBlank()
+            ) {
+                Text("退出 Moment 账号")
+            }
+            Text(
                 "手帐存档（双向同步）",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "与上方「快照备份」独立：使用远端 MomentArchive/diaries/ 下按日历日命名的目录存放每日一篇可变老副本。开启开关后，保存或删除手帐会自动同步存档；也可用下面按钮一次性上传全部本地手帐，或从 NAS 合并到本机（仅当远端 diary.json 的更新时间新于本机该日手帐时才覆盖）。",
+                "与上方「快照备份」独立：远端 MomentArchive/diaries/（若已登录账号则在 MomentApp/users/…/MomentArchive/diaries/）按日历日存放可变老副本。开启开关后，保存或删除手帐会自动同步存档；也可用下面按钮一次性上传全部本地手帐，或从 NAS 合并到本机（仅当远端 diary.json 的更新时间新于本机该日手帐时才覆盖）。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

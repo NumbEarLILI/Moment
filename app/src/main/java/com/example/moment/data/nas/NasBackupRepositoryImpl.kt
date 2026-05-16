@@ -28,6 +28,14 @@ class NasBackupRepositoryImpl @Inject constructor(
     private val packager: NasDiaryWebDavPackager
 ) : NasBackupRepository, NasArchiveRepository {
 
+    private fun NasWebdavConfig.dataSegments(vararg segments: String): List<String> {
+        val uid = momentStorageUserId?.trim()?.takeIf { it.isNotEmpty() } ?: return segments.toList()
+        return listOf("MomentApp", "users", uid) + segments
+    }
+
+    private fun NasWebdavConfig.backupRunFolderRelative(runId: String): String =
+        dataSegments("MomentBackup", "runs", runId).joinToString("/")
+
     override suspend fun testWebDavConnection(config: NasWebdavConfig): Result<Unit> {
         if (!config.isConfigured()) {
             return Result.failure(IOException("请先填写 WebDAV 根地址"))
@@ -46,13 +54,13 @@ class NasBackupRepositoryImpl @Inject constructor(
                 val root = config.baseUrl.trim().toHttpUrlOrNull()
                     ?: throw IOException("无效的 WebDAV 根地址")
                 val runId = "run_" + System.currentTimeMillis()
-                val runPrefix = listOf("MomentBackup", "runs", runId)
+                val runPrefix = config.dataSegments("MomentBackup", "runs", runId)
                 webDavHttp.ensureCollectionPath(client, root, runPrefix)
                 val diaries = diaryRepository.getAllDiaries()
                 var imagesUploaded = 0
                 var imagesSkipped = 0
                 for (entry in diaries) {
-                    val base = listOf("MomentBackup", "runs", runId, "diaries", entry.id.toString())
+                    val base = config.dataSegments("MomentBackup", "runs", runId, "diaries", entry.id.toString())
                     val (up, skip) = packager.uploadDiary(client, root, base, entry)
                     imagesUploaded += up
                     imagesSkipped += skip
@@ -63,7 +71,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                     diaryCount = diaries.size,
                     imagesUploaded = imagesUploaded,
                     imagesSkipped = imagesSkipped,
-                    runFolder = "MomentBackup/runs/$runId"
+                    runFolder = config.backupRunFolderRelative(runId)
                 )
                 val manifestUrl = packager.childUrl(root, runPrefix + listOf("manifest.json"))
                 webDavHttp.putBytes(
@@ -74,7 +82,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                     "application/json; charset=utf-8"
                 )
                 NasBackupResult(
-                    runFolder = "MomentBackup/runs/$runId",
+                    runFolder = config.backupRunFolderRelative(runId),
                     diaryCount = diaries.size,
                     imagesUploaded = imagesUploaded,
                     imagesSkipped = imagesSkipped
@@ -91,7 +99,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                 val client = webDavHttp.clientFor(config)
                 val root = config.baseUrl.trim().toHttpUrlOrNull()
                     ?: throw IOException("无效的 WebDAV 根地址")
-                val runsUrl = packager.childUrl(root, listOf("MomentBackup", "runs"))
+                val runsUrl = packager.childUrl(root, config.dataSegments("MomentBackup", "runs"))
                 val names = webDavHttp.propfindDirectChildNames(client, runsUrl)
                 names.filter { it.startsWith("run_") }
                     .sortedByDescending { it.removePrefix("run_").toLongOrNull() ?: 0L }
@@ -110,7 +118,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                 val client = webDavHttp.clientFor(config)
                 val root = config.baseUrl.trim().toHttpUrlOrNull()
                     ?: throw IOException("无效的 WebDAV 根地址")
-                val diariesUrl = packager.childUrl(root, listOf("MomentBackup", "runs", runId, "diaries"))
+                val diariesUrl = packager.childUrl(root, config.dataSegments("MomentBackup", "runs", runId, "diaries"))
                 val diaryFolders = webDavHttp.propfindDirectChildNames(client, diariesUrl)
                     .filter { it.isNotEmpty() && it.all { ch -> ch.isDigit() } }
                     .sortedBy { it.toLongOrNull() ?: 0L }
@@ -118,7 +126,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                 var skipped = 0
                 var images = 0
                 for (folder in diaryFolders) {
-                    val base = listOf("MomentBackup", "runs", runId, "diaries", folder)
+                    val base = config.dataSegments("MomentBackup", "runs", runId, "diaries", folder)
                     val (ok, imgCount) = packager.restoreDiaryFromFolder(
                         client,
                         root,
@@ -153,7 +161,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                 val client = webDavHttp.clientFor(config)
                 val root = config.baseUrl.trim().toHttpUrlOrNull()
                     ?: throw IOException("无效的 WebDAV 根地址")
-                val runUrl = packager.childUrl(root, listOf("MomentBackup", "runs", runId))
+                val runUrl = packager.childUrl(root, config.dataSegments("MomentBackup", "runs", runId))
                 webDavHttp.deleteCollectionRecursive(client, runUrl)
             }
         }
@@ -166,9 +174,9 @@ class NasBackupRepositoryImpl @Inject constructor(
                 requireConfigured(config)
                 val client = webDavHttp.clientFor(config)
                 val root = rootOrThrow(config)
-                webDavHttp.ensureCollectionPath(client, root, listOf("MomentArchive", "diaries"))
+                webDavHttp.ensureCollectionPath(client, root, config.dataSegments("MomentArchive", "diaries"))
                 val day = entry.date.toEpochDay().toString()
-                val base = listOf("MomentArchive", "diaries", day)
+                val base = config.dataSegments("MomentArchive", "diaries", day)
                 packager.uploadDiary(client, root, base, entry)
                 Unit
             }
@@ -180,13 +188,13 @@ class NasBackupRepositoryImpl @Inject constructor(
                 requireConfigured(config)
                 val client = webDavHttp.clientFor(config)
                 val root = rootOrThrow(config)
-                webDavHttp.ensureCollectionPath(client, root, listOf("MomentArchive", "diaries"))
+                webDavHttp.ensureCollectionPath(client, root, config.dataSegments("MomentArchive", "diaries"))
                 val diaries = diaryRepository.getAllDiaries()
                 var up = 0
                 var skip = 0
                 for (entry in diaries) {
                     val day = entry.date.toEpochDay().toString()
-                    val base = listOf("MomentArchive", "diaries", day)
+                    val base = config.dataSegments("MomentArchive", "diaries", day)
                     val (u, s) = packager.uploadDiary(client, root, base, entry)
                     up += u
                     skip += s
@@ -205,7 +213,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                 requireConfigured(config)
                 val client = webDavHttp.clientFor(config)
                 val root = rootOrThrow(config)
-                val diariesRoot = packager.childUrl(root, listOf("MomentArchive", "diaries"))
+                val diariesRoot = packager.childUrl(root, config.dataSegments("MomentArchive", "diaries"))
                 val folders = try {
                     webDavHttp.propfindDirectChildNames(client, diariesRoot)
                 } catch (_: Exception) {
@@ -219,7 +227,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                 var images = 0
                 for (folder in dayFolders) {
                     val epoch = folder.toLongOrNull() ?: continue
-                    val base = listOf("MomentArchive", "diaries", folder)
+                    val base = config.dataSegments("MomentArchive", "diaries", folder)
                     val jsonUrl = packager.childUrl(root, base + listOf("diary.json"))
                     val dto = packager.fetchDiaryDto(client, jsonUrl) ?: continue
                     val localDate = LocalDate.ofEpochDay(epoch)
@@ -260,7 +268,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                 val root = rootOrThrow(config)
                 val folderUrl = packager.childUrl(
                     root,
-                    listOf("MomentArchive", "diaries", dateEpochDay.toString())
+                    config.dataSegments("MomentArchive", "diaries", dateEpochDay.toString())
                 )
                 runCatching {
                     webDavHttp.deleteCollectionRecursive(client, folderUrl)
