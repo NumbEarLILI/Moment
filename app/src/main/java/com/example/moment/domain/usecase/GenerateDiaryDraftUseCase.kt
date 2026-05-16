@@ -123,8 +123,9 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         val priorSourceIds = prior?.sourceFragmentIds?.toSet().orEmpty()
         for (f in sorted) {
             val priorStory = priorById[f.id]?.text?.trim().orEmpty()
-            val wasInSavedDiary = priorSourceIds.isNotEmpty() && f.id in priorSourceIds
-            if (wasInSavedDiary && priorStory.isNotEmpty()) {
+            // sourceFragmentIds 为空时（旧数据或未写入），仍可能有 fragmentStories；须保留，否则模型输出会盖掉时间线上的旧稿。
+            val tiesToPriorSources = priorSourceIds.isEmpty() || f.id in priorSourceIds
+            if (prior != null && priorStory.isNotEmpty() && tiesToPriorSources) {
                 byId[f.id] = FragmentAiStory(f.id, priorStory)
                 continue
             }
