@@ -49,13 +49,20 @@ fun MomentApp() {
             )
         }
         composable(
-            route = Routes.Preview,
-            arguments = listOf(navArgument("date") { type = NavType.StringType })
+            route = "preview/{date}?diaryId={diaryId}",
+            arguments = listOf(
+                navArgument("date") { type = NavType.StringType },
+                navArgument("diaryId") {
+                    type = NavType.LongType
+                    defaultValue = 0L
+                }
+            )
         ) { entry ->
+            val previewDiaryId = entry.arguments?.getLong("diaryId") ?: 0L
             DiaryPreviewScreen(
                 navController = navController,
                 previewBackStackEntry = entry,
-                diaryId = 0L,
+                diaryId = previewDiaryId,
                 onClose = { navController.popBackStack() }
             )
         }
@@ -124,7 +131,7 @@ fun MomentApp() {
 object Routes {
     val RootCapture: String = capture(0L, null)
     const val Capture = "capture?fragmentId={fragmentId}&forDate={forDate}"
-    const val Preview = "preview/{date}"
+    const val Preview = "preview/{date}?diaryId={diaryId}"
     const val History = "history"
     const val Settings = "settings"
     const val Detail = "detail/{id}"

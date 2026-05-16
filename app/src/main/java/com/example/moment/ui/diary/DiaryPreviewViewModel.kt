@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
+import com.example.moment.domain.usecase.DiaryGenerationMode
 import com.example.moment.domain.usecase.GenerateDiaryDraftUseCase
 import com.example.moment.domain.usecase.SaveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,12 +21,14 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class DiaryPreviewViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    private val diaryRepository: DiaryRepository,
     private val generateDiaryDraft: GenerateDiaryDraftUseCase,
     private val saveDiary: SaveDiaryUseCase,
     private val fragmentRepository: FragmentRepository
 ) : ViewModel() {
-    private val date: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle["date"]))
-    private val _uiState = MutableStateFlow(DiaryEditorUiState(date = date))
+    private val diaryIdArg: Long = savedStateHandle.get<Long>("diaryId") ?: 0L
+    private val dateArg: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle["date"]))
+    private val _uiState = MutableStateFlow(DiaryEditorUiState(date = dateArg))
     val uiState: StateFlow<DiaryEditorUiState> = _uiState
 
     init {
@@ -40,9 +44,11 @@ class DiaryPreviewViewModel @Inject constructor(
 
     private suspend fun loadDraft() {
         try {
-            val draft = generateDiaryDraft(date)
+            val anchor = if (diaryIdArg > 0L) diaryRepository.getDiaryById(diaryIdArg) else null
+            val mergeDate = anchor?.date ?: dateArg
+            val draft = generateDiaryDraft(mergeDate, DiaryGenerationMode.AUTO, anchor)
             val plog = loadPlogFragments(draft)
-            applyDraft(draft, plog)
+            applyDraft(draft, plog, mergeDate)
         } catch (e: Throwable) {
             val detail = e.message?.takeIf { it.isNotBlank() }
             val msg = detail?.let { "生成日记失败：$it" } ?: "生成日记失败，请稍后重试"
@@ -56,10 +62,11 @@ class DiaryPreviewViewModel @Inject constructor(
         return lifeFragmentsForPlogTimeline(draft.sourceFragmentIds, loaded)
     }
 
-    private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>) {
+    private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>, mergeDate: LocalDate) {
         _uiState.update {
             it.copy(
                 isLoading = false,
+                date = mergeDate,
                 title = draft.title,
                 body = draft.body,
                 highlights = draft.highlights,

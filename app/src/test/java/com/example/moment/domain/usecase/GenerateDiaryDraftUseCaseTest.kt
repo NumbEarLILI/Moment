@@ -633,6 +633,73 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun invokePreservesPriorFragmentStoryWhenIdOnlyListedInStoriesNotSourceIdsAndAiOverwrites() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 9,
+            date = date,
+            title = "已保存",
+            body = "底稿总述",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(10L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(10L, "旧条十。"),
+                FragmentAiStory(11L, "旧条十一必须在，即使 id 列表漏了 11。")
+            ),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(10, "短。", Mood.CALM, "2026-05-13T08:00:00Z"),
+                fragment(11, "另一旧碎片。", Mood.CALM, "2026-05-13T10:00:00Z"),
+                fragment(99, "新碎片。", Mood.HAPPY, "2026-05-13T18:00:00Z")
+            )
+        )
+        val prefs = UserAppPreferences(
+            aiBaseUrl = "https://example.com/v1",
+            aiApiKey = "k",
+            aiModel = "m"
+        )
+        val outDraft = DiaryDraft(
+            title = "新",
+            body = "AI 正文",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(10L, "模型错写十。"),
+                FragmentAiStory(11L, "模型错写十一。"),
+                FragmentAiStory(99L, "新条。")
+            )
+        )
+        val fakeAi = object : AiDiaryDraftGenerator {
+            override suspend fun generateDraft(
+                date: LocalDate,
+                fragments: List<LifeFragment>,
+                config: LlmConnectionConfig,
+                priorSavedDiary: DiaryEntry?
+            ): Result<DiaryDraft> = Result.success(outDraft)
+        }
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(prefs),
+            fakeAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.AUTO)
+
+        assertEquals("旧条十。", result.fragmentStories.find { it.fragmentId == 10L }?.text)
+        assertEquals("旧条十一必须在，即使 id 列表漏了 11。", result.fragmentStories.find { it.fragmentId == 11L }?.text)
+        assertEquals("新条。", result.fragmentStories.find { it.fragmentId == 99L }?.text)
+    }
+
+    @Test
     fun invokePreservesPriorFragmentStoryWhenSourceFragmentIdsWereNotPersisted() = runTest {
         val date = LocalDate.of(2026, 5, 13)
         val prior = DiaryEntry(
@@ -948,6 +1015,41 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun mergedTimelineIncludesFragmentImageUriKeysMissingFromSourceFragmentIds() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "id 列表不全",
+            body = "",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(10L),
+            imageUris = emptyList(),
+            fragmentImageUris = mapOf(
+                10L to listOf("content://on-10"),
+                11L to listOf("content://on-11")
+            ),
+            locationPins = emptyList(),
+            fragmentStories = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(fragment(99L, "新", Mood.CALM, "2026-05-13T18:00:00Z"))
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
+    }
+
+    @Test
     fun nasRestoredPriorPreservesOldStoriesWhenAiOnlyReturnsNewFragment() = runTest {
         val date = LocalDate.of(2026, 5, 13)
         val prior = DiaryEntry(
@@ -1005,6 +1107,37 @@ class GenerateDiaryDraftUseCaseTest {
         assertEquals("旧稿条一", result.fragmentStories.find { it.fragmentId == 10L }?.text)
         assertEquals("旧稿条二", result.fragmentStories.find { it.fragmentId == 11L }?.text)
         assertEquals("AI 写新条", result.fragmentStories.find { it.fragmentId == 99L }?.text)
+    }
+
+    @Test
+    fun priorOverrideBypassesGetDiaryForDate() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "预览传入",
+            body = "b",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(10L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(fragment(99L, "新", Mood.CALM, "2026-05-13T18:00:00Z"))
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(null),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY, prior)
+        assertEquals(listOf(10L, 99L), result.sourceFragmentIds)
     }
 
     @Test

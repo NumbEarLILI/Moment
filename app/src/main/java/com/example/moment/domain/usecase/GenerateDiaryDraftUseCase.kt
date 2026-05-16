@@ -24,9 +24,10 @@ class GenerateDiaryDraftUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(
         date: LocalDate,
-        mode: DiaryGenerationMode = DiaryGenerationMode.AUTO
+        mode: DiaryGenerationMode = DiaryGenerationMode.AUTO,
+        priorOverride: DiaryEntry? = null
     ): DiaryDraft {
-        val priorSaved = diaryRepository.getDiaryForDate(date)
+        val priorSaved = priorOverride ?: diaryRepository.getDiaryForDate(date)
         val fragments = fragmentRepository.getFragmentsForDate(date)
         val sorted = fragments.sortedBy { it.createdAt }
         val mergedIds = mergedSourceFragmentIds(priorSaved, sorted)
@@ -154,7 +155,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
     }
 
     private fun newFragmentsRelativeToPrior(prior: DiaryEntry, sorted: List<LifeFragment>): List<LifeFragment> {
-        val priorIds = prior.sourceFragmentIds.toSet()
+        val priorIds = priorAnchoredFragmentIds(prior)
         return when {
             sorted.isEmpty() -> emptyList()
             priorIds.isEmpty() -> sorted
@@ -189,10 +190,11 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         val byId = fromAi.filter { it.text.isNotBlank() }.associateBy { it.fragmentId }.toMutableMap()
         val priorById = prior?.fragmentStories.orEmpty().associateBy { it.fragmentId }
         val priorSourceIds = prior?.sourceFragmentIds?.toSet().orEmpty()
+        val priorAnchored = prior?.let { priorAnchoredFragmentIds(it) }.orEmpty()
         for (id in mergedIds) {
             val f = fragmentById[id]
             val priorStory = priorById[id]?.text?.trim().orEmpty()
-            val tiesToPriorSources = priorSourceIds.isEmpty() || id in priorSourceIds
+            val tiesToPriorSources = priorSourceIds.isEmpty() || id in priorAnchored
             if (prior != null && priorStory.isNotEmpty() && tiesToPriorSources) {
                 byId[id] = FragmentAiStory(id, priorStory)
                 continue
@@ -252,11 +254,10 @@ class GenerateDiaryDraftUseCase @Inject constructor(
      * 否则预览会把旧稿时间线整段丢掉，只剩新建碎片与备份里的图片 URI。
      *
      * **顺序（与「在恢复的 plog 上只加新节点」一致）：**
-     * 1. 先按底稿中已保存的顺序加入 `sourceFragmentIds`（NAS 恢复的 plog 骨架不变）。
-     * 2. 若底稿未存 id 列表，则按 `fragmentStories` 出现顺序补齐 id。
-     * 3. 若仍为空（仅有 `fragmentImageUris` 的旧备份），则按 per-id 图集的 key 补齐，避免时间线只剩新碎片。
-     * 3. 再将当日数据库里**尚未出现在上述列表中的**碎片 id，按 `createdAt` 升序**依次追加在末尾**
-     *    （不根据时间把新碎片插到底稿节点之间，避免打乱恢复的时间线）。
+     * 1. 先按底稿中已保存的顺序加入 `sourceFragmentIds`。
+     * 2. 再按 `fragmentStories` 顺序加入其 fragmentId（去重）。
+     * 3. 再按 key 序加入 `fragmentImageUris` 中出现的 id（补全「有分卡图但未写入 id 列表」的节点）。
+     * 4. 最后将当日数据库里**尚未出现的**碎片 id 按 `createdAt` 升序**追加在末尾**。
      */
     private fun mergedSourceFragmentIds(prior: DiaryEntry?, sortedDayFragments: List<LifeFragment>): List<Long> {
         val seen = linkedSetOf<Long>()
@@ -267,12 +268,8 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         }
         if (prior != null) {
             for (id in prior.sourceFragmentIds) add(id)
-            if (prior.sourceFragmentIds.isEmpty()) {
-                for (s in prior.fragmentStories) add(s.fragmentId)
-            }
-            if (prior.sourceFragmentIds.isEmpty() && prior.fragmentStories.isEmpty()) {
-                for (id in prior.fragmentImageUris.keys.sorted()) add(id)
-            }
+            for (s in prior.fragmentStories) add(s.fragmentId)
+            for (id in prior.fragmentImageUris.keys.sorted()) add(id)
         }
         for (f in sortedDayFragments.sortedBy { it.createdAt }) add(f.id)
         return ordered
@@ -330,14 +327,14 @@ class GenerateDiaryDraftUseCase @Inject constructor(
 
     /**
      * 备份里仅有 sourceFragmentIds、没有逐条 story（或本地无对应碎片行）时，时间线卡片会全空。
-     * 将整段底稿叙述填回「第一条仍空文的、且属于底稿 sourceFragmentIds 的」时间线，避免预览只剩缩略图。
+     * 将整段底稿叙述填回「第一条仍空文的、且属于底稿锚点 id（source ∪ stories ∪ 分卡图 key）」的时间线，避免预览只剩缩略图。
      */
     private fun applyNarrativeFallbackForGhostPriorFragments(
         stories: MutableList<FragmentAiStory>,
         prior: DiaryEntry?
     ) {
         if (prior == null) return
-        val priorIdSet = prior.sourceFragmentIds.toSet()
+        val priorIdSet = priorAnchoredFragmentIds(prior)
         if (priorIdSet.isEmpty()) return
         val pn = prior.body.trim().ifEmpty { effectivePriorNarrative(prior).trim() }
         if (pn.isEmpty()) return
@@ -426,14 +423,15 @@ class GenerateDiaryDraftUseCase @Inject constructor(
     }
 
     /**
-     * 底稿锚点 id：`sourceFragmentIds` → `fragmentStories` → `fragmentImageUris` 的 key。
-     * 用于判断哪些卡片可以接收「仅在手帐顶栏出现」的未映射图片；**不含**这些线索时不向任何卡片强塞孤儿图。
+     * 底稿锚点：`sourceFragmentIds` ∪ `fragmentStories` ∪ `fragmentImageUris` 的 key。
+     * 三者**并集**，避免仅写了 id 列表却漏掉仍有分卡图片的碎片、或孤儿分配落到错误节点。
      */
     private fun priorAnchoredFragmentIds(prior: DiaryEntry?): Set<Long> {
         if (prior == null) return emptySet()
-        if (prior.sourceFragmentIds.isNotEmpty()) return prior.sourceFragmentIds.toSet()
-        val fromStories = prior.fragmentStories.map { it.fragmentId }.toSet()
-        if (fromStories.isNotEmpty()) return fromStories
-        return prior.fragmentImageUris.keys.toSet()
+        val out = LinkedHashSet<Long>()
+        for (id in prior.sourceFragmentIds) if (id > 0L) out.add(id)
+        for (s in prior.fragmentStories) if (s.fragmentId > 0L) out.add(s.fragmentId)
+        for (id in prior.fragmentImageUris.keys) if (id > 0L) out.add(id)
+        return out
     }
 }

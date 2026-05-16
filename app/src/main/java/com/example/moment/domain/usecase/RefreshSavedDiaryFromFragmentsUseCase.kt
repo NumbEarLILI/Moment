@@ -16,7 +16,7 @@ class RefreshSavedDiaryFromFragmentsUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(diaryId: Long) {
         val entry = diaryRepository.getDiaryById(diaryId) ?: return
-        val draft = generateDiaryDraft(entry.date, DiaryGenerationMode.RULE_BASED_ONLY)
+        val draft = generateDiaryDraft(entry.date, DiaryGenerationMode.RULE_BASED_ONLY, entry)
         diaryRepository.saveDiary(
             entry.copy(
                 title = draft.title,

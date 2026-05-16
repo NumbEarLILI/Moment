@@ -28,7 +28,7 @@ fun DiaryPreviewScreen(
     previewBackStackEntry: NavBackStackEntry,
     diaryId: Long,
     onClose: () -> Unit,
-    viewModel: DiaryPreviewViewModel = hiltViewModel()
+    viewModel: DiaryPreviewViewModel = hiltViewModel(previewBackStackEntry)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val pickJson by previewBackStackEntry.savedStateHandle
