@@ -133,21 +133,11 @@ fun SettingsScreen(
                     onClick = { viewModel.selectTheme(AppThemeMode.SYSTEM) }
                 )
             }
-            Text(
-                "冷色：深色底与 App 图标一致，蓝青强调。跟随系统：设备为深色时使用暗黑主题，否则使用浅色（白）。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
 
             Text(
                 "自定义背景图",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                "从相册选择一张图铺满全屏；各页面底栏略带透明便于阅读。若图片来自相册，请保持文件可读取权限。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             val context = LocalContext.current
             val wallpaperPicker = rememberLauncherForActivityResult(
