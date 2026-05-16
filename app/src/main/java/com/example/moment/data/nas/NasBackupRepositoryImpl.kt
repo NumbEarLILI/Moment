@@ -239,6 +239,10 @@ class NasBackupRepositoryImpl @Inject constructor(
                     val local = diaryRepository.getDiaryForDate(localDate)
                     val remoteMs = dto.updatedAtEpochMillis
                     val pullRelative = "nas_archive_pull/${folder}_${remoteMs}"
+                    if (local != null && packager.localDiaryContentMatchesNasDto(local, dto)) {
+                        skipped++
+                        continue
+                    }
                     if (local == null) {
                         val (ok, imgCount) = packager.restoreDiaryWithDto(
                             client,
