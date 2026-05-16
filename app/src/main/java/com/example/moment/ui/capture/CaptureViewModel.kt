@@ -213,17 +213,12 @@ class CaptureViewModel @Inject constructor(
         runCatching { suggestCaptionFromImages(uris, null) }
             .onSuccess { suggestion ->
                 _uiState.update { state ->
-                    val newContent = when {
-                        state.content.isBlank() -> suggestion.suggestedContent
-                        else -> state.content.trimEnd() + "\n\n" + suggestion.suggestedContent
-                    }
                     val mergedTags =
                         (state.tags.csvValues() + suggestion.suggestedTags)
                             .map { t -> t.trim() }
                             .filter { t -> t.isNotEmpty() }
                             .distinct()
                     state.copy(
-                        content = newContent,
                         tags = mergedTags.joinToString(", "),
                         mood = state.mood,
                         isAnalyzingImages = false,

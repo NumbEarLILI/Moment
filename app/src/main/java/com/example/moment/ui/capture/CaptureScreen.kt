@@ -703,7 +703,7 @@ private fun CaptureMomentExpandable(
                                 strokeWidth = 2.dp
                             )
                             Text(
-                                "正在自动识别图片并补充文案与标签",
+                                "正在自动识别图片并生成标签",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -728,7 +728,7 @@ private fun CaptureMomentExpandable(
                         }
                     } else {
                         Text(
-                            "使用相机或相册添加照片，添加后会自动识别",
+                            "使用相机或相册添加照片，添加后会自动识别并生成标签",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
