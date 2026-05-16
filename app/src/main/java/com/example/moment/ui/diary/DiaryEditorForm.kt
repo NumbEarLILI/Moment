@@ -52,31 +52,59 @@ fun DiaryEditorForm(
                 shape = MaterialTheme.shapes.medium,
                 colors = fieldColors
             )
+            if (state.plogFragments.isNotEmpty()) {
+                DiaryPlogTimeline(
+                    fragments = state.plogFragments,
+                    fragmentStories = state.fragmentStories,
+                    locationPins = state.locationPins,
+                    onLocationPinClick = { pin ->
+                        navController.navigate(
+                            Routes.placePick(
+                                pin.latitude,
+                                pin.longitude,
+                                pin.placeName,
+                                pin.fragmentId,
+                                placePickDiaryId
+                            )
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             OutlinedTextField(
                 value = state.body,
                 onValueChange = onBodyChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("正文") },
+                label = { Text(if (state.plogFragments.isNotEmpty()) "整篇文字（可选）" else "正文") },
+                supportingText = if (state.plogFragments.isNotEmpty()) {
+                    { Text("可选：摘要或全文润色。") }
+                } else {
+                    null
+                },
                 shape = MaterialTheme.shapes.medium,
                 colors = fieldColors,
-                minLines = 6
+                minLines = if (state.plogFragments.isNotEmpty()) 4 else 6
             )
-            DiaryLocationPinsRow(
-                pins = state.locationPins,
-                onPinClick = { pin ->
-                    navController.navigate(
-                        Routes.placePick(
-                            pin.latitude,
-                            pin.longitude,
-                            pin.placeName,
-                            pin.fragmentId,
-                            placePickDiaryId
+            if (state.plogFragments.isEmpty()) {
+                DiaryLocationPinsRow(
+                    pins = state.locationPins,
+                    onPinClick = { pin ->
+                        navController.navigate(
+                            Routes.placePick(
+                                pin.latitude,
+                                pin.longitude,
+                                pin.placeName,
+                                pin.fragmentId,
+                                placePickDiaryId
+                            )
                         )
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-            DiaryImageGallery(imageUris = state.imageUris, modifier = Modifier.fillMaxWidth())
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            if (state.plogFragments.isEmpty() && state.imageUris.isNotEmpty()) {
+                DiaryImageGallery(imageUris = state.imageUris, modifier = Modifier.fillMaxWidth())
+            }
             if (state.highlights.isNotEmpty()) {
                 Text(
                     "今日亮点：${state.highlights.joinToString(" / ")}",

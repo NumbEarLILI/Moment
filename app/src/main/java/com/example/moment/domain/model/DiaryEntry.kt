@@ -13,6 +13,7 @@ data class DiaryEntry(
     val sourceFragmentIds: List<Long>,
     val imageUris: List<String> = emptyList(),
     val locationPins: List<DiaryLocationPin> = emptyList(),
+    val fragmentStories: List<FragmentAiStory> = emptyList(),
     val createdAt: Instant,
     val updatedAt: Instant
 )

@@ -14,6 +14,17 @@ class AiDiaryResponseParserTest {
         assertTrue(parsed.body.contains("第一段"))
         assertEquals(listOf("亮点"), parsed.highlights)
         assertEquals("平静", parsed.moodSummary)
+        assertTrue(parsed.fragmentStories.isEmpty())
+    }
+
+    @Test
+    fun parsesFragmentStoriesArray() {
+        val raw =
+            """{"title":"一日","body":"收束。","highlights":[],"moodSummary":null,"fragmentStories":[{"fragmentId":10,"story":"晨间一则。"},{"fragmentId":11,"story":"午后一则。"}]}"""
+        val parsed = AiDiaryResponseParser.parse(raw).getOrThrow()
+        assertEquals(2, parsed.fragmentStories.size)
+        assertEquals(10L, parsed.fragmentStories[0].fragmentId)
+        assertEquals("晨间一则。", parsed.fragmentStories[0].story)
     }
 
     @Test

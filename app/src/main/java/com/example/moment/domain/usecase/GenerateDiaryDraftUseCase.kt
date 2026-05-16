@@ -6,6 +6,7 @@ import com.example.moment.domain.location.pinsFromFragments
 import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.DiaryLocationPin
+import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.toLlmConnectionConfig
 import com.example.moment.domain.preferences.UserPreferencesAccessor
@@ -48,11 +49,41 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         }
 
         val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config, priorSaved).getOrElse { throw it }
+        val filledStories = normalizeAiFragmentStories(sorted, aiDraft.fragmentStories, priorSaved)
         return aiDraft.copy(
             sourceFragmentIds = sorted.map { it.id },
             imageUris = mergedImageUris,
-            locationPins = pins
+            locationPins = pins,
+            fragmentStories = filledStories
         )
+    }
+
+    private fun normalizeAiFragmentStories(
+        sorted: List<LifeFragment>,
+        fromAi: List<FragmentAiStory>,
+        prior: DiaryEntry?
+    ): List<FragmentAiStory> {
+        val byId = fromAi.filter { it.text.isNotBlank() }.associateBy { it.fragmentId }.toMutableMap()
+        val priorById = prior?.fragmentStories.orEmpty().associateBy { it.fragmentId }
+        for (f in sorted) {
+            if (byId[f.id]?.text.isNullOrBlank()) {
+                val p = priorById[f.id]?.text?.trim().orEmpty().takeIf { it.isNotEmpty() }
+                val c = f.content.trim().takeIf { it.isNotEmpty() }
+                val img = if (f.imageUris.isNotEmpty()) "${f.imageUris.size} 张图片记录" else ""
+                val fb = p ?: c ?: img.takeIf { it.isNotEmpty() }
+                if (fb != null) byId[f.id] = FragmentAiStory(f.id, fb)
+            }
+        }
+        return sorted.map { fr ->
+            byId[fr.id] ?: FragmentAiStory(fr.id, storyFallback(fr))
+        }
+    }
+
+    private fun storyFallback(f: LifeFragment): String {
+        val c = f.content.trim()
+        if (c.isNotEmpty()) return c
+        if (f.imageUris.isNotEmpty()) return "${f.imageUris.size} 张图片记录"
+        return ""
     }
 
     private fun finalizeWithRuleGenerator(
