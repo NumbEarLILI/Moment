@@ -26,6 +26,8 @@ internal data class NasBackupDiaryFileDto(
     val sourceFragmentIds: List<Long>,
     /** 与保存时 `imageUris` 顺序一致；上传失败则为 null。 */
     val imageRelativePaths: List<String?>,
+    /** 每条碎片对应图片在 `imageRelativePaths` 中的下标；旧备份无此字段时按扁平 URI 均分到底稿碎片 id。 */
+    val fragmentImageIndices: Map<String, List<Int>> = emptyMap(),
     val locationPins: List<DiaryLocationPin>,
     val fragmentStories: List<FragmentAiStory> = emptyList(),
     val createdAtEpochMillis: Long,

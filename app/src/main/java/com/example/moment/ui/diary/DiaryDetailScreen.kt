@@ -111,6 +111,7 @@ fun DiaryDetailScreen(
                         DiaryPlogTimeline(
                             fragments = state.plogFragments,
                             fragmentStories = entry.fragmentStories,
+                            fragmentImageUris = entry.fragmentImageUris,
                             locationPins = entry.locationPins,
                             onLocationPinClick = { pin ->
                                 navController.navigate(

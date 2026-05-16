@@ -58,6 +58,7 @@ fun DiaryEditorForm(
                 DiaryPlogTimeline(
                     fragments = state.plogFragments,
                     fragmentStories = state.fragmentStories,
+                    fragmentImageUris = state.fragmentImageUris,
                     locationPins = state.locationPins,
                     onLocationPinClick = { pin ->
                         navController.navigate(

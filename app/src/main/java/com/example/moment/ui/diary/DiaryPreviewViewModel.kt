@@ -67,6 +67,7 @@ class DiaryPreviewViewModel @Inject constructor(
                 sourceFragmentIds = draft.sourceFragmentIds,
                 plogFragments = plogFragments,
                 fragmentStories = draft.fragmentStories,
+                fragmentImageUris = draft.fragmentImageUris,
                 imageUris = draft.imageUris,
                 locationPins = draft.locationPins
             )
@@ -94,7 +95,8 @@ class DiaryPreviewViewModel @Inject constructor(
                     sourceFragmentIds = state.sourceFragmentIds,
                     imageUris = state.imageUris,
                     locationPins = state.locationPins,
-                    fragmentStories = state.fragmentStories
+                    fragmentStories = state.fragmentStories,
+                    fragmentImageUris = state.fragmentImageUris
                 )
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false, saved = true) }

@@ -19,6 +19,7 @@ data class DiaryEntity(
     val sourceFragmentIds: List<Long>,
     val imageUris: List<String> = emptyList(),
     val locationPins: List<DiaryLocationPin> = emptyList(),
+    val fragmentImageUrisJson: String = "{}",
     val fragmentStoriesJson: String = "[]",
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long

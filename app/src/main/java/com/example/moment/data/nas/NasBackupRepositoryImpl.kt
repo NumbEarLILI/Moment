@@ -193,10 +193,12 @@ class NasBackupRepositoryImpl @Inject constructor(
         val existing = diaryRepository.getDiaryForDate(date)
         val localDir = File(context.filesDir, "nas_restore/$runId/$diaryFolderName").apply { mkdirs() }
         val authority = "${context.packageName}.fileprovider"
-        val localImages = coroutineScope {
+        val pathCount = dto.imageRelativePaths.size
+        val resolvedByIndex = arrayOfNulls<String>(pathCount)
+        coroutineScope {
             val concurrency = 4
             val sem = Semaphore(concurrency)
-            dto.imageRelativePaths.indices.map { idx ->
+            val results = dto.imageRelativePaths.indices.map { idx ->
                 async {
                     val rel = dto.imageRelativePaths[idx]
                     if (rel.isNullOrBlank()) return@async idx to null
@@ -227,9 +229,17 @@ class NasBackupRepositoryImpl @Inject constructor(
                     }
                 }
             }.awaitAll()
-                .sortedBy { it.first }
-                .mapNotNull { it.second }
+            for ((idx, uri) in results) {
+                resolvedByIndex[idx] = uri
+            }
         }
+        val localImages = resolvedByIndex.mapNotNull { it }
+        val fragmentImageUris = restoreFragmentImageUris(
+            dto.sourceFragmentIds,
+            dto.fragmentImageIndices,
+            resolvedByIndex,
+            localImages
+        )
         val entry = DiaryEntry(
             id = existing?.id ?: 0L,
             date = date,
@@ -239,6 +249,7 @@ class NasBackupRepositoryImpl @Inject constructor(
             moodSummary = dto.moodSummary,
             sourceFragmentIds = dto.sourceFragmentIds,
             imageUris = localImages,
+            fragmentImageUris = fragmentImageUris,
             locationPins = dto.locationPins,
             fragmentStories = dto.fragmentStories,
             createdAt = Instant.ofEpochMilli(dto.createdAtEpochMillis),
@@ -314,14 +325,15 @@ class NasBackupRepositoryImpl @Inject constructor(
         entry: DiaryEntry
     ): Pair<Int, Int> {
         val diaryBase = listOf("MomentBackup", "runs", runId, "diaries", entry.id.toString())
+        val flatUris = flatOrderedUniqueImageUris(entry)
         webDavHttp.ensureCollectionPath(client, root, diaryBase + listOf("images"))
-        val relativePaths = MutableList<String?>(entry.imageUris.size) { null }
+        val relativePaths = MutableList<String?>(flatUris.size) { null }
         val sem = Semaphore(4)
         val results = coroutineScope {
-            entry.imageUris.indices.map { index ->
+            flatUris.indices.map { index ->
                 async {
                     sem.withPermit {
-                        val uriString = entry.imageUris[index]
+                        val uriString = flatUris[index]
                         val (rel, ok) = backupOneImage(client, root, diaryBase, index, uriString)
                         Triple(index, rel, ok)
                     }
@@ -334,6 +346,7 @@ class NasBackupRepositoryImpl @Inject constructor(
             relativePaths[index] = rel
             if (ok) uploaded++ else skipped++
         }
+        val fragmentImageIndices = fragmentImageIndicesForBackup(entry, flatUris)
         val dto = NasBackupDiaryFileDto(
             id = entry.id,
             dateEpochDay = entry.date.toEpochDay(),
@@ -343,6 +356,7 @@ class NasBackupRepositoryImpl @Inject constructor(
             moodSummary = entry.moodSummary,
             sourceFragmentIds = entry.sourceFragmentIds,
             imageRelativePaths = relativePaths,
+            fragmentImageIndices = fragmentImageIndices,
             locationPins = entry.locationPins,
             fragmentStories = entry.fragmentStories,
             createdAtEpochMillis = entry.createdAt.toEpochMilli(),
@@ -356,6 +370,75 @@ class NasBackupRepositoryImpl @Inject constructor(
             "application/json; charset=utf-8"
         )
         return uploaded to skipped
+    }
+
+    private fun flatOrderedUniqueImageUris(entry: DiaryEntry): List<String> {
+        val seen = LinkedHashSet<String>()
+        val out = ArrayList<String>()
+        fun add(s: String) {
+            val t = s.trim()
+            if (t.isNotEmpty() && seen.add(t)) out.add(t)
+        }
+        for (u in entry.imageUris) add(u)
+        val fromPriorOrder = entry.sourceFragmentIds.toSet()
+        for (id in entry.sourceFragmentIds) {
+            entry.fragmentImageUris[id]?.forEach { add(it) }
+        }
+        for ((id, uris) in entry.fragmentImageUris.toSortedMap()) {
+            if (id in fromPriorOrder) continue
+            uris.forEach { add(it) }
+        }
+        return out
+    }
+
+    private fun fragmentImageIndicesForBackup(entry: DiaryEntry, flat: List<String>): Map<String, List<Int>> {
+        val uriToIndex = flat.withIndex().associate { it.value to it.index }
+        val out = LinkedHashMap<String, ArrayList<Int>>()
+        fun append(id: Long, uris: List<String>) {
+            val idxs = uris.mapNotNull { uriToIndex[it.trim()] }
+            if (idxs.isEmpty()) return
+            val list = out.getOrPut(id.toString()) { ArrayList() }
+            for (i in idxs) {
+                if (!list.contains(i)) list.add(i)
+            }
+        }
+        for (id in entry.sourceFragmentIds) {
+            append(id, entry.fragmentImageUris[id].orEmpty())
+        }
+        for ((id, uris) in entry.fragmentImageUris.toSortedMap()) {
+            if (entry.sourceFragmentIds.contains(id)) continue
+            append(id, uris)
+        }
+        return out.mapValues { it.value }
+    }
+
+    private fun restoreFragmentImageUris(
+        sourceFragmentIds: List<Long>,
+        fragmentImageIndices: Map<String, List<Int>>,
+        resolvedByIndex: Array<String?>,
+        localImagesOrdered: List<String>
+    ): Map<Long, List<String>> {
+        if (fragmentImageIndices.isNotEmpty()) {
+            return fragmentImageIndices.mapNotNull { (key, indices) ->
+                val id = key.toLongOrNull() ?: return@mapNotNull null
+                val uris = indices.mapNotNull { i -> resolvedByIndex.getOrNull(i) }
+                if (uris.isEmpty()) null else id to uris
+            }.toMap()
+        }
+        return legacyFragmentImageUrisFromFlat(sourceFragmentIds, localImagesOrdered)
+    }
+
+    private fun legacyFragmentImageUrisFromFlat(
+        sourceFragmentIds: List<Long>,
+        flat: List<String>
+    ): Map<Long, List<String>> {
+        if (sourceFragmentIds.isEmpty() || flat.isEmpty()) return emptyMap()
+        val buckets = sourceFragmentIds.associateWith { ArrayList<String>() }.toMutableMap()
+        flat.forEachIndexed { idx, u ->
+            val id = sourceFragmentIds[idx % sourceFragmentIds.size]
+            buckets[id]?.add(u)
+        }
+        return buckets.filterValues { it.isNotEmpty() }
     }
 
     private fun childUrl(root: HttpUrl, segments: List<String>): HttpUrl {
