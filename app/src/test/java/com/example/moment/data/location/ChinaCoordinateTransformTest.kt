@@ -1,0 +1,35 @@
+package com.example.moment.data.location
+
+import kotlin.math.abs
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ChinaCoordinateTransformTest {
+
+    @Test
+    fun wgs84ToGcj02ShiftsWithinExpectedRangeInBeijing() {
+        val wgsLat = 39.907333
+        val wgsLng = 116.391155
+        val (gcjLat, gcjLng) = ChinaCoordinateTransform.wgs84ToGcj02(wgsLat, wgsLng)
+        val dLat = abs(gcjLat - wgsLat)
+        val dLng = abs(gcjLng - wgsLng)
+        assertTrue("delta lat should be tens of meters, not zero", dLat in 1e-5..0.02)
+        assertTrue("delta lng should be tens of meters, not zero", dLng in 1e-5..0.02)
+    }
+
+    @Test
+    fun wgs84UnchangedOutsideChinaBox() {
+        val (lat, lng) = ChinaCoordinateTransform.wgs84ToGcj02(35.0, 71.0)
+        assertTrue(lat == 35.0 && lng == 71.0)
+    }
+
+    @Test
+    fun gcj02ToWgs84RoughlyInvertsNearBeijing() {
+        val wgsLat = 39.91
+        val wgsLng = 116.40
+        val (gcjLat, gcjLng) = ChinaCoordinateTransform.wgs84ToGcj02(wgsLat, wgsLng)
+        val (backLat, backLng) = ChinaCoordinateTransform.gcj02ToWgs84(gcjLat, gcjLng)
+        assertTrue(abs(backLat - wgsLat) < 0.0002)
+        assertTrue(abs(backLng - wgsLng) < 0.0002)
+    }
+}

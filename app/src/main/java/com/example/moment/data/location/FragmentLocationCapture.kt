@@ -26,6 +26,9 @@ import kotlin.coroutines.resume
  * Uses Android framework [LocationManager] only — no Google Play services / Fused provider.
  * Suitable for devices without GMS (common in mainland China). Address text is a short
  * coordinate summary instead of reverse-geocoding (which often depends on Google backends).
+ *
+ * **Coordinates:** GPS / 融合定位得到的是 WGS-84，会在写入前转为 **GCJ-02**，与高德 Web 地图及逆地理接口一致；
+ * 网络定位在国内机型上可能已是 GCJ-02，则不再二次转换。
  */
 @Singleton
 class FragmentLocationCapture @Inject constructor(
@@ -39,10 +42,17 @@ class FragmentLocationCapture @Inject constructor(
             fetchBestLocation()
         } ?: return@withContext null
 
+        val (lat, lng) =
+            if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(location.provider)) {
+                ChinaCoordinateTransform.wgs84ToGcj02(location.latitude, location.longitude)
+            } else {
+                location.latitude to location.longitude
+            }
+
         FragmentLocation(
-            latitude = location.latitude,
-            longitude = location.longitude,
-            label = formatCoordinateLabel(location.latitude, location.longitude)
+            latitude = lat,
+            longitude = lng,
+            label = formatCoordinateLabel(lat, lng)
         )
     }
 
