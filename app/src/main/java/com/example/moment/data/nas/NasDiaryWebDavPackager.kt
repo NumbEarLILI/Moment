@@ -115,7 +115,7 @@ class NasDiaryWebDavPackager @Inject constructor(
         return uploaded to skipped
     }
 
-    suspend fun fetchDiaryDto(client: OkHttpClient, jsonUrl: HttpUrl): NasBackupDiaryFileDto? {
+    internal suspend fun fetchDiaryDto(client: OkHttpClient, jsonUrl: HttpUrl): NasBackupDiaryFileDto? {
         val bytes = try {
             webDavHttp.getBytes(client, jsonUrl)
         } catch (_: Exception) {
@@ -139,7 +139,7 @@ class NasDiaryWebDavPackager @Inject constructor(
         return restoreDiaryWithDto(client, root, diaryFolderSegments, localCacheRelative, dto)
     }
 
-    suspend fun restoreDiaryWithDto(
+    internal suspend fun restoreDiaryWithDto(
         client: OkHttpClient,
         root: HttpUrl,
         diaryFolderSegments: List<String>,
