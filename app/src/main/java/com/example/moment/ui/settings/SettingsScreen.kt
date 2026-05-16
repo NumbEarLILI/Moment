@@ -118,11 +118,6 @@ fun SettingsScreen(
                     onClick = { viewModel.selectTheme(AppThemeMode.LIGHT) }
                 )
                 ThemeChip(
-                    label = "原始",
-                    selected = prefs.themeMode == AppThemeMode.ORIGINAL,
-                    onClick = { viewModel.selectTheme(AppThemeMode.ORIGINAL) }
-                )
-                ThemeChip(
                     label = "冷色",
                     selected = prefs.themeMode == AppThemeMode.COOL,
                     onClick = { viewModel.selectTheme(AppThemeMode.COOL) }
