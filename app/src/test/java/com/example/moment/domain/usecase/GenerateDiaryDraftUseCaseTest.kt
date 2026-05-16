@@ -692,6 +692,109 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun nasRestoredPriorMergesOldFragmentIdsWithNewDayFragments_rulePath() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "NAS 手帐",
+            body = "短总述",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(10L, 11L),
+            imageUris = listOf("file:///nas/img1"),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(10L, "旧稿条一"),
+                FragmentAiStory(11L, "旧稿条二")
+            ),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(99L, "今天新加的碎片。", Mood.CALM, "2026-05-13T18:00:00Z")
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+
+        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
+        assertEquals("旧稿条一", result.fragmentStories.find { it.fragmentId == 10L }?.text)
+        assertEquals("旧稿条二", result.fragmentStories.find { it.fragmentId == 11L }?.text)
+        assertTrue(
+            result.fragmentStories.find { it.fragmentId == 99L }?.text?.contains("今天新加的碎片") == true
+        )
+    }
+
+    @Test
+    fun nasRestoredPriorPreservesOldStoriesWhenAiOnlyReturnsNewFragment() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "NAS 手帐",
+            body = "短总述",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(10L, 11L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(10L, "旧稿条一"),
+                FragmentAiStory(11L, "旧稿条二")
+            ),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(fragment(99L, "新碎片", Mood.HAPPY, "2026-05-13T18:00:00Z"))
+        )
+        val prefs = UserAppPreferences(
+            aiBaseUrl = "https://example.com/v1",
+            aiApiKey = "k",
+            aiModel = "m"
+        )
+        val aiDraft = DiaryDraft(
+            title = "AI",
+            body = "AI 正文",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(99L),
+            fragmentStories = listOf(FragmentAiStory(99L, "AI 写新条"))
+        )
+        val fakeAi = object : AiDiaryDraftGenerator {
+            override suspend fun generateDraft(
+                date: LocalDate,
+                fragments: List<LifeFragment>,
+                config: LlmConnectionConfig,
+                priorSavedDiary: DiaryEntry?
+            ): Result<DiaryDraft> = Result.success(aiDraft)
+        }
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(prefs),
+            fakeAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.AUTO)
+
+        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
+        assertEquals("旧稿条一", result.fragmentStories.find { it.fragmentId == 10L }?.text)
+        assertEquals("旧稿条二", result.fragmentStories.find { it.fragmentId == 11L }?.text)
+        assertEquals("AI 写新条", result.fragmentStories.find { it.fragmentId == 99L }?.text)
+    }
+
+    @Test
     fun addFragmentRejectsCompletelyEmptyInput() = runTest {
         val repository = FakeFragmentRepository(emptyList())
         val useCase = AddFragmentUseCase(repository)
@@ -749,8 +852,13 @@ class GenerateDiaryDraftUseCaseTest {
 
         override suspend fun getFragmentsForSourceIds(sourceFragmentIds: List<Long>): List<LifeFragment> {
             if (sourceFragmentIds.isEmpty()) return emptyList()
-            val idSet = sourceFragmentIds.toSet()
-            return fragments.value.filter { it.id in idSet }.sortedBy { it.createdAt }
+            val seen = linkedSetOf<Long>()
+            val ordered = mutableListOf<Long>()
+            for (id in sourceFragmentIds) {
+                if (id > 0L && seen.add(id)) ordered.add(id)
+            }
+            val byId = fragments.value.associateBy { it.id }
+            return ordered.mapNotNull { byId[it] }
         }
 
         override suspend fun getFragmentById(id: Long): LifeFragment? =

@@ -52,7 +52,8 @@ class DiaryPreviewViewModel @Inject constructor(
 
     private suspend fun loadPlogFragments(draft: DiaryDraft): List<LifeFragment> {
         if (draft.sourceFragmentIds.isEmpty()) return emptyList()
-        return fragmentRepository.getFragmentsForSourceIds(draft.sourceFragmentIds)
+        val loaded = fragmentRepository.getFragmentsForSourceIds(draft.sourceFragmentIds)
+        return lifeFragmentsForPlogTimeline(draft.sourceFragmentIds, loaded)
     }
 
     private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>) {

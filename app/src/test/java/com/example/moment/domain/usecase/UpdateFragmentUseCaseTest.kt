@@ -106,8 +106,13 @@ class UpdateFragmentUseCaseTest {
 
         override suspend fun getFragmentsForSourceIds(sourceFragmentIds: List<Long>): List<LifeFragment> {
             if (sourceFragmentIds.isEmpty()) return emptyList()
-            val idSet = sourceFragmentIds.toSet()
-            return fragments.value.filter { it.id in idSet }.sortedBy { it.createdAt }
+            val seen = linkedSetOf<Long>()
+            val ordered = mutableListOf<Long>()
+            for (id in sourceFragmentIds) {
+                if (id > 0L && seen.add(id)) ordered.add(id)
+            }
+            val byId = fragments.value.associateBy { it.id }
+            return ordered.mapNotNull { byId[it] }
         }
 
         override suspend fun getFragmentById(id: Long): LifeFragment? =

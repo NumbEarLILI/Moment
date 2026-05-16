@@ -29,30 +29,70 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         val priorSaved = diaryRepository.getDiaryForDate(date)
         val fragments = fragmentRepository.getFragmentsForDate(date)
         val sorted = fragments.sortedBy { it.createdAt }
+        val mergedIds = mergedSourceFragmentIds(priorSaved, sorted)
+        val fragmentById = buildFragmentByIdMap(sorted, mergedIds)
+        val mergedFrags = mergedIds.mapNotNull { fragmentById[it] }
         val fragmentImageUris = sorted.flatMap { it.imageUris }
         val mergedImageUris = mergeDiaryImageUris(fragmentImageUris, priorSaved)
-        val pins = pinsFromFragments(sorted)
+        val pins = mergeLocationPinsOrdered(
+            mergedIds,
+            pinsFromFragments(mergedFrags),
+            priorSaved?.locationPins.orEmpty()
+        )
 
         if (sorted.isEmpty()) {
             val emptyDraft = diaryGenerator.generate(date, sorted, priorSaved)
-            return emptyDraft.copy(imageUris = mergedImageUris, locationPins = pins)
+            return if (priorSaved != null && mergedIds.isNotEmpty()) {
+                emptyDraft.copy(
+                    title = priorSaved.title,
+                    body = effectivePriorNarrative(priorSaved),
+                    highlights = priorSaved.highlights,
+                    moodSummary = priorSaved.moodSummary,
+                    sourceFragmentIds = mergedIds,
+                    fragmentStories = buildRuleFragmentStories(mergedIds, fragmentById, priorSaved),
+                    imageUris = mergedImageUris,
+                    locationPins = pins
+                )
+            } else {
+                emptyDraft.copy(
+                    imageUris = mergedImageUris,
+                    locationPins = pins,
+                    sourceFragmentIds = mergedIds
+                )
+            }
         }
 
         if (mode == DiaryGenerationMode.RULE_BASED_ONLY) {
-            return finalizeWithRuleGenerator(date, sorted, mergedImageUris, pins, priorSaved)
+            return finalizeWithRuleGenerator(
+                date = date,
+                sorted = sorted,
+                mergedIds = mergedIds,
+                fragmentById = fragmentById,
+                mergedImageUris = mergedImageUris,
+                pins = pins,
+                priorSaved = priorSaved
+            )
         }
 
         val prefs = userPreferencesAccessor.current()
         val config = prefs.toLlmConnectionConfig()
         if (config == null) {
-            return finalizeWithRuleGenerator(date, sorted, mergedImageUris, pins, priorSaved)
+            return finalizeWithRuleGenerator(
+                date = date,
+                sorted = sorted,
+                mergedIds = mergedIds,
+                fragmentById = fragmentById,
+                mergedImageUris = mergedImageUris,
+                pins = pins,
+                priorSaved = priorSaved
+            )
         }
 
         val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config, priorSaved).getOrElse { throw it }
-        val filledStories = normalizeAiFragmentStories(sorted, aiDraft.fragmentStories, priorSaved)
+        val filledStories = normalizeAiFragmentStories(mergedIds, fragmentById, aiDraft.fragmentStories, priorSaved)
         val mergedDraft = mergeAiDraftWithPriorIfNeeded(priorSaved, sorted, aiDraft)
         return mergedDraft.copy(
-            sourceFragmentIds = sorted.map { it.id },
+            sourceFragmentIds = mergedIds,
             imageUris = mergedImageUris,
             locationPins = pins,
             fragmentStories = filledStories
@@ -135,31 +175,38 @@ class GenerateDiaryDraftUseCase @Inject constructor(
     }
 
     private fun normalizeAiFragmentStories(
-        sorted: List<LifeFragment>,
+        mergedIds: List<Long>,
+        fragmentById: Map<Long, LifeFragment>,
         fromAi: List<FragmentAiStory>,
         prior: DiaryEntry?
     ): List<FragmentAiStory> {
         val byId = fromAi.filter { it.text.isNotBlank() }.associateBy { it.fragmentId }.toMutableMap()
         val priorById = prior?.fragmentStories.orEmpty().associateBy { it.fragmentId }
         val priorSourceIds = prior?.sourceFragmentIds?.toSet().orEmpty()
-        for (f in sorted) {
-            val priorStory = priorById[f.id]?.text?.trim().orEmpty()
-            // sourceFragmentIds 为空时（旧数据或未写入），仍可能有 fragmentStories；须保留，否则模型输出会盖掉时间线上的旧稿。
-            val tiesToPriorSources = priorSourceIds.isEmpty() || f.id in priorSourceIds
+        for (id in mergedIds) {
+            val f = fragmentById[id]
+            val priorStory = priorById[id]?.text?.trim().orEmpty()
+            val tiesToPriorSources = priorSourceIds.isEmpty() || id in priorSourceIds
             if (prior != null && priorStory.isNotEmpty() && tiesToPriorSources) {
-                byId[f.id] = FragmentAiStory(f.id, priorStory)
+                byId[id] = FragmentAiStory(id, priorStory)
                 continue
             }
-            if (byId[f.id]?.text.isNullOrBlank()) {
-                val p = priorStory.takeIf { it.isNotEmpty() }
-                val c = f.content.trim().takeIf { it.isNotEmpty() }
-                val img = if (f.imageUris.isNotEmpty()) "${f.imageUris.size} 张图片记录" else ""
-                val fb = p ?: c ?: img.takeIf { it.isNotEmpty() }
-                if (fb != null) byId[f.id] = FragmentAiStory(f.id, fb)
+            if (f != null) {
+                if (byId[id]?.text.isNullOrBlank()) {
+                    val p = priorStory.takeIf { it.isNotEmpty() }
+                    val c = f.content.trim().takeIf { it.isNotEmpty() }
+                    val img = if (f.imageUris.isNotEmpty()) "${f.imageUris.size} 张图片记录" else ""
+                    val fb = p ?: c ?: img.takeIf { it.isNotEmpty() }
+                    if (fb != null) byId[id] = FragmentAiStory(id, fb)
+                }
+            } else if (byId[id]?.text.isNullOrBlank() && priorStory.isNotEmpty()) {
+                // 例如 NAS 只恢复手帐、本地无对应碎片行：仍保留已存逐条文案。
+                byId[id] = FragmentAiStory(id, priorStory)
             }
         }
-        return sorted.map { fr ->
-            byId[fr.id] ?: FragmentAiStory(fr.id, storyFallback(fr))
+        return mergedIds.map { frId ->
+            val fr = fragmentById[frId]
+            byId[frId] ?: FragmentAiStory(frId, fr?.let { storyFallback(it) }.orEmpty())
         }
     }
 
@@ -173,16 +220,90 @@ class GenerateDiaryDraftUseCase @Inject constructor(
     private fun finalizeWithRuleGenerator(
         date: LocalDate,
         sorted: List<LifeFragment>,
+        mergedIds: List<Long>,
+        fragmentById: Map<Long, LifeFragment>,
         mergedImageUris: List<String>,
         pins: List<DiaryLocationPin>,
         priorSaved: DiaryEntry?
     ): DiaryDraft {
         val draft = diaryGenerator.generate(date, sorted, priorSaved)
+        val stories = buildRuleFragmentStories(mergedIds, fragmentById, priorSaved)
         return draft.copy(
-            sourceFragmentIds = sorted.map { it.id },
+            sourceFragmentIds = mergedIds,
+            fragmentStories = stories,
             imageUris = mergedImageUris,
             locationPins = pins
         )
+    }
+
+    /**
+     * 合并已保存手帐中的 sourceFragmentIds（及无 id 列表时的 fragmentStories）与「当日查询到的」碎片 id。
+     * NAS 只恢复日记时，底稿 id 仍在本机 fragments 表中不存在；必须在草稿中保留这些 id，
+     * 否则预览会把旧稿时间线整段丢掉，只剩新建碎片与备份里的图片 URI。
+     */
+    private fun mergedSourceFragmentIds(prior: DiaryEntry?, sortedDayFragments: List<LifeFragment>): List<Long> {
+        val seen = linkedSetOf<Long>()
+        val ordered = mutableListOf<Long>()
+        fun add(id: Long) {
+            if (id <= 0L) return
+            if (seen.add(id)) ordered.add(id)
+        }
+        if (prior != null) {
+            for (id in prior.sourceFragmentIds) add(id)
+            if (prior.sourceFragmentIds.isEmpty()) {
+                for (s in prior.fragmentStories) add(s.fragmentId)
+            }
+        }
+        for (f in sortedDayFragments.sortedBy { it.createdAt }) add(f.id)
+        return ordered
+    }
+
+    private suspend fun buildFragmentByIdMap(
+        sorted: List<LifeFragment>,
+        mergedIds: List<Long>
+    ): Map<Long, LifeFragment> {
+        val byId = sorted.associateBy { it.id }.toMutableMap()
+        for (id in mergedIds) {
+            if (byId[id] == null) {
+                fragmentRepository.getFragmentById(id)?.let { byId[id] = it }
+            }
+        }
+        return byId
+    }
+
+    private fun mergeLocationPinsOrdered(
+        mergedIds: List<Long>,
+        fragmentPins: List<DiaryLocationPin>,
+        priorPins: List<DiaryLocationPin>
+    ): List<DiaryLocationPin> {
+        val byFrag = priorPins.associateBy { it.fragmentId }.toMutableMap()
+        for (p in fragmentPins) byFrag[p.fragmentId] = p
+        return mergedIds.mapNotNull { byFrag[it] }
+    }
+
+    private fun buildRuleFragmentStories(
+        mergedIds: List<Long>,
+        fragmentById: Map<Long, LifeFragment>,
+        prior: DiaryEntry?
+    ): List<FragmentAiStory> {
+        val priorById = prior?.fragmentStories.orEmpty().associateBy { it.fragmentId }
+        return mergedIds.map { id ->
+            val f = fragmentById[id]
+            val saved = priorById[id]?.text?.trim().orEmpty()
+            val fromFrag = f?.let { fr ->
+                when {
+                    fr.content.trim().isNotEmpty() -> fr.content.trim()
+                    fr.imageUris.isNotEmpty() -> "${fr.imageUris.size} 张图片记录"
+                    else -> ""
+                }
+            }.orEmpty()
+            val text = when {
+                saved.isNotEmpty() -> saved
+                fromFrag.isNotBlank() -> fromFrag
+                else -> ""
+            }
+            FragmentAiStory(id, text)
+        }
     }
 
     /** 碎片图片在前，再把已保存手帐中的 URI 追加进来（去重）。 */

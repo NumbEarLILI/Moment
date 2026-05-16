@@ -25,9 +25,13 @@ class FragmentRepositoryImpl @Inject constructor(
 
     override suspend fun getFragmentsForSourceIds(sourceFragmentIds: List<Long>): List<LifeFragment> {
         if (sourceFragmentIds.isEmpty()) return emptyList()
-        val ids = sourceFragmentIds.distinct()
-        val byId = dao.getByIds(ids).associateBy { it.id }
-        return ids.mapNotNull { byId[it] }.map { it.toDomain() }.sortedBy { it.createdAt }
+        val seen = linkedSetOf<Long>()
+        val orderedIds = mutableListOf<Long>()
+        for (id in sourceFragmentIds) {
+            if (id > 0L && seen.add(id)) orderedIds.add(id)
+        }
+        val byId = dao.getByIds(orderedIds).associateBy { it.id }
+        return orderedIds.mapNotNull { byId[it] }.map { it.toDomain() }
     }
 
     override suspend fun getFragmentById(id: Long): LifeFragment? =
