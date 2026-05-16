@@ -50,12 +50,49 @@ class GenerateDiaryDraftUseCase @Inject constructor(
 
         val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config, priorSaved).getOrElse { throw it }
         val filledStories = normalizeAiFragmentStories(sorted, aiDraft.fragmentStories, priorSaved)
-        return aiDraft.copy(
+        val mergedDraft = mergeAiDraftWithPriorIfNeeded(priorSaved, sorted, aiDraft)
+        return mergedDraft.copy(
             sourceFragmentIds = sorted.map { it.id },
             imageUris = mergedImageUris,
             locationPins = pins,
             fragmentStories = filledStories
         )
+    }
+
+    /** 与规则生成器一致：有已保存手帐且存在「相对底稿新增」的碎片时，防止模型把正文置空或覆盖掉底稿。 */
+    private fun mergeAiDraftWithPriorIfNeeded(
+        prior: DiaryEntry?,
+        sorted: List<LifeFragment>,
+        ai: DiaryDraft
+    ): DiaryDraft {
+        if (prior == null) return ai
+        val newFrags = newFragmentsRelativeToPrior(prior, sorted)
+        if (newFrags.isEmpty()) return ai
+        val pb = prior.body.trim()
+        val ab = ai.body.trim()
+        val body = when {
+            pb.isEmpty() -> ab
+            ab.isEmpty() -> pb
+            else -> pb + "\n\n" + ab
+        }
+        val title = ai.title.trim().ifBlank { prior.title }
+        val highlights = (prior.highlights + ai.highlights).asSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .take(8)
+            .toList()
+        val mood = ai.moodSummary?.trim()?.takeIf { it.isNotEmpty() } ?: prior.moodSummary
+        return ai.copy(title = title, body = body, highlights = highlights, moodSummary = mood)
+    }
+
+    private fun newFragmentsRelativeToPrior(prior: DiaryEntry, sorted: List<LifeFragment>): List<LifeFragment> {
+        val priorIds = prior.sourceFragmentIds.toSet()
+        return when {
+            sorted.isEmpty() -> emptyList()
+            priorIds.isEmpty() -> sorted
+            else -> sorted.filter { it.id !in priorIds }
+        }
     }
 
     private fun normalizeAiFragmentStories(

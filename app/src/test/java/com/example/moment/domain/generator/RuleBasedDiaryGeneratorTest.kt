@@ -145,6 +145,33 @@ class RuleBasedDiaryGeneratorTest {
         assertEquals("午后去公园散步。", draft.fragmentStories.find { it.fragmentId == 2L }?.text)
     }
 
+    @Test
+    fun generateMergesAllFragmentsWhenPriorHasNoSourceFragmentIds() {
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "手写日",
+            body = "之前纯手写的正文。",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = emptyList(),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            createdAt = Instant.parse("2026-05-13T07:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T07:00:00Z")
+        )
+        val fragments = listOf(
+            fragment(1, "早上喝了咖啡。", Mood.CALM, "2026-05-13T07:30:00Z")
+        )
+
+        val draft = generator.generate(date, fragments, prior)
+
+        assertTrue(draft.body.contains("之前纯手写的正文。"))
+        assertTrue(draft.body.contains("新增碎片"))
+        assertTrue(draft.body.contains("07:30 早上喝了咖啡。"))
+        assertEquals(listOf(1L), draft.sourceFragmentIds)
+    }
+
     private fun fragment(
         id: Long,
         content: String,
