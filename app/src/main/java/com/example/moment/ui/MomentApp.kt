@@ -43,19 +43,16 @@ fun MomentApp() {
                         }
                     }
                 },
-                onGenerateDiary = { date -> navController.navigate("preview/$date") },
+                onGenerateDiary = { date -> navController.navigate(Routes.preview(date, 0L)) },
                 onOpenDiary = { id -> navController.navigate("detail/$id") },
                 onOpenSettings = { navController.navigate(Routes.Settings) }
             )
         }
         composable(
-            route = "preview/{date}?diaryId={diaryId}",
+            route = Routes.Preview,
             arguments = listOf(
                 navArgument("date") { type = NavType.StringType },
-                navArgument("diaryId") {
-                    type = NavType.LongType
-                    defaultValue = 0L
-                }
+                navArgument("diaryId") { type = NavType.LongType }
             )
         ) { entry ->
             val previewDiaryId = entry.arguments?.getLong("diaryId") ?: 0L
@@ -72,7 +69,7 @@ fun MomentApp() {
                 historyViewModel.events.collect { event ->
                     when (event) {
                         is HistoryEvent.OpenSavedDiary -> navController.navigate("detail/${event.id}")
-                        is HistoryEvent.OpenDiaryPreview -> navController.navigate("preview/${event.date}")
+                        is HistoryEvent.OpenDiaryPreview -> navController.navigate(Routes.preview(event.date, 0L))
                     }
                 }
             }
@@ -131,7 +128,10 @@ fun MomentApp() {
 object Routes {
     val RootCapture: String = capture(0L, null)
     const val Capture = "capture?fragmentId={fragmentId}&forDate={forDate}"
-    const val Preview = "preview/{date}?diaryId={diaryId}"
+    const val Preview = "preview/{date}/{diaryId}"
+
+    /** @param diaryId 已保存手帐的主键；无锚点手帐时用 0（须写入路径，query 在部分机型上不进 SavedStateHandle）。 */
+    fun preview(date: LocalDate, diaryId: Long): String = "preview/$date/$diaryId"
     const val History = "history"
     const val Settings = "settings"
     const val Detail = "detail/{id}"

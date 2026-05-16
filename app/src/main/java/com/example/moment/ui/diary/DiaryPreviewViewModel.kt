@@ -26,7 +26,7 @@ class DiaryPreviewViewModel @Inject constructor(
     private val saveDiary: SaveDiaryUseCase,
     private val fragmentRepository: FragmentRepository
 ) : ViewModel() {
-    private val diaryIdArg: Long = savedStateHandle.get<Long>("diaryId") ?: 0L
+    private val diaryIdArg: Long = savedStateHandle.navArgLong("diaryId")
     private val dateArg: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle["date"]))
     private val _uiState = MutableStateFlow(DiaryEditorUiState(date = dateArg))
     val uiState: StateFlow<DiaryEditorUiState> = _uiState
@@ -111,5 +111,16 @@ class DiaryPreviewViewModel @Inject constructor(
                 _uiState.update { it.copy(isSaving = false, errorMessage = "保存日记失败，请稍后重试") }
             }
         }
+    }
+}
+
+/** Navigation 有时把数字参数放进 Bundle 为 String；统一转成 Long，避免锚点日记 id 丢失导致合并乱套。 */
+private fun SavedStateHandle.navArgLong(key: String): Long {
+    val raw = get<Any>(key) ?: return 0L
+    return when (raw) {
+        is Long -> raw
+        is Int -> raw.toLong()
+        is String -> raw.trim().toLongOrNull() ?: 0L
+        else -> 0L
     }
 }

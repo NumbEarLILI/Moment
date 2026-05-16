@@ -103,7 +103,7 @@ fun DiaryDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(
-                            onClick = { navController.navigate("preview/${entry.date}?diaryId=$diaryId") }
+                            onClick = { navController.navigate(Routes.preview(entry.date, diaryId)) }
                         ) {
                             Text("合并新碎片", color = MaterialTheme.colorScheme.secondary)
                         }
