@@ -307,8 +307,68 @@ class GenerateDiaryDraftUseCaseTest {
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
         assertEquals("合并后", result.title)
+        assertTrue(result.body.contains("底稿"))
+        assertTrue(result.body.contains("合并正文"))
         assertEquals(listOf(1L, 2L), result.sourceFragmentIds)
         assertEquals("旧碎片。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+    }
+
+    @Test
+    fun invokeKeepsPriorBodyWhenAiReturnsEmptyBodyAndNewFragmentsExist() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 9,
+            date = date,
+            title = "已保存",
+            body = "底稿正文不要丢。",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(1L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(1, "旧碎片。", Mood.CALM, "2026-05-13T08:00:00Z"),
+                fragment(2, "新碎片。", Mood.HAPPY, "2026-05-13T18:00:00Z")
+            )
+        )
+        val prefs = UserAppPreferences(
+            aiBaseUrl = "https://example.com/v1",
+            aiApiKey = "k",
+            aiModel = "m"
+        )
+        val outDraft = DiaryDraft(
+            title = "仅标题",
+            body = "",
+            highlights = listOf("AI亮点"),
+            moodSummary = "开心",
+            sourceFragmentIds = listOf(2L),
+            fragmentStories = emptyList()
+        )
+        val fakeAi = object : AiDiaryDraftGenerator {
+            override suspend fun generateDraft(
+                date: LocalDate,
+                fragments: List<LifeFragment>,
+                config: LlmConnectionConfig,
+                priorSavedDiary: DiaryEntry?
+            ): Result<DiaryDraft> = Result.success(outDraft)
+        }
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(prefs),
+            fakeAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.AUTO)
+
+        assertEquals("底稿正文不要丢。", result.body)
+        assertTrue(result.highlights.contains("AI亮点"))
         assertEquals("新碎片。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
     }
 

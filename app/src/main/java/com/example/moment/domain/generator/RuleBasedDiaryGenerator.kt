@@ -28,10 +28,12 @@ class RuleBasedDiaryGenerator(
         }
 
         val priorIds = priorSavedDiary?.sourceFragmentIds?.toSet().orEmpty()
-        val newFragments = if (priorIds.isEmpty()) {
-            emptyList()
-        } else {
-            sorted.filter { it.id !in priorIds }
+        // 已保存手帐若未记录 sourceFragmentIds（旧数据或纯手补），仍应将当日碎片视为「新增」并叠在正文后，避免整篇重写丢字。
+        val newFragments = when {
+            priorSavedDiary == null -> emptyList()
+            sorted.isEmpty() -> emptyList()
+            priorIds.isEmpty() -> sorted
+            else -> sorted.filter { it.id !in priorIds }
         }
         if (priorSavedDiary != null && newFragments.isNotEmpty()) {
             return mergeOntoPriorDiary(priorSavedDiary, sorted, newFragments)

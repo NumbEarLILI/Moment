@@ -72,10 +72,12 @@ class CaptureViewModel @Inject constructor(
     ) { dayNullable, state, diaryEntries ->
         Triple(dayNullable, state, diaryEntries)
     }
-        .flatMapLatest { (dayNullable, state, diaryEntries) ->
+        // 必须用最新的 _uiState.value 合并碎片列表：仅 observeFragmentsForDate 发射时 combine 不会触发，
+        // 若沿用 flatMapLatest 闭包里旧的 state，会回滚用户正在输入的正文并造成光标异常。
+        .flatMapLatest { (dayNullable, _, diaryEntries) ->
             if (dayNullable == null) {
                 flowOf(
-                    state.copy(
+                    _uiState.value.copy(
                         summaryCalendarDay = null,
                         otherFragmentsOnDay = emptyList(),
                         canGenerateDiary = false,
@@ -84,10 +86,11 @@ class CaptureViewModel @Inject constructor(
                 )
             } else {
                 observeFragmentsForDate(dayNullable).map { fragments ->
-                    state.copy(
+                    val base = _uiState.value
+                    base.copy(
                         summaryCalendarDay = dayNullable,
-                        otherFragmentsOnDay = if (state.editingFragmentId > 0) {
-                            fragments.filter { it.id != state.editingFragmentId }
+                        otherFragmentsOnDay = if (base.editingFragmentId > 0) {
+                            fragments.filter { it.id != base.editingFragmentId }
                         } else {
                             fragments
                         },
