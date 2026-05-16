@@ -34,6 +34,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         val mergedFrags = mergedIds.mapNotNull { fragmentById[it] }
         val fragmentImageUris = sorted.flatMap { it.imageUris }
         val mergedImageUris = mergeDiaryImageUris(fragmentImageUris, priorSaved)
+        val mergedFragmentImageUris = buildMergedFragmentImageUrisMap(mergedIds, fragmentById, priorSaved, mergedImageUris)
         val pins = mergeLocationPinsOrdered(
             mergedIds,
             pinsFromFragments(mergedFrags),
@@ -51,11 +52,13 @@ class GenerateDiaryDraftUseCase @Inject constructor(
                     sourceFragmentIds = mergedIds,
                     fragmentStories = buildRuleFragmentStories(mergedIds, fragmentById, priorSaved),
                     imageUris = mergedImageUris,
+                    fragmentImageUris = mergedFragmentImageUris,
                     locationPins = pins
                 )
             } else {
                 emptyDraft.copy(
                     imageUris = mergedImageUris,
+                    fragmentImageUris = mergedFragmentImageUris,
                     locationPins = pins,
                     sourceFragmentIds = mergedIds
                 )
@@ -69,6 +72,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
                 mergedIds = mergedIds,
                 fragmentById = fragmentById,
                 mergedImageUris = mergedImageUris,
+                mergedFragmentImageUris = mergedFragmentImageUris,
                 pins = pins,
                 priorSaved = priorSaved
             )
@@ -83,6 +87,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
                 mergedIds = mergedIds,
                 fragmentById = fragmentById,
                 mergedImageUris = mergedImageUris,
+                mergedFragmentImageUris = mergedFragmentImageUris,
                 pins = pins,
                 priorSaved = priorSaved
             )
@@ -94,6 +99,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         return mergedDraft.copy(
             sourceFragmentIds = mergedIds,
             imageUris = mergedImageUris,
+            fragmentImageUris = mergedFragmentImageUris,
             locationPins = pins,
             fragmentStories = filledStories
         )
@@ -204,10 +210,12 @@ class GenerateDiaryDraftUseCase @Inject constructor(
                 byId[id] = FragmentAiStory(id, priorStory)
             }
         }
-        return mergedIds.map { frId ->
+        val stories = mergedIds.map { frId ->
             val fr = fragmentById[frId]
             byId[frId] ?: FragmentAiStory(frId, fr?.let { storyFallback(it) }.orEmpty())
-        }
+        }.toMutableList()
+        applyNarrativeFallbackForGhostPriorFragments(stories, prior)
+        return stories
     }
 
     private fun storyFallback(f: LifeFragment): String {
@@ -223,6 +231,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         mergedIds: List<Long>,
         fragmentById: Map<Long, LifeFragment>,
         mergedImageUris: List<String>,
+        mergedFragmentImageUris: Map<Long, List<String>>,
         pins: List<DiaryLocationPin>,
         priorSaved: DiaryEntry?
     ): DiaryDraft {
@@ -232,6 +241,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
             sourceFragmentIds = mergedIds,
             fragmentStories = stories,
             imageUris = mergedImageUris,
+            fragmentImageUris = mergedFragmentImageUris,
             locationPins = pins
         )
     }
@@ -287,7 +297,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         prior: DiaryEntry?
     ): List<FragmentAiStory> {
         val priorById = prior?.fragmentStories.orEmpty().associateBy { it.fragmentId }
-        return mergedIds.map { id ->
+        val stories = mergedIds.map { id ->
             val f = fragmentById[id]
             val saved = priorById[id]?.text?.trim().orEmpty()
             val fromFrag = f?.let { fr ->
@@ -303,6 +313,28 @@ class GenerateDiaryDraftUseCase @Inject constructor(
                 else -> ""
             }
             FragmentAiStory(id, text)
+        }.toMutableList()
+        applyNarrativeFallbackForGhostPriorFragments(stories, prior)
+        return stories
+    }
+
+    /**
+     * 备份里仅有 sourceFragmentIds、没有逐条 story（或本地无对应碎片行）时，时间线卡片会全空。
+     * 将整段底稿叙述填回「第一条仍空文的、且属于底稿 sourceFragmentIds 的」时间线，避免预览只剩缩略图。
+     */
+    private fun applyNarrativeFallbackForGhostPriorFragments(
+        stories: MutableList<FragmentAiStory>,
+        prior: DiaryEntry?
+    ) {
+        if (prior == null) return
+        val priorIdSet = prior.sourceFragmentIds.toSet()
+        if (priorIdSet.isEmpty()) return
+        val pn = prior.body.trim().ifEmpty { effectivePriorNarrative(prior).trim() }
+        if (pn.isEmpty()) return
+        val i = stories.indexOfFirst { it.text.isBlank() && it.fragmentId in priorIdSet }
+        if (i >= 0) {
+            val s = stories[i]
+            stories[i] = FragmentAiStory(s.fragmentId, pn)
         }
     }
 
@@ -318,6 +350,46 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         }
         addAll(fragmentImages)
         addAll(priorSaved?.imageUris.orEmpty())
+        priorSaved?.fragmentImageUris?.toSortedMap()?.values?.forEach { addAll(it) }
         return out
+    }
+
+    /**
+     * 每条时间线卡片可用的图片：碎片行 + 已存 per-id 映射，再把仅出现在「整篇」扁平列表里的 URI
+     * 分给仍无照片的碎片（NAS 占位行、旧稿无映射等）。
+     */
+    private fun buildMergedFragmentImageUrisMap(
+        mergedIds: List<Long>,
+        fragmentById: Map<Long, LifeFragment>,
+        prior: DiaryEntry?,
+        mergedFlatUris: List<String>
+    ): Map<Long, List<String>> {
+        if (mergedIds.isEmpty()) return emptyMap()
+        val byFrag = LinkedHashMap<Long, LinkedHashSet<String>>()
+        for (id in mergedIds) byFrag[id] = LinkedHashSet()
+
+        fun add(id: Long, uri: String) {
+            val t = uri.trim()
+            if (t.isNotEmpty()) byFrag[id]?.add(t)
+        }
+
+        for (id in mergedIds) {
+            fragmentById[id]?.imageUris?.forEach { add(id, it) }
+        }
+        prior?.fragmentImageUris?.forEach { (id, uris) ->
+            if (id in byFrag) uris.forEach { add(id, it) }
+        }
+
+        val assigned = byFrag.values.asSequence().flatten().toSet()
+        val orphans = mergedFlatUris.map { it.trim() }.filter { it.isNotEmpty() && it !in assigned }
+        if (orphans.isEmpty()) {
+            return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
+        }
+        val idsNeeding = mergedIds.filter { byFrag[it].isNullOrEmpty() }
+        val targets = if (idsNeeding.isNotEmpty()) idsNeeding else mergedIds
+        orphans.forEachIndexed { idx, u ->
+            add(targets[idx % targets.size], u)
+        }
+        return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
     }
 }

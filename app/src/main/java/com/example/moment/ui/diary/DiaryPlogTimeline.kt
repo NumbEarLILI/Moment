@@ -42,11 +42,27 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+internal fun mergedPlogDisplayImageUris(
+    fragment: LifeFragment,
+    diaryFragmentUris: Map<Long, List<String>>
+): List<String> {
+    val fromFrag = fragment.imageUris.map { it.trim() }.filter { it.isNotEmpty() }
+    val fromDiary = diaryFragmentUris[fragment.id].orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
+    if (fromDiary.isEmpty()) return fromFrag
+    if (fromFrag.isEmpty()) return fromDiary
+    val seen = LinkedHashSet<String>()
+    val out = ArrayList<String>()
+    for (u in fromFrag) if (seen.add(u)) out.add(u)
+    for (u in fromDiary) if (seen.add(u)) out.add(u)
+    return out
+}
+
 @Composable
 fun DiaryPlogTimeline(
     fragments: List<LifeFragment>,
     modifier: Modifier = Modifier,
     fragmentStories: List<FragmentAiStory> = emptyList(),
+    fragmentImageUris: Map<Long, List<String>> = emptyMap(),
     locationPins: List<DiaryLocationPin> = emptyList(),
     onLocationPinClick: ((DiaryLocationPin) -> Unit)? = null,
     zoneId: ZoneId = ZoneId.systemDefault()
@@ -75,6 +91,7 @@ fun DiaryPlogTimeline(
             val pin = locationPins.firstOrNull { it.fragmentId == fragment.id }
             DiaryPlogMomentCard(
                 fragment = fragment,
+                displayImageUris = mergedPlogDisplayImageUris(fragment, fragmentImageUris),
                 zoneId = zoneId,
                 timeFormatter = timeFmt,
                 storyText = storyById[fragment.id]?.text?.trim().orEmpty(),
@@ -90,6 +107,7 @@ fun DiaryPlogTimeline(
 @Composable
 private fun DiaryPlogMomentCard(
     fragment: LifeFragment,
+    displayImageUris: List<String>,
     zoneId: ZoneId,
     timeFormatter: DateTimeFormatter,
     storyText: String,
@@ -101,7 +119,7 @@ private fun DiaryPlogMomentCard(
         fragment.createdAt.atZone(zoneId).toLocalTime().format(timeFormatter)
     }
     val rawContent = fragment.content.trim()
-    val uris = fragment.imageUris.map { it.trim() }.filter { it.isNotEmpty() }
+    val uris = displayImageUris
 
     Card(
         modifier = Modifier.fillMaxWidth(),

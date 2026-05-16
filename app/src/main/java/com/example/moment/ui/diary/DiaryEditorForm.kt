@@ -58,6 +58,7 @@ fun DiaryEditorForm(
                 DiaryPlogTimeline(
                     fragments = state.plogFragments,
                     fragmentStories = state.fragmentStories,
+                    fragmentImageUris = state.fragmentImageUris,
                     locationPins = state.locationPins,
                     onLocationPinClick = { pin ->
                         navController.navigate(
@@ -125,7 +126,7 @@ fun DiaryEditorForm(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            if (state.plogFragments.isEmpty() && state.imageUris.isNotEmpty()) {
+            if (state.imageUris.isNotEmpty()) {
                 DiaryImageGallery(imageUris = state.imageUris, modifier = Modifier.fillMaxWidth())
             }
             if (state.highlights.isNotEmpty()) {

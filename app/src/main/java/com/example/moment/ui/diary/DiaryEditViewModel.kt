@@ -64,6 +64,7 @@ class DiaryEditViewModel @Inject constructor(
                 sourceFragmentIds = entry.sourceFragmentIds,
                 plogFragments = plog,
                 fragmentStories = entry.fragmentStories,
+                fragmentImageUris = entry.fragmentImageUris,
                 imageUris = entry.imageUris,
                 locationPins = entry.locationPins
             )
@@ -91,7 +92,8 @@ class DiaryEditViewModel @Inject constructor(
                     sourceFragmentIds = state.sourceFragmentIds,
                     imageUris = state.imageUris,
                     locationPins = state.locationPins,
-                    fragmentStories = state.fragmentStories
+                    fragmentStories = state.fragmentStories,
+                    fragmentImageUris = state.fragmentImageUris
                 )
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false, saved = true) }

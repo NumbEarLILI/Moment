@@ -19,11 +19,19 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GenerateDiaryDraftUseCaseTest {
+    @Test
+    fun fragmentAiStoryJsonAcceptsStoryFieldAlias() {
+        val parsed = Json.decodeFromString<FragmentAiStory>("""{"fragmentId":5,"story":"备份 JSON 别名"}""")
+        assertEquals(5L, parsed.fragmentId)
+        assertEquals("备份 JSON 别名", parsed.text)
+    }
+
     @Test
     fun invokeGeneratesDraftFromFragmentsOnRequestedDate() = runTest {
         val date = LocalDate.of(2026, 5, 13)

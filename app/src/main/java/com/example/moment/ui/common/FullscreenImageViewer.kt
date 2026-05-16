@@ -17,9 +17,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -29,6 +31,7 @@ fun FullscreenImageViewer(
     onDismiss: () -> Unit
 ) {
     if (imageUris.isEmpty()) return
+    val context = LocalContext.current
     val safeInitial = initialPage.coerceIn(0, imageUris.lastIndex)
     val pagerState = rememberPagerState(initialPage = safeInitial, pageCount = { imageUris.size })
 
@@ -45,8 +48,12 @@ fun FullscreenImageViewer(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
+                val data = imageUris[page].trim()
                 AsyncImage(
-                    model = imageUris[page],
+                    model = ImageRequest.Builder(context)
+                        .data(data)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize()

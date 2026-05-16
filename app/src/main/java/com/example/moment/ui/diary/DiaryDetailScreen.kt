@@ -111,6 +111,7 @@ fun DiaryDetailScreen(
                         DiaryPlogTimeline(
                             fragments = state.plogFragments,
                             fragmentStories = entry.fragmentStories,
+                            fragmentImageUris = entry.fragmentImageUris,
                             locationPins = entry.locationPins,
                             onLocationPinClick = { pin ->
                                 navController.navigate(
@@ -201,7 +202,7 @@ fun DiaryDetailScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-                    if (!hasPlog && entry.imageUris.isNotEmpty()) {
+                    if (entry.imageUris.isNotEmpty()) {
                         DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
                     }
                     if (entry.highlights.isNotEmpty()) {

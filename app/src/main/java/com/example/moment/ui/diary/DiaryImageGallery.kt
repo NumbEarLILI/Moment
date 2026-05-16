@@ -17,9 +17,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.moment.ui.common.FullscreenImageViewer
 
 @Composable
@@ -31,6 +33,7 @@ fun DiaryImageGallery(
     rowHeight: Dp = 132.dp
 ) {
     if (imageUris.isEmpty()) return
+    val context = LocalContext.current
     var fullscreenStartIndex by remember { mutableIntStateOf(-1) }
 
     if (fullscreenStartIndex >= 0) {
@@ -49,8 +52,13 @@ fun DiaryImageGallery(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         itemsIndexed(imageUris, key = { index, uri -> "$index:$uri" }) { index, uri ->
+            val data = uri.trim()
+            if (data.isEmpty()) return@itemsIndexed
             AsyncImage(
-                model = uri,
+                model = ImageRequest.Builder(context)
+                    .data(data)
+                    .crossfade(true)
+                    .build(),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

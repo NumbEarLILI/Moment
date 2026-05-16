@@ -16,6 +16,7 @@ data class DiaryEditorUiState(
     val sourceFragmentIds: List<Long> = emptyList(),
     val fragmentStories: List<FragmentAiStory> = emptyList(),
     val plogFragments: List<LifeFragment> = emptyList(),
+    val fragmentImageUris: Map<Long, List<String>> = emptyMap(),
     val imageUris: List<String> = emptyList(),
     val locationPins: List<DiaryLocationPin> = emptyList(),
     val isSaving: Boolean = false,
