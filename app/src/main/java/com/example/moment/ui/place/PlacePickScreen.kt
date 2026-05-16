@@ -34,6 +34,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.moment.BuildConfig
+import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.domain.model.FragmentLocation
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -109,7 +110,7 @@ fun PlacePickScreen(
         navController.popBackStack()
     }
 
-    Scaffold { padding ->
+    Scaffold(containerColor = appScaffoldContainerColor()) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()

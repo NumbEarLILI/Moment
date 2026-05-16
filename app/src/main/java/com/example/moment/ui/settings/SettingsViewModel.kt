@@ -82,6 +82,20 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setCustomBackgroundImageUri(uri: String) {
+        viewModelScope.launch {
+            userPreferencesRepository.setCustomBackgroundImageUri(uri)
+            _saveSuccessMessage.emit("背景图已更新")
+        }
+    }
+
+    fun clearCustomBackgroundImage() {
+        viewModelScope.launch {
+            userPreferencesRepository.setCustomBackgroundImageUri("")
+            _saveSuccessMessage.emit("已恢复默认背景")
+        }
+    }
+
     fun setAiBaseUrl(value: String) {
         _aiBaseUrl.value = value
     }

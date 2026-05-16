@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.example.moment.ui.Routes
 import com.example.moment.ui.common.MoodSummaryBadge
+import com.example.moment.ui.theme.appScaffoldContainerColor
 
 @Composable
 fun DiaryDetailScreen(
@@ -60,7 +61,7 @@ fun DiaryDetailScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = appScaffoldContainerColor()
     ) { padding ->
         Column(
             modifier = Modifier

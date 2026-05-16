@@ -5,6 +5,8 @@ package com.example.moment.domain.model
  */
 data class UserAppPreferences(
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    /** 相册等来源的 content URI 字符串；空表示使用主题默认背景。 */
+    val customBackgroundImageUri: String = "",
     val aiBaseUrl: String = "",
     val aiApiKey: String = "",
     val aiModel: String = "",

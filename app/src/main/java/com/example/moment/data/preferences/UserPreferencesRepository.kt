@@ -30,6 +30,7 @@ class UserPreferencesRepository @Inject constructor(
         val themeMode = AppThemeMode.entries.find { it.name == themeRaw } ?: AppThemeMode.SYSTEM
         UserAppPreferences(
             themeMode = themeMode,
+            customBackgroundImageUri = prefs[Keys.CUSTOM_BACKGROUND_IMAGE_URI].orEmpty(),
             aiBaseUrl = prefs[Keys.AI_BASE_URL].orEmpty(),
             aiApiKey = prefs[Keys.AI_API_KEY].orEmpty(),
             aiModel = prefs[Keys.AI_MODEL].orEmpty(),
@@ -38,6 +39,10 @@ class UserPreferencesRepository @Inject constructor(
             nasWebdavPassword = prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty(),
             nasWebdavTrustSelfSignedCertificates = prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] ?: false
         )
+    }
+
+    suspend fun setCustomBackgroundImageUri(uri: String) {
+        dataStore.edit { it[Keys.CUSTOM_BACKGROUND_IMAGE_URI] = uri.trim() }
     }
 
     suspend fun setThemeMode(mode: AppThemeMode) {
@@ -68,6 +73,7 @@ class UserPreferencesRepository @Inject constructor(
 
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val CUSTOM_BACKGROUND_IMAGE_URI = stringPreferencesKey("custom_background_image_uri")
         val AI_BASE_URL = stringPreferencesKey("ai_base_url")
         val AI_API_KEY = stringPreferencesKey("ai_api_key")
         val AI_MODEL = stringPreferencesKey("ai_model")
