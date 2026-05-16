@@ -50,7 +50,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
 
         val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config, priorSaved).getOrElse { throw it }
         val filledStories = normalizeAiFragmentStories(sorted, aiDraft.fragmentStories, priorSaved)
-        val mergedDraft = mergeAiDraftWithPriorIfNeeded(priorSaved, sorted, aiDraft)
+        val mergedDraft = mergeAiDraftWithPriorIfNeeded(priorSaved, aiDraft)
         return mergedDraft.copy(
             sourceFragmentIds = sorted.map { it.id },
             imageUris = mergedImageUris,
@@ -59,16 +59,16 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         )
     }
 
-    /** 与规则生成器一致：有已保存手帐且存在「相对底稿新增」的碎片时，防止模型把正文置空或覆盖掉底稿。 */
+    /**
+     * 已有当日手帐时，始终将底稿叙述与模型输出的正文叠在一起，避免误判「无新增碎片」时整篇被模型覆盖。
+     * （例如保存后 sourceFragmentIds 已含当日全部碎片 id 时，原先会误判为无新增并跳过合并。）
+     */
     private fun mergeAiDraftWithPriorIfNeeded(
         prior: DiaryEntry?,
-        sorted: List<LifeFragment>,
         ai: DiaryDraft
     ): DiaryDraft {
         if (prior == null) return ai
-        val newFrags = newFragmentsRelativeToPrior(prior, sorted)
-        if (newFrags.isEmpty()) return ai
-        val pb = effectivePriorNarrative(prior)
+        val pb = effectivePriorNarrative(prior).trim()
         val ab = ai.body.trim()
         val body = when {
             pb.isEmpty() -> ab
@@ -104,15 +104,6 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         }
     }
 
-    private fun newFragmentsRelativeToPrior(prior: DiaryEntry, sorted: List<LifeFragment>): List<LifeFragment> {
-        val priorIds = prior.sourceFragmentIds.toSet()
-        return when {
-            sorted.isEmpty() -> emptyList()
-            priorIds.isEmpty() -> sorted
-            else -> sorted.filter { it.id !in priorIds }
-        }
-    }
-
     private fun normalizeAiFragmentStories(
         sorted: List<LifeFragment>,
         fromAi: List<FragmentAiStory>,
@@ -123,8 +114,9 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         val priorSourceIds = prior?.sourceFragmentIds?.toSet().orEmpty()
         for (f in sorted) {
             val priorStory = priorById[f.id]?.text?.trim().orEmpty()
-            val wasInSavedDiary = priorSourceIds.isNotEmpty() && f.id in priorSourceIds
-            if (wasInSavedDiary && priorStory.isNotEmpty()) {
+            // sourceFragmentIds 为空时（旧数据或未写入），仍可能有 fragmentStories；须保留，否则模型输出会盖掉时间线上的旧稿。
+            val tiesToPriorSources = priorSourceIds.isEmpty() || f.id in priorSourceIds
+            if (prior != null && priorStory.isNotEmpty() && tiesToPriorSources) {
                 byId[f.id] = FragmentAiStory(f.id, priorStory)
                 continue
             }
