@@ -5,7 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
+import com.example.moment.domain.usecase.DiaryGenerationMode
 import com.example.moment.domain.usecase.GenerateDiaryDraftUseCase
 import com.example.moment.domain.usecase.SaveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,12 +21,14 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class DiaryPreviewViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
+    private val diaryRepository: DiaryRepository,
     private val generateDiaryDraft: GenerateDiaryDraftUseCase,
     private val saveDiary: SaveDiaryUseCase,
     private val fragmentRepository: FragmentRepository
 ) : ViewModel() {
-    private val date: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle["date"]))
-    private val _uiState = MutableStateFlow(DiaryEditorUiState(date = date))
+    private val diaryIdArg: Long = savedStateHandle.navArgLong("diaryId")
+    private val dateArg: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle["date"]))
+    private val _uiState = MutableStateFlow(DiaryEditorUiState(date = dateArg))
     val uiState: StateFlow<DiaryEditorUiState> = _uiState
 
     init {
@@ -40,9 +44,11 @@ class DiaryPreviewViewModel @Inject constructor(
 
     private suspend fun loadDraft() {
         try {
-            val draft = generateDiaryDraft(date)
+            val anchor = if (diaryIdArg > 0L) diaryRepository.getDiaryById(diaryIdArg) else null
+            val mergeDate = anchor?.date ?: dateArg
+            val draft = generateDiaryDraft(mergeDate, DiaryGenerationMode.AUTO, anchor)
             val plog = loadPlogFragments(draft)
-            applyDraft(draft, plog)
+            applyDraft(draft, plog, mergeDate)
         } catch (e: Throwable) {
             val detail = e.message?.takeIf { it.isNotBlank() }
             val msg = detail?.let { "生成日记失败：$it" } ?: "生成日记失败，请稍后重试"
@@ -51,20 +57,21 @@ class DiaryPreviewViewModel @Inject constructor(
     }
 
     private suspend fun loadPlogFragments(draft: DiaryDraft): List<LifeFragment> {
-        if (draft.sourceFragmentIds.isEmpty()) return emptyList()
-        val loaded = fragmentRepository.getFragmentsForSourceIds(draft.sourceFragmentIds)
-        return lifeFragmentsForPlogTimeline(draft.sourceFragmentIds, loaded)
+        if (draft.sourceFragmentStableIds.isEmpty()) return emptyList()
+        val loaded = fragmentRepository.getFragmentsForStableIds(draft.sourceFragmentStableIds)
+        return lifeFragmentsForPlogTimeline(draft.sourceFragmentStableIds, loaded)
     }
 
-    private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>) {
+    private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>, mergeDate: LocalDate) {
         _uiState.update {
             it.copy(
                 isLoading = false,
+                date = mergeDate,
                 title = draft.title,
                 body = draft.body,
                 highlights = draft.highlights,
                 moodSummary = draft.moodSummary,
-                sourceFragmentIds = draft.sourceFragmentIds,
+                sourceFragmentStableIds = draft.sourceFragmentStableIds,
                 plogFragments = plogFragments,
                 fragmentStories = draft.fragmentStories,
                 fragmentImageUris = draft.fragmentImageUris,
@@ -79,7 +86,7 @@ class DiaryPreviewViewModel @Inject constructor(
 
     fun save() {
         val state = _uiState.value
-        if (state.sourceFragmentIds.isEmpty()) {
+        if (state.sourceFragmentStableIds.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "今天还没有碎片，不能保存空手帐") }
             return
         }
@@ -92,7 +99,7 @@ class DiaryPreviewViewModel @Inject constructor(
                     body = state.body,
                     highlights = state.highlights,
                     moodSummary = state.moodSummary,
-                    sourceFragmentIds = state.sourceFragmentIds,
+                    sourceFragmentStableIds = state.sourceFragmentStableIds,
                     imageUris = state.imageUris,
                     locationPins = state.locationPins,
                     fragmentStories = state.fragmentStories,
@@ -104,5 +111,16 @@ class DiaryPreviewViewModel @Inject constructor(
                 _uiState.update { it.copy(isSaving = false, errorMessage = "保存日记失败，请稍后重试") }
             }
         }
+    }
+}
+
+/** Navigation 有时把数字参数放进 Bundle 为 String；统一转成 Long，避免锚点日记 id 丢失导致合并乱套。 */
+private fun SavedStateHandle.navArgLong(key: String): Long {
+    val raw = get<Any>(key) ?: return 0L
+    return when (raw) {
+        is Long -> raw
+        is Int -> raw.toLong()
+        is String -> raw.trim().toLongOrNull() ?: 0L
+        else -> 0L
     }
 }

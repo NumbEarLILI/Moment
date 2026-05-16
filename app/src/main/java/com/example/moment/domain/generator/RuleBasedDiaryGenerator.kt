@@ -27,13 +27,13 @@ class RuleBasedDiaryGenerator(
             )
         }
 
-        val priorIds = priorSavedDiary?.sourceFragmentIds?.toSet().orEmpty()
-        // 已保存手帐若未记录 sourceFragmentIds（旧数据或纯手补），仍应将当日碎片视为「新增」并叠在正文后，避免整篇重写丢字。
+        val priorStable = priorSavedDiary?.sourceFragmentStableIds?.toSet().orEmpty()
+        // 已保存手帐若未记录 sourceFragmentStableIds（空列表），仍应将当日碎片视为「新增」并叠在正文后。
         val newFragments = when {
             priorSavedDiary == null -> emptyList()
             sorted.isEmpty() -> emptyList()
-            priorIds.isEmpty() -> sorted
-            else -> sorted.filter { it.id !in priorIds }
+            priorStable.isEmpty() -> sorted
+            else -> sorted.filter { it.stableId !in priorStable }
         }
         if (priorSavedDiary != null && newFragments.isNotEmpty()) {
             return mergeOntoPriorDiary(priorSavedDiary, sorted, newFragments)
@@ -57,7 +57,7 @@ class RuleBasedDiaryGenerator(
             body = body,
             highlights = highlights(sorted),
             moodSummary = mainMood?.let { "今天整体偏${it.displayName}。" },
-            sourceFragmentIds = sorted.map { it.id },
+            sourceFragmentStableIds = sorted.map { it.stableId },
             fragmentStories = stories
         )
     }
@@ -95,7 +95,7 @@ class RuleBasedDiaryGenerator(
             body = mergedBody,
             highlights = mergedHighlights,
             moodSummary = mergedMood,
-            sourceFragmentIds = sorted.map { it.id },
+            sourceFragmentStableIds = sorted.map { it.stableId },
             fragmentStories = mergeFragmentStoriesPreservingPrior(sorted, prior)
         )
     }
@@ -118,7 +118,7 @@ class RuleBasedDiaryGenerator(
             body = effectivePriorNarrative(prior),
             highlights = prior.highlights,
             moodSummary = prior.moodSummary,
-            sourceFragmentIds = sorted.map { it.id },
+            sourceFragmentStableIds = sorted.map { it.stableId },
             fragmentStories = mergeFragmentStoriesPreservingPrior(sorted, prior)
         )
     }
@@ -145,9 +145,9 @@ class RuleBasedDiaryGenerator(
         sorted: List<LifeFragment>,
         prior: DiaryEntry
     ): List<FragmentAiStory> {
-        val priorById = prior.fragmentStories.associateBy { it.fragmentId }
+        val priorByStable = prior.fragmentStories.associateBy { it.fragmentStableId }
         return sorted.map { f ->
-            val saved = priorById[f.id]?.text?.trim().orEmpty()
+            val saved = priorByStable[f.stableId]?.text?.trim().orEmpty()
             val fromFrag = storyForFragment(f)
             val text = when {
                 saved.isNotEmpty() -> saved
@@ -155,7 +155,7 @@ class RuleBasedDiaryGenerator(
                 f.imageUris.isNotEmpty() -> "${f.imageUris.size} 张图片记录"
                 else -> ""
             }
-            FragmentAiStory(f.id, text)
+            FragmentAiStory(f.stableId, text)
         }
     }
 
@@ -171,7 +171,7 @@ class RuleBasedDiaryGenerator(
     private fun fragmentStoriesFor(sorted: List<LifeFragment>): List<FragmentAiStory> =
         sorted.mapNotNull { f ->
             val s = storyForFragment(f)
-            if (s.isBlank()) null else FragmentAiStory(f.id, s)
+            if (s.isBlank()) null else FragmentAiStory(f.stableId, s)
         }
 
     /** 单条时间线主文案：用户原话优先，否则图片提示；不含地点后缀（地点单独展示）。 */

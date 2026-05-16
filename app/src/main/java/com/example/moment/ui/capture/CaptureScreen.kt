@@ -243,7 +243,7 @@ fun CaptureScreen(
                                         lat,
                                         lng,
                                         hint,
-                                        state.editingFragmentId,
+                                        state.editingFragmentStableId,
                                         0L
                                     )
                                 )

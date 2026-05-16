@@ -105,7 +105,7 @@ class CaptureViewModel @Inject constructor(
     init {
         val id = savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L
         if (id > 0) {
-            _uiState.update { it.copy(editingFragmentId = id, isLoadingDraft = true) }
+            _uiState.update { it.copy(editingFragmentId = id, editingFragmentStableId = "", isLoadingDraft = true) }
             viewModelScope.launch {
                 runCatching { getFragmentById(id) }
                     .onSuccess { fragment ->
@@ -114,6 +114,7 @@ class CaptureViewModel @Inject constructor(
                             _uiState.update {
                                 it.copy(
                                     isLoadingDraft = false,
+                                    editingFragmentStableId = fragment.stableId,
                                     content = fragment.content,
                                     tags = fragment.tags.joinToString(", "),
                                     imageUris = fragment.imageUris.joinToString(", "),
@@ -315,6 +316,8 @@ class CaptureViewModel @Inject constructor(
 
 data class CaptureUiState(
     val editingFragmentId: Long = 0L,
+    /** 与地点编辑路由一致；新建碎片时为空直到首次保存。 */
+    val editingFragmentStableId: String = "",
     val isLoadingDraft: Boolean = false,
     val content: String = "",
     val tags: String = "",

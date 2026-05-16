@@ -6,6 +6,7 @@ import com.example.moment.domain.model.Mood
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.Clock
 import java.time.Instant
+import java.util.UUID
 import javax.inject.Inject
 
 class AddFragmentUseCase @Inject constructor(
@@ -29,6 +30,7 @@ class AddFragmentUseCase @Inject constructor(
         val now = recordedAt ?: clock.instant()
         val id = repository.addFragment(
             LifeFragment(
+                stableId = UUID.randomUUID().toString(),
                 content = normalizedContent,
                 imageUris = imageUris,
                 mood = mood,

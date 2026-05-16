@@ -31,7 +31,8 @@ class PlacePickViewModel @Inject constructor(
     private val initialLat: Double = savedStateHandle.get<String>(ARG_LAT)!!.toDouble()
     private val initialLng: Double = savedStateHandle.get<String>(ARG_LNG)!!.toDouble()
     private val initialHint: String = savedStateHandle.get<String>(ARG_HINT).orEmpty()
-    private val fragmentId: Long = savedStateHandle.get<String>(ARG_FRAGMENT_ID)?.toLongOrNull() ?: 0L
+    private val fragmentStableId: String =
+        savedStateHandle.get<String>(ARG_FRAGMENT_ID).orEmpty().trim()
     private val diaryId: Long = savedStateHandle.get<String>(ARG_DIARY_ID)?.toLongOrNull() ?: 0L
 
     private val _uiState = MutableStateFlow(
@@ -127,8 +128,8 @@ class PlacePickViewModel @Inject constructor(
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
             runCatching {
                 when {
-                    fragmentId > 0L -> {
-                        require(updateFragmentLocation(fragmentId, location)) {
+                    fragmentStableId.isNotBlank() && fragmentStableId != "0" -> {
+                        require(updateFragmentLocation(fragmentStableId, location)) {
                             "找不到对应碎片"
                         }
                         if (diaryId > 0L) {

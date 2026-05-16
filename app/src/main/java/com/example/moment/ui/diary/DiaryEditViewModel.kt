@@ -47,9 +47,9 @@ class DiaryEditViewModel @Inject constructor(
     }
 
     private suspend fun applyEntry(entry: DiaryEntry) {
-        val plog = if (entry.sourceFragmentIds.isNotEmpty()) {
-            val loaded = fragmentRepository.getFragmentsForSourceIds(entry.sourceFragmentIds)
-            lifeFragmentsForPlogTimeline(entry.sourceFragmentIds, loaded)
+        val plog = if (entry.sourceFragmentStableIds.isNotEmpty()) {
+            val loaded = fragmentRepository.getFragmentsForStableIds(entry.sourceFragmentStableIds)
+            lifeFragmentsForPlogTimeline(entry.sourceFragmentStableIds, loaded)
         } else {
             emptyList()
         }
@@ -61,7 +61,7 @@ class DiaryEditViewModel @Inject constructor(
                 body = entry.body,
                 highlights = entry.highlights,
                 moodSummary = entry.moodSummary,
-                sourceFragmentIds = entry.sourceFragmentIds,
+                sourceFragmentStableIds = entry.sourceFragmentStableIds,
                 plogFragments = plog,
                 fragmentStories = entry.fragmentStories,
                 fragmentImageUris = entry.fragmentImageUris,
@@ -76,7 +76,7 @@ class DiaryEditViewModel @Inject constructor(
 
     fun save() {
         val state = _uiState.value
-        if (state.sourceFragmentIds.isEmpty()) {
+        if (state.sourceFragmentStableIds.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "缺少关联碎片记录，无法保存。请从日历重新生成手帐。") }
             return
         }
@@ -89,7 +89,7 @@ class DiaryEditViewModel @Inject constructor(
                     body = state.body,
                     highlights = state.highlights,
                     moodSummary = state.moodSummary,
-                    sourceFragmentIds = state.sourceFragmentIds,
+                    sourceFragmentStableIds = state.sourceFragmentStableIds,
                     imageUris = state.imageUris,
                     locationPins = state.locationPins,
                     fragmentStories = state.fragmentStories,

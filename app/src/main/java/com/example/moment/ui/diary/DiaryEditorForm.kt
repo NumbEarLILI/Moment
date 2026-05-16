@@ -66,7 +66,7 @@ fun DiaryEditorForm(
                                 pin.latitude,
                                 pin.longitude,
                                 pin.placeName,
-                                pin.fragmentId,
+                                pin.fragmentStableId,
                                 placePickDiaryId
                             )
                         )
@@ -118,7 +118,7 @@ fun DiaryEditorForm(
                                 pin.latitude,
                                 pin.longitude,
                                 pin.placeName,
-                                pin.fragmentId,
+                                pin.fragmentStableId,
                                 placePickDiaryId
                             )
                         )
@@ -146,7 +146,7 @@ fun DiaryEditorForm(
             }
             Button(
                 onClick = onSave,
-                enabled = !state.isSaving && state.sourceFragmentIds.isNotEmpty(),
+                enabled = !state.isSaving && state.sourceFragmentStableIds.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.large
             ) {

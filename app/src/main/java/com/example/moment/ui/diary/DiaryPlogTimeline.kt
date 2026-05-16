@@ -44,10 +44,10 @@ import java.util.Locale
 
 internal fun mergedPlogDisplayImageUris(
     fragment: LifeFragment,
-    diaryFragmentUris: Map<Long, List<String>>
+    diaryFragmentUris: Map<String, List<String>>
 ): List<String> {
     val fromFrag = fragment.imageUris.map { it.trim() }.filter { it.isNotEmpty() }
-    val fromDiary = diaryFragmentUris[fragment.id].orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
+    val fromDiary = diaryFragmentUris[fragment.stableId].orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
     if (fromDiary.isEmpty()) return fromFrag
     if (fromFrag.isEmpty()) return fromDiary
     val seen = LinkedHashSet<String>()
@@ -62,15 +62,15 @@ fun DiaryPlogTimeline(
     fragments: List<LifeFragment>,
     modifier: Modifier = Modifier,
     fragmentStories: List<FragmentAiStory> = emptyList(),
-    fragmentImageUris: Map<Long, List<String>> = emptyMap(),
+    fragmentImageUris: Map<String, List<String>> = emptyMap(),
     locationPins: List<DiaryLocationPin> = emptyList(),
     onLocationPinClick: ((DiaryLocationPin) -> Unit)? = null,
     zoneId: ZoneId = ZoneId.systemDefault()
 ) {
     if (fragments.isEmpty()) return
     val timeFmt = remember { DateTimeFormatter.ofPattern("HH:mm") }
-    val storyById = remember(fragmentStories) {
-        fragmentStories.associateBy { it.fragmentId }
+    val storyByStableId = remember(fragmentStories) {
+        fragmentStories.associateBy { it.fragmentStableId }
     }
     var fullscreen by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
     fullscreen?.let { (uris, start) ->
@@ -88,13 +88,13 @@ fun DiaryPlogTimeline(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         fragments.forEach { fragment ->
-            val pin = locationPins.firstOrNull { it.fragmentId == fragment.id }
+            val pin = locationPins.firstOrNull { it.fragmentStableId == fragment.stableId }
             DiaryPlogMomentCard(
                 fragment = fragment,
                 displayImageUris = mergedPlogDisplayImageUris(fragment, fragmentImageUris),
                 zoneId = zoneId,
                 timeFormatter = timeFmt,
-                storyText = storyById[fragment.id]?.text?.trim().orEmpty(),
+                storyText = storyByStableId[fragment.stableId]?.text?.trim().orEmpty(),
                 locationPin = pin,
                 onLocationPinClick = onLocationPinClick,
                 onImageClick = { uris, index -> fullscreen = uris to index }
@@ -115,7 +115,7 @@ private fun DiaryPlogMomentCard(
     onLocationPinClick: ((DiaryLocationPin) -> Unit)?,
     onImageClick: (List<String>, Int) -> Unit
 ) {
-    val time = remember(fragment.id, fragment.createdAt, zoneId) {
+    val time = remember(fragment.stableId, fragment.createdAt, zoneId) {
         fragment.createdAt.atZone(zoneId).toLocalTime().format(timeFormatter)
     }
     val rawContent = fragment.content.trim()
@@ -265,23 +265,25 @@ private fun DiaryPlogMomentCard(
 }
 
 /**
- * 按手帐保存的 [orderedSourceIds] 顺序构建时间线；本地库里不存在的 id（例如 NAS 只恢复了日记）
+ * 按手帐保存的 stableId 顺序构建时间线；本地库里不存在的 id（例如 NAS 只恢复了日记）
  * 用占位 [LifeFragment]，正文由 [DiaryPlogTimeline] 从 [FragmentAiStory] 读取。
  */
 fun lifeFragmentsForPlogTimeline(
-    orderedSourceIds: List<Long>,
+    orderedStableIds: List<String>,
     loadedFragments: List<LifeFragment>
 ): List<LifeFragment> {
-    if (orderedSourceIds.isEmpty()) return emptyList()
-    val byId = loadedFragments.associateBy { it.id }
-    val seen = linkedSetOf<Long>()
+    if (orderedStableIds.isEmpty()) return emptyList()
+    val byStable = loadedFragments.associateBy { it.stableId }
+    val seen = linkedSetOf<String>()
     var placeholderSeq = 0
-    return orderedSourceIds.mapNotNull { id ->
-        if (id <= 0L || !seen.add(id)) return@mapNotNull null
-        byId[id] ?: run {
+    return orderedStableIds.mapNotNull { sid ->
+        val key = sid.trim()
+        if (key.isEmpty() || !seen.add(key)) return@mapNotNull null
+        byStable[key] ?: run {
             val t = placeholderInstantForNasOnlyRow(placeholderSeq++)
             LifeFragment(
-                id = id,
+                id = 0L,
+                stableId = key,
                 content = "",
                 imageUris = emptyList(),
                 mood = null,

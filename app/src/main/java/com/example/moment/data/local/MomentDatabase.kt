@@ -8,7 +8,7 @@ import com.example.moment.data.local.entity.FragmentEntity
 
 @Database(
     entities = [FragmentEntity::class, DiaryEntity::class],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(StringListConverter::class)

@@ -5,8 +5,11 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import com.example.moment.BuildConfig
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.model.DiaryLocationPin
+import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.NasWebdavConfig
 import com.example.moment.domain.repository.DiaryRepository
+import com.example.moment.domain.repository.FragmentRepository
 import com.example.moment.domain.repository.NasBackupRepository
 import com.example.moment.domain.repository.NasBackupResult
 import com.example.moment.domain.repository.NasRestoreResult
@@ -18,6 +21,7 @@ import java.io.IOException
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +42,7 @@ import okhttp3.OkHttpClient
 class NasBackupRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val diaryRepository: DiaryRepository,
+    private val fragmentRepository: FragmentRepository,
     private val webDavHttp: WebDavHttp,
     private val clock: Clock
 ) : NasBackupRepository {
@@ -234,9 +239,10 @@ class NasBackupRepositoryImpl @Inject constructor(
             }
         }
         val localImages = resolvedByIndex.mapNotNull { it }
+        val normalized = normalizeNasDiaryRestore(dto)
         val fragmentImageUris = restoreFragmentImageUris(
-            dto.sourceFragmentIds,
-            dto.fragmentImageIndices,
+            normalized.sourceStableIds,
+            normalized.fragmentImageIndices,
             resolvedByIndex,
             localImages
         )
@@ -247,16 +253,70 @@ class NasBackupRepositoryImpl @Inject constructor(
             body = dto.body,
             highlights = dto.highlights,
             moodSummary = dto.moodSummary,
-            sourceFragmentIds = dto.sourceFragmentIds,
+            sourceFragmentStableIds = normalized.sourceStableIds,
             imageUris = localImages,
             fragmentImageUris = fragmentImageUris,
-            locationPins = dto.locationPins,
-            fragmentStories = dto.fragmentStories,
+            locationPins = normalized.locationPins,
+            fragmentStories = normalized.fragmentStories,
             createdAt = Instant.ofEpochMilli(dto.createdAtEpochMillis),
             updatedAt = clock.instant()
         )
         diaryRepository.saveDiary(entry)
+        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(entry)
         return true to localImages.size
+    }
+
+    private data class NasRestoreNormalized(
+        val sourceStableIds: List<String>,
+        val fragmentImageIndices: Map<String, List<Int>>,
+        val fragmentStories: List<FragmentAiStory>,
+        val locationPins: List<DiaryLocationPin>
+    )
+
+    private fun normalizeNasDiaryRestore(dto: NasBackupDiaryFileDto): NasRestoreNormalized {
+        if (dto.schemaVersion >= 2 && dto.sourceFragmentStableIds.isNotEmpty()) {
+            return NasRestoreNormalized(
+                sourceStableIds = dto.sourceFragmentStableIds,
+                fragmentImageIndices = dto.fragmentImageIndices,
+                fragmentStories = dto.fragmentStories.map {
+                    FragmentAiStory(it.fragmentStableId.trim(), it.text)
+                },
+                locationPins = dto.locationPins.map {
+                    DiaryLocationPin(
+                        fragmentStableId = it.fragmentStableId.trim(),
+                        placeName = it.placeName,
+                        latitude = it.latitude,
+                        longitude = it.longitude
+                    )
+                }
+            )
+        }
+        val longIds = dto.sourceFragmentIds
+        val stableOrdered = longIds.map { UUID.randomUUID().toString() }
+        val longToStable = longIds.zip(stableOrdered).toMap()
+        val stories = dto.fragmentStories.map { fs ->
+            val sid = fs.fragmentStableId.trim().ifBlank {
+                if (fs.fragmentId > 0L) longToStable[fs.fragmentId].orEmpty() else ""
+            }
+            FragmentAiStory(sid, fs.text)
+        }
+        val pins = dto.locationPins.map { p ->
+            val sid = p.fragmentStableId.trim().ifBlank {
+                if (p.fragmentId > 0L) longToStable[p.fragmentId].orEmpty() else ""
+            }
+            DiaryLocationPin(
+                fragmentStableId = sid,
+                placeName = p.placeName,
+                latitude = p.latitude,
+                longitude = p.longitude
+            )
+        }
+        val remappedIdx = dto.fragmentImageIndices.mapNotNull { (k, v) ->
+            val lid = k.toLongOrNull() ?: return@mapNotNull null
+            val sid = longToStable[lid] ?: return@mapNotNull null
+            sid to v
+        }.toMap()
+        return NasRestoreNormalized(stableOrdered, remappedIdx, stories, pins)
     }
 
     private fun guessImageExtension(bytes: ByteArray): String {
@@ -348,17 +408,33 @@ class NasBackupRepositoryImpl @Inject constructor(
         }
         val fragmentImageIndices = fragmentImageIndicesForBackup(entry, flatUris)
         val dto = NasBackupDiaryFileDto(
+            schemaVersion = 2,
             id = entry.id,
             dateEpochDay = entry.date.toEpochDay(),
             title = entry.title,
             body = entry.body,
             highlights = entry.highlights,
             moodSummary = entry.moodSummary,
-            sourceFragmentIds = entry.sourceFragmentIds,
+            sourceFragmentStableIds = entry.sourceFragmentStableIds,
+            sourceFragmentIds = emptyList(),
             imageRelativePaths = relativePaths,
             fragmentImageIndices = fragmentImageIndices,
-            locationPins = entry.locationPins,
-            fragmentStories = entry.fragmentStories,
+            locationPins = entry.locationPins.map {
+                NasFileLocationPin(
+                    fragmentStableId = it.fragmentStableId,
+                    fragmentId = 0L,
+                    placeName = it.placeName,
+                    latitude = it.latitude,
+                    longitude = it.longitude
+                )
+            },
+            fragmentStories = entry.fragmentStories.map {
+                NasFileFragmentStory(
+                    fragmentStableId = it.fragmentStableId,
+                    fragmentId = 0L,
+                    text = it.text
+                )
+            },
             createdAtEpochMillis = entry.createdAt.toEpochMilli(),
             updatedAtEpochMillis = entry.updatedAt.toEpochMilli()
         )
@@ -380,12 +456,12 @@ class NasBackupRepositoryImpl @Inject constructor(
             if (t.isNotEmpty() && seen.add(t)) out.add(t)
         }
         for (u in entry.imageUris) add(u)
-        val fromPriorOrder = entry.sourceFragmentIds.toSet()
-        for (id in entry.sourceFragmentIds) {
-            entry.fragmentImageUris[id]?.forEach { add(it) }
+        val fromPriorOrder = entry.sourceFragmentStableIds.toSet()
+        for (sid in entry.sourceFragmentStableIds) {
+            entry.fragmentImageUris[sid]?.forEach { add(it) }
         }
-        for ((id, uris) in entry.fragmentImageUris.toSortedMap()) {
-            if (id in fromPriorOrder) continue
+        for ((sid, uris) in entry.fragmentImageUris.toSortedMap()) {
+            if (sid in fromPriorOrder) continue
             uris.forEach { add(it) }
         }
         return out
@@ -394,49 +470,50 @@ class NasBackupRepositoryImpl @Inject constructor(
     private fun fragmentImageIndicesForBackup(entry: DiaryEntry, flat: List<String>): Map<String, List<Int>> {
         val uriToIndex = flat.withIndex().associate { it.value to it.index }
         val out = LinkedHashMap<String, ArrayList<Int>>()
-        fun append(id: Long, uris: List<String>) {
+        fun append(sid: String, uris: List<String>) {
             val idxs = uris.mapNotNull { uriToIndex[it.trim()] }
             if (idxs.isEmpty()) return
-            val list = out.getOrPut(id.toString()) { ArrayList() }
+            val list = out.getOrPut(sid) { ArrayList() }
             for (i in idxs) {
                 if (!list.contains(i)) list.add(i)
             }
         }
-        for (id in entry.sourceFragmentIds) {
-            append(id, entry.fragmentImageUris[id].orEmpty())
+        for (sid in entry.sourceFragmentStableIds) {
+            append(sid, entry.fragmentImageUris[sid].orEmpty())
         }
-        for ((id, uris) in entry.fragmentImageUris.toSortedMap()) {
-            if (entry.sourceFragmentIds.contains(id)) continue
-            append(id, uris)
+        for ((sid, uris) in entry.fragmentImageUris.toSortedMap()) {
+            if (entry.sourceFragmentStableIds.contains(sid)) continue
+            append(sid, uris)
         }
         return out.mapValues { it.value }
     }
 
     private fun restoreFragmentImageUris(
-        sourceFragmentIds: List<Long>,
+        sourceStableIds: List<String>,
         fragmentImageIndices: Map<String, List<Int>>,
         resolvedByIndex: Array<String?>,
         localImagesOrdered: List<String>
-    ): Map<Long, List<String>> {
+    ): Map<String, List<String>> {
         if (fragmentImageIndices.isNotEmpty()) {
             return fragmentImageIndices.mapNotNull { (key, indices) ->
-                val id = key.toLongOrNull() ?: return@mapNotNull null
+                val sid = key.trim()
+                if (sid.isEmpty()) return@mapNotNull null
                 val uris = indices.mapNotNull { i -> resolvedByIndex.getOrNull(i) }
-                if (uris.isEmpty()) null else id to uris
+                if (uris.isEmpty()) null else sid to uris
             }.toMap()
         }
-        return legacyFragmentImageUrisFromFlat(sourceFragmentIds, localImagesOrdered)
+        return legacyFragmentImageUrisFromFlat(sourceStableIds, localImagesOrdered)
     }
 
     private fun legacyFragmentImageUrisFromFlat(
-        sourceFragmentIds: List<Long>,
+        sourceStableIds: List<String>,
         flat: List<String>
-    ): Map<Long, List<String>> {
-        if (sourceFragmentIds.isEmpty() || flat.isEmpty()) return emptyMap()
-        val buckets = sourceFragmentIds.associateWith { ArrayList<String>() }.toMutableMap()
+    ): Map<String, List<String>> {
+        if (sourceStableIds.isEmpty() || flat.isEmpty()) return emptyMap()
+        val buckets = sourceStableIds.associateWith { ArrayList<String>() }.toMutableMap()
         flat.forEachIndexed { idx, u ->
-            val id = sourceFragmentIds[idx % sourceFragmentIds.size]
-            buckets[id]?.add(u)
+            val sid = sourceStableIds[idx % sourceStableIds.size]
+            buckets[sid]?.add(u)
         }
         return buckets.filterValues { it.isNotEmpty() }
     }
