@@ -208,6 +208,37 @@ class RuleBasedDiaryGeneratorTest {
         assertTrue(draft.body.contains("14:00 午后新记录"))
     }
 
+    @Test
+    fun generateAppendsNewFragmentsOntoCombinedPriorBodyAndFragmentStories() {
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "原标题",
+            body = "短总述。",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(1L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(1L, "逐条长文，不应在增量合并时被忽略。")
+            ),
+            createdAt = Instant.parse("2026-05-13T07:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T07:00:00Z")
+        )
+        val fragments = listOf(
+            fragment(1, "短。", Mood.CALM, "2026-05-13T07:30:00Z"),
+            fragment(2, "午后新记录。", Mood.HAPPY, "2026-05-13T14:00:00Z")
+        )
+
+        val draft = generator.generate(date, fragments, prior)
+
+        assertTrue(draft.body.contains("短总述。"))
+        assertTrue(draft.body.contains("逐条长文，不应在增量合并时被忽略。"))
+        assertTrue(draft.body.contains("新增碎片"))
+        assertTrue(draft.body.contains("14:00 午后新记录"))
+    }
+
     private fun fragment(
         id: Long,
         content: String,

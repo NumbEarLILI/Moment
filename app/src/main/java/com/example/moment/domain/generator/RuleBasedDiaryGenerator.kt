@@ -96,15 +96,21 @@ class RuleBasedDiaryGenerator(
         )
     }
 
-    /** 手帐「整篇」与逐条故事：正文为空时，用语义上属于旧稿的 fragmentStories 串起来，避免 plog 用户只剩时间线、没有可并入锅的段落。 */
+    /**
+     * 手帐「整篇」与逐条故事：正文可能仅为短总述，长文在 fragmentStories；增量合并时需一并纳入，否则旧稿内容丢失。
+     */
     private fun effectivePriorNarrative(prior: DiaryEntry): String {
         val body = prior.body.trim()
-        if (body.isNotEmpty()) return body
-        return prior.fragmentStories
+        val fromStories = prior.fragmentStories
             .asSequence()
             .map { it.text.trim() }
             .filter { it.isNotEmpty() }
             .joinToString("\n\n")
+        return when {
+            body.isNotEmpty() && fromStories.isNotEmpty() -> body + "\n\n" + fromStories
+            body.isNotEmpty() -> body
+            else -> fromStories
+        }
     }
 
     /** 已有手帐里保存的逐条文案（如模型生成）优先于当前碎片原始 content，避免再生成时旧条被覆盖成短句。 */
