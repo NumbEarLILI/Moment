@@ -104,6 +104,12 @@ class UpdateFragmentUseCaseTest {
 
         override suspend fun getFragmentsForDate(date: LocalDate): List<LifeFragment> = fragments.value
 
+        override suspend fun getFragmentsForSourceIds(sourceFragmentIds: List<Long>): List<LifeFragment> {
+            if (sourceFragmentIds.isEmpty()) return emptyList()
+            val idSet = sourceFragmentIds.toSet()
+            return fragments.value.filter { it.id in idSet }.sortedBy { it.createdAt }
+        }
+
         override suspend fun getFragmentById(id: Long): LifeFragment? =
             fragments.value.find { it.id == id }
 

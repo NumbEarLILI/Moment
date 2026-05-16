@@ -126,11 +126,51 @@ fun DiaryDetailScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     } else {
-                        Text(
-                            entry.body,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        if (entry.fragmentStories.isNotEmpty()) {
+                            Text(
+                                "按时间 · 每一刻",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                entry.fragmentStories.forEach { story ->
+                                    val t = story.text.trim()
+                                    if (t.isNotEmpty()) {
+                                        Text(
+                                            t,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        when {
+                            entry.body.isNotBlank() -> {
+                                if (entry.fragmentStories.isNotEmpty()) {
+                                    Text(
+                                        "整篇文字",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    entry.body,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            entry.fragmentStories.isEmpty() -> {
+                                Text(
+                                    entry.body,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                     }
                     if (hasPlog && entry.body.isNotBlank()) {
                         Text(

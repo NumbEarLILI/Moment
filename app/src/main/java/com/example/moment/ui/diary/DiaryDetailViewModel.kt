@@ -36,10 +36,7 @@ class DiaryDetailViewModel @Inject constructor(
                 }
                 .collect { entry ->
                     val plog = if (entry != null && entry.sourceFragmentIds.isNotEmpty()) {
-                        val idSet = entry.sourceFragmentIds.toSet()
-                        fragmentRepository.getFragmentsForDate(entry.date)
-                            .filter { it.id in idSet }
-                            .sortedBy { it.createdAt }
+                        fragmentRepository.getFragmentsForSourceIds(entry.sourceFragmentIds)
                     } else {
                         emptyList()
                     }

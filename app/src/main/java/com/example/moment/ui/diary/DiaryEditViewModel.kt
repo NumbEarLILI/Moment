@@ -48,10 +48,7 @@ class DiaryEditViewModel @Inject constructor(
 
     private suspend fun applyEntry(entry: DiaryEntry) {
         val plog = if (entry.sourceFragmentIds.isNotEmpty()) {
-            val idSet = entry.sourceFragmentIds.toSet()
-            fragmentRepository.getFragmentsForDate(entry.date)
-                .filter { it.id in idSet }
-                .sortedBy { it.createdAt }
+            fragmentRepository.getFragmentsForSourceIds(entry.sourceFragmentIds)
         } else {
             emptyList()
         }
