@@ -86,15 +86,22 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         return ai.copy(title = title, body = body, highlights = highlights, moodSummary = mood)
     }
 
-    /** 与 RuleBasedDiaryGenerator：正文为空时用已保存的逐条故事拼出底稿，便于与模型输出合并。 */
+    /**
+     * 与 RuleBasedDiaryGenerator 一致：plog 手帐常见「正文仅短总述、长文在 fragmentStories」，
+     * 若只取 body 会在增量生成时丢掉旧稿可见内容。
+     */
     private fun effectivePriorNarrative(prior: DiaryEntry): String {
         val body = prior.body.trim()
-        if (body.isNotEmpty()) return body
-        return prior.fragmentStories
+        val fromStories = prior.fragmentStories
             .asSequence()
             .map { it.text.trim() }
             .filter { it.isNotEmpty() }
             .joinToString("\n\n")
+        return when {
+            body.isNotEmpty() && fromStories.isNotEmpty() -> body + "\n\n" + fromStories
+            body.isNotEmpty() -> body
+            else -> fromStories
+        }
     }
 
     private fun newFragmentsRelativeToPrior(prior: DiaryEntry, sorted: List<LifeFragment>): List<LifeFragment> {
@@ -113,9 +120,16 @@ class GenerateDiaryDraftUseCase @Inject constructor(
     ): List<FragmentAiStory> {
         val byId = fromAi.filter { it.text.isNotBlank() }.associateBy { it.fragmentId }.toMutableMap()
         val priorById = prior?.fragmentStories.orEmpty().associateBy { it.fragmentId }
+        val priorSourceIds = prior?.sourceFragmentIds?.toSet().orEmpty()
         for (f in sorted) {
+            val priorStory = priorById[f.id]?.text?.trim().orEmpty()
+            val wasInSavedDiary = priorSourceIds.isNotEmpty() && f.id in priorSourceIds
+            if (wasInSavedDiary && priorStory.isNotEmpty()) {
+                byId[f.id] = FragmentAiStory(f.id, priorStory)
+                continue
+            }
             if (byId[f.id]?.text.isNullOrBlank()) {
-                val p = priorById[f.id]?.text?.trim().orEmpty().takeIf { it.isNotEmpty() }
+                val p = priorStory.takeIf { it.isNotEmpty() }
                 val c = f.content.trim().takeIf { it.isNotEmpty() }
                 val img = if (f.imageUris.isNotEmpty()) "${f.imageUris.size} 张图片记录" else ""
                 val fb = p ?: c ?: img.takeIf { it.isNotEmpty() }
