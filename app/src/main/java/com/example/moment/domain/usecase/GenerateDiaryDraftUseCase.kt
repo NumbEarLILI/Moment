@@ -5,6 +5,7 @@ import com.example.moment.domain.llm.AiDiaryDraftGenerator
 import com.example.moment.domain.location.pinsFromFragments
 import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.model.anchoredFragmentIds
 import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
@@ -25,11 +26,19 @@ class GenerateDiaryDraftUseCase @Inject constructor(
     suspend operator fun invoke(
         date: LocalDate,
         mode: DiaryGenerationMode = DiaryGenerationMode.AUTO,
-        priorOverride: DiaryEntry? = null
+        priorOverride: DiaryEntry? = null,
+        appendDayFragmentsOutsidePrior: Boolean = true
     ): DiaryDraft {
         val priorSaved = priorOverride ?: diaryRepository.getDiaryForDate(date)
-        val fragments = fragmentRepository.getFragmentsForDate(date)
-        val sorted = fragments.sortedBy { it.createdAt }
+        val allFragments = fragmentRepository.getFragmentsForDate(date)
+        val sorted = when {
+            priorSaved == null || appendDayFragmentsOutsidePrior ->
+                allFragments.sortedBy { it.createdAt }
+            else -> {
+                val allowIds = priorSaved.anchoredFragmentIds()
+                allFragments.filter { it.id in allowIds }.sortedBy { it.createdAt }
+            }
+        }
         val mergedIds = mergedSourceFragmentIds(priorSaved, sorted)
         val fragmentById = buildFragmentByIdMap(sorted, mergedIds)
         val mergedFrags = mergedIds.mapNotNull { fragmentById[it] }
@@ -426,12 +435,6 @@ class GenerateDiaryDraftUseCase @Inject constructor(
      * 底稿锚点：`sourceFragmentIds` ∪ `fragmentStories` ∪ `fragmentImageUris` 的 key。
      * 三者**并集**，避免仅写了 id 列表却漏掉仍有分卡图片的碎片、或孤儿分配落到错误节点。
      */
-    private fun priorAnchoredFragmentIds(prior: DiaryEntry?): Set<Long> {
-        if (prior == null) return emptySet()
-        val out = LinkedHashSet<Long>()
-        for (id in prior.sourceFragmentIds) if (id > 0L) out.add(id)
-        for (s in prior.fragmentStories) if (s.fragmentId > 0L) out.add(s.fragmentId)
-        for (id in prior.fragmentImageUris.keys) if (id > 0L) out.add(id)
-        return out
-    }
+    private fun priorAnchoredFragmentIds(prior: DiaryEntry?): Set<Long> =
+        prior?.anchoredFragmentIds().orEmpty()
 }

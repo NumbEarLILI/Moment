@@ -1050,6 +1050,53 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun rulePathWithAppendDayFragmentsFalseOmitsFragmentsNotAnchoredInPrior() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "旧",
+            body = "述",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(1L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(FragmentAiStory(1L, "条一")),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(1, "库里旧行", Mood.CALM, "2026-05-13T08:00:00Z"),
+                fragment(99, "当日新捕", Mood.HAPPY, "2026-05-13T18:00:00Z")
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+        val expanded = useCase(
+            date,
+            DiaryGenerationMode.RULE_BASED_ONLY,
+            prior,
+            appendDayFragmentsOutsidePrior = true
+        )
+        assertEquals(listOf(1L, 99L), expanded.sourceFragmentIds)
+
+        val restricted = useCase(
+            date,
+            DiaryGenerationMode.RULE_BASED_ONLY,
+            prior,
+            appendDayFragmentsOutsidePrior = false
+        )
+        assertEquals(listOf(1L), restricted.sourceFragmentIds)
+    }
+
+    @Test
     fun nasRestoredPriorPreservesOldStoriesWhenAiOnlyReturnsNewFragment() = runTest {
         val date = LocalDate.of(2026, 5, 13)
         val prior = DiaryEntry(
@@ -1220,6 +1267,8 @@ class GenerateDiaryDraftUseCaseTest {
         }
 
         override suspend fun deleteFragment(id: Long) = Unit
+
+        override suspend fun ensureGhostPlaceholderFragmentsForDiary(entry: DiaryEntry) = Unit
     }
 
     private fun fragment(

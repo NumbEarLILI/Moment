@@ -7,6 +7,7 @@ import com.example.moment.BuildConfig
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.NasWebdavConfig
 import com.example.moment.domain.repository.DiaryRepository
+import com.example.moment.domain.repository.FragmentRepository
 import com.example.moment.domain.repository.NasBackupRepository
 import com.example.moment.domain.repository.NasBackupResult
 import com.example.moment.domain.repository.NasRestoreResult
@@ -38,6 +39,7 @@ import okhttp3.OkHttpClient
 class NasBackupRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
     private val diaryRepository: DiaryRepository,
+    private val fragmentRepository: FragmentRepository,
     private val webDavHttp: WebDavHttp,
     private val clock: Clock
 ) : NasBackupRepository {
@@ -256,6 +258,7 @@ class NasBackupRepositoryImpl @Inject constructor(
             updatedAt = clock.instant()
         )
         diaryRepository.saveDiary(entry)
+        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(entry)
         return true to localImages.size
     }
 

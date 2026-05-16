@@ -1,5 +1,6 @@
 package com.example.moment.domain.usecase
 
+import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
@@ -125,5 +126,7 @@ class UpdateFragmentUseCaseTest {
         }
 
         override suspend fun deleteFragment(id: Long) = Unit
+
+        override suspend fun ensureGhostPlaceholderFragmentsForDiary(entry: DiaryEntry) = Unit
     }
 }
