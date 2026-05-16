@@ -41,7 +41,7 @@ fun DiarySummaryCard(entry: DiaryEntry, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (entry.imageUris.isNotEmpty()) {
+            if (entry.sourceFragmentStableIds.isEmpty() && entry.imageUris.isNotEmpty()) {
                 DiaryImageGallery(
                     imageUris = entry.imageUris,
                     modifier = Modifier.fillMaxWidth(),

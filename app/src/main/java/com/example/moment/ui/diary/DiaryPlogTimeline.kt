@@ -158,13 +158,14 @@ private fun DiaryPlogMomentCard(
             }
 
             if (uris.isNotEmpty()) {
+                val heroHeight = if (uris.size == 1) 320.dp else 220.dp
                 AsyncImage(
                     model = uris.first(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .height(heroHeight)
                         .clip(MaterialTheme.shapes.medium)
                         .clickable { onImageClick(uris, 0) }
                 )

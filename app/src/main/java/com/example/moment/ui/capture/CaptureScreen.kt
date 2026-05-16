@@ -111,8 +111,9 @@ fun CaptureScreen(
     val pickJson by backStackEntry.savedStateHandle
         .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
         .collectAsStateWithLifecycle()
+    val navFragmentId = backStackEntry.arguments?.getLong("fragmentId") ?: 0L
     val momentExpanded by backStackEntry.savedStateHandle
-        .getStateFlow(CAPTURE_MOMENT_EXPANDED_KEY, false)
+        .getStateFlow(CAPTURE_MOMENT_EXPANDED_KEY, navFragmentId > 0L)
         .collectAsStateWithLifecycle()
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var pendingSaveAfterLocationPermission by remember { mutableStateOf(false) }
