@@ -2,7 +2,6 @@ package com.example.moment.data.location
 
 import android.net.Uri
 import com.example.moment.BuildConfig
-import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import javax.inject.Inject
@@ -10,6 +9,7 @@ import javax.inject.Singleton
 import javax.net.ssl.HttpsURLConnection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -71,12 +71,12 @@ class AmapReverseGeocoder @Inject constructor() {
                 return AmapRegeoResult(null, "响应体为空")
             }
             val root = JSONObject(body)
-            if (root.optString("status") != "1") {
+            if (!isAmapStatusOk(root)) {
                 val info = root.optString("info")
                 val infocode = root.optString("infocode")
                 return AmapRegeoResult(
                     null,
-                    "status=${root.optString("status")} info=$info infocode=$infocode"
+                    "status=${root.opt("status")} info=$info infocode=$infocode"
                 )
             }
             val regeo = root.optJSONObject("regeocode")
@@ -98,6 +98,12 @@ class AmapReverseGeocoder @Inject constructor() {
         }
     }
 
+    private fun isAmapStatusOk(root: JSONObject): Boolean {
+        if (root.optInt("status", Int.MIN_VALUE) == 1) return true
+        val s = root.optString("status").trim()
+        return s == "1" || s.equals("1.0", ignoreCase = true)
+    }
+
     private fun humanFromAddressComponent(ac: JSONObject?): String? {
         if (ac == null) return null
         val sb = StringBuilder()
@@ -106,12 +112,7 @@ class AmapReverseGeocoder @Inject constructor() {
             if (v.isNotEmpty() && v != "[]") sb.append(v)
         }
         appendString("province")
-        when (val cityAny = ac.opt("city")) {
-            is String -> {
-                val c = cityAny.trim()
-                if (c.isNotEmpty() && c != "[]") sb.append(c)
-            }
-        }
+        appendCityField(ac, sb)
         appendString("district")
         appendString("township")
         val sn = ac.optJSONObject("streetNumber")
@@ -122,6 +123,27 @@ class AmapReverseGeocoder @Inject constructor() {
             if (num.isNotEmpty()) sb.append(num)
         }
         return sb.toString().trim().takeIf { it.isNotEmpty() }
+    }
+
+    /**
+     * 直辖市等场景下 [city] 常为 JSON 数组 `[]` 或元素为区县名；仅 [String] 时旧逻辑会漏掉。
+     */
+    private fun appendCityField(ac: JSONObject, sb: StringBuilder) {
+        when (val cityAny = ac.opt("city")) {
+            is String -> {
+                val c = cityAny.trim()
+                if (c.isNotEmpty() && c != "[]") sb.append(c)
+            }
+            is JSONArray -> {
+                for (i in 0 until cityAny.length()) {
+                    val c = cityAny.optString(i).trim()
+                    if (c.isNotEmpty() && c != "[]") {
+                        sb.append(c)
+                        break
+                    }
+                }
+            }
+        }
     }
 
     private companion object {
