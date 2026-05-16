@@ -16,7 +16,7 @@ data class DiaryEntity(
     val body: String,
     val highlights: List<String>,
     val moodSummary: String?,
-    val sourceFragmentIds: List<Long>,
+    val sourceFragmentStableIds: List<String>,
     val imageUris: List<String> = emptyList(),
     val locationPins: List<DiaryLocationPin> = emptyList(),
     val fragmentImageUrisJson: String = "{}",

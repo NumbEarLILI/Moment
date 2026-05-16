@@ -17,7 +17,7 @@ private val fragmentStoriesJson = Json {
 
 private val fragmentStoriesListSerializer = ListSerializer(FragmentAiStory.serializer())
 
-private val fragmentImageUrisByIdJsonSerializer =
+private val fragmentImageUrisJsonSerializer =
     MapSerializer(String.serializer(), ListSerializer(String.serializer()))
 
 fun decodeFragmentStories(json: String): List<FragmentAiStory> =
@@ -26,24 +26,21 @@ fun decodeFragmentStories(json: String): List<FragmentAiStory> =
 fun encodeFragmentStories(items: List<FragmentAiStory>): String =
     if (items.isEmpty()) "[]" else fragmentStoriesJson.encodeToString(fragmentStoriesListSerializer, items)
 
-fun decodeFragmentImageUris(json: String): Map<Long, List<String>> {
+fun decodeFragmentImageUris(json: String): Map<String, List<String>> {
     if (json.isBlank() || json == "{}") return emptyMap()
-    val raw = fragmentStoriesJson.decodeFromString(fragmentImageUrisByIdJsonSerializer, json)
-    return raw.mapNotNull { (key, uris) ->
-        val id = key.toLongOrNull() ?: return@mapNotNull null
-        val cleaned = uris.map { it.trim() }.filter { it.isNotEmpty() }
-        if (cleaned.isEmpty()) null else id to cleaned
-    }.toMap()
-}
-
-fun encodeFragmentImageUris(map: Map<Long, List<String>>): String {
-    if (map.isEmpty()) return "{}"
-    val stringMap = map
+    val raw = fragmentStoriesJson.decodeFromString(fragmentImageUrisJsonSerializer, json)
+    return raw
         .mapValues { (_, uris) -> uris.map { it.trim() }.filter { it.isNotEmpty() } }
         .filterValues { it.isNotEmpty() }
-        .mapKeys { it.key.toString() }
-    if (stringMap.isEmpty()) return "{}"
-    return fragmentStoriesJson.encodeToString(fragmentImageUrisByIdJsonSerializer, stringMap)
+}
+
+fun encodeFragmentImageUris(map: Map<String, List<String>>): String {
+    if (map.isEmpty()) return "{}"
+    val cleaned = map
+        .mapValues { (_, uris) -> uris.map { it.trim() }.filter { it.isNotEmpty() } }
+        .filterValues { it.isNotEmpty() }
+    if (cleaned.isEmpty()) return "{}"
+    return fragmentStoriesJson.encodeToString(fragmentImageUrisJsonSerializer, cleaned)
 }
 
 fun DiaryEntity.toDomain(): DiaryEntry = DiaryEntry(
@@ -53,7 +50,7 @@ fun DiaryEntity.toDomain(): DiaryEntry = DiaryEntry(
     body = body,
     highlights = highlights,
     moodSummary = moodSummary,
-    sourceFragmentIds = sourceFragmentIds,
+    sourceFragmentStableIds = sourceFragmentStableIds,
     imageUris = imageUris,
     fragmentImageUris = decodeFragmentImageUris(fragmentImageUrisJson),
     locationPins = locationPins,
@@ -69,7 +66,7 @@ fun DiaryEntry.toEntity(): DiaryEntity = DiaryEntity(
     body = body,
     highlights = highlights,
     moodSummary = moodSummary,
-    sourceFragmentIds = sourceFragmentIds,
+    sourceFragmentStableIds = sourceFragmentStableIds,
     imageUris = imageUris,
     fragmentImageUrisJson = encodeFragmentImageUris(fragmentImageUris),
     locationPins = locationPins,

@@ -8,6 +8,7 @@ import java.time.Instant
 
 fun FragmentEntity.toDomain(): LifeFragment = LifeFragment(
     id = id,
+    stableId = stableId,
     content = content,
     imageUris = imageUris,
     mood = mood?.let(Mood::valueOf),
@@ -25,6 +26,7 @@ private fun FragmentEntity.locationOrNull(): FragmentLocation? {
 
 fun LifeFragment.toEntity(): FragmentEntity = FragmentEntity(
     id = id,
+    stableId = stableId,
     content = content,
     imageUris = imageUris,
     mood = mood?.name,

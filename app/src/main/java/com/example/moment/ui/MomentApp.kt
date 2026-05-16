@@ -150,6 +150,8 @@ object Routes {
             }
         }
 
-    fun placePick(lat: Double, lng: Double, hint: String, fragmentId: Long, diaryId: Long): String =
-        "placePick?lat=$lat&lng=$lng&hint=${Uri.encode(hint)}&fragmentId=$fragmentId&diaryId=$diaryId"
+    fun placePick(lat: Double, lng: Double, hint: String, fragmentStableId: String, diaryId: Long): String =
+        "placePick?lat=$lat&lng=$lng&hint=${Uri.encode(hint)}&fragmentId=${
+            Uri.encode(fragmentStableId)
+        }&diaryId=$diaryId"
 }

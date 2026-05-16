@@ -4,7 +4,10 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class AiFragmentStoryJson(
-    val fragmentId: Long,
+    /** 新版 prompt 使用稳定 id 字符串。 */
+    val fragmentStableId: String? = null,
+    /** 兼容旧版模型仍输出本地自增 id 时的回填。 */
+    val fragmentId: Long? = null,
     val story: String
 )
 

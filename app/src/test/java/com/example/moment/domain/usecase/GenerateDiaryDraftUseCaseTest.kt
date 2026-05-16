@@ -28,7 +28,7 @@ class GenerateDiaryDraftUseCaseTest {
     @Test
     fun fragmentAiStoryJsonAcceptsStoryFieldAlias() {
         val parsed = Json.decodeFromString<FragmentAiStory>("""{"fragmentId":5,"story":"备份 JSON 别名"}""")
-        assertEquals(5L, parsed.fragmentId)
+        assertEquals("5", parsed.fragmentStableId)
         assertEquals("备份 JSON 别名", parsed.text)
     }
 
@@ -52,8 +52,8 @@ class GenerateDiaryDraftUseCaseTest {
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
         assertTrue(result.fragmentStories.any { it.text.contains("今天午后完成了拖延很久的小任务") })
-        assertTrue(result.sourceFragmentIds.contains(1))
-        assertTrue(!result.sourceFragmentIds.contains(2))
+        assertTrue(result.sourceFragmentStableIds.contains("1"))
+        assertTrue(!result.sourceFragmentStableIds.contains("2"))
     }
 
     @Test
@@ -74,8 +74,8 @@ class GenerateDiaryDraftUseCaseTest {
             body = "AI 总述",
             highlights = listOf("AI 亮点"),
             moodSummary = "开心",
-            sourceFragmentIds = listOf(99L),
-            fragmentStories = listOf(FragmentAiStory(1L, "AI 为这一则写的短文。"))
+            sourceFragmentStableIds = listOf("99"),
+            fragmentStories = listOf(FragmentAiStory("1", "AI 为这一则写的短文。"))
         )
         val fakeAi = object : AiDiaryDraftGenerator {
             override suspend fun generateDraft(
@@ -104,8 +104,8 @@ class GenerateDiaryDraftUseCaseTest {
 
         assertEquals("AI 标题", result.title)
         assertEquals("AI 总述", result.body)
-        assertEquals(listOf(1L), result.sourceFragmentIds)
-        assertEquals(listOf(FragmentAiStory(1L, "AI 为这一则写的短文。")), result.fragmentStories)
+        assertEquals(listOf("1"), result.sourceFragmentStableIds)
+        assertEquals(listOf(FragmentAiStory("1", "AI 为这一则写的短文。")), result.fragmentStories)
     }
 
     @Test
@@ -129,7 +129,7 @@ class GenerateDiaryDraftUseCaseTest {
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
         assertEquals(1, result.locationPins.size)
-        assertEquals(1L, result.locationPins.first().fragmentId)
+        assertEquals("1", result.locationPins.first().fragmentStableId)
         assertEquals("上海某地", result.locationPins.first().placeName)
     }
 
@@ -140,6 +140,7 @@ class GenerateDiaryDraftUseCaseTest {
             listOf(
                 LifeFragment(
                     id = 1,
+                    stableId = "1",
                     content = "早",
                     imageUris = listOf("content://early1", "content://early2"),
                     mood = Mood.CALM,
@@ -149,6 +150,7 @@ class GenerateDiaryDraftUseCaseTest {
                 ),
                 LifeFragment(
                     id = 2,
+                    stableId = "2",
                     content = "晚",
                     imageUris = listOf("content://late"),
                     mood = Mood.CALM,
@@ -184,7 +186,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "旧正文",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = listOf("content://from-saved-diary", "content://early1"),
             locationPins = emptyList(),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
@@ -194,6 +196,7 @@ class GenerateDiaryDraftUseCaseTest {
             listOf(
                 LifeFragment(
                     id = 1,
+                    stableId = "1",
                     content = "早",
                     imageUris = listOf("content://early1", "content://early2"),
                     mood = Mood.CALM,
@@ -229,7 +232,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "已保存的手帐正文。",
             highlights = listOf("旧亮点"),
             moodSummary = "今天整体偏平静。",
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
@@ -254,7 +257,7 @@ class GenerateDiaryDraftUseCaseTest {
         assertTrue(result.body.contains("已保存的手帐正文。"))
         assertTrue(result.body.contains("新增碎片"))
         assertTrue(result.body.contains("19:00") && result.body.contains("火锅"))
-        assertEquals(listOf(1L, 2L), result.sourceFragmentIds)
+        assertEquals(listOf("1", "2"), result.sourceFragmentStableIds)
     }
 
     @Test
@@ -267,7 +270,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "底稿",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
@@ -289,7 +292,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "合并正文",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(2L),
+            sourceFragmentStableIds = listOf("2"),
             fragmentStories = emptyList()
         )
         val fakeAi = object : AiDiaryDraftGenerator {
@@ -317,9 +320,9 @@ class GenerateDiaryDraftUseCaseTest {
         assertEquals("合并后", result.title)
         assertTrue(result.body.contains("底稿"))
         assertTrue(result.body.contains("合并正文"))
-        assertEquals(listOf(1L, 2L), result.sourceFragmentIds)
-        assertEquals("旧碎片。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
-        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals(listOf("1", "2"), result.sourceFragmentStableIds)
+        assertEquals("旧碎片。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
     @Test
@@ -332,12 +335,12 @@ class GenerateDiaryDraftUseCaseTest {
             body = "旧稿整体段落。",
             highlights = listOf("旧亮"),
             moodSummary = "平静",
-            sourceFragmentIds = listOf(1L, 2L),
+            sourceFragmentStableIds = listOf("1", "2"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(1L, "条1 旧逐条。"),
-                FragmentAiStory(2L, "条2 旧逐条。")
+                FragmentAiStory("1", "条1 旧逐条。"),
+                FragmentAiStory("2", "条2 旧逐条。")
             ),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
@@ -358,10 +361,10 @@ class GenerateDiaryDraftUseCaseTest {
             body = "模型只写了这一段。",
             highlights = listOf("新亮"),
             moodSummary = "兴奋",
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(1L, "不该采用。"),
-                FragmentAiStory(2L, "不该采用2。")
+                FragmentAiStory("1", "不该采用。"),
+                FragmentAiStory("2", "不该采用2。")
             )
         )
         val fakeAi = object : AiDiaryDraftGenerator {
@@ -387,8 +390,8 @@ class GenerateDiaryDraftUseCaseTest {
         assertTrue(result.body.contains("条2 旧逐条。"))
         // 无新增碎片时不叠模型段落，避免重复打开预览导致正文雪球
         assertTrue(!result.body.contains("模型只写了这一段。"))
-        assertEquals("条1 旧逐条。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
-        assertEquals("条2 旧逐条。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals("条1 旧逐条。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("条2 旧逐条。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
         assertTrue(result.highlights.contains("旧亮"))
         assertTrue(result.highlights.contains("新亮"))
     }
@@ -403,7 +406,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "底稿正文不要丢。",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
@@ -425,7 +428,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "",
             highlights = listOf("AI亮点"),
             moodSummary = "开心",
-            sourceFragmentIds = listOf(2L),
+            sourceFragmentStableIds = listOf("2"),
             fragmentStories = emptyList()
         )
         val fakeAi = object : AiDiaryDraftGenerator {
@@ -448,7 +451,7 @@ class GenerateDiaryDraftUseCaseTest {
 
         assertEquals("底稿正文不要丢。", result.body)
         assertTrue(result.highlights.contains("AI亮点"))
-        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
     @Test
@@ -461,10 +464,10 @@ class GenerateDiaryDraftUseCaseTest {
             body = "",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
-            fragmentStories = listOf(FragmentAiStory(1L, "时间线上的旧稿长文。")),
+            fragmentStories = listOf(FragmentAiStory("1", "时间线上的旧稿长文。")),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
         )
@@ -484,7 +487,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             fragmentStories = emptyList()
         )
         val fakeAi = object : AiDiaryDraftGenerator {
@@ -506,8 +509,8 @@ class GenerateDiaryDraftUseCaseTest {
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
         assertTrue(result.body.contains("时间线上的旧稿长文。"))
-        assertEquals("时间线上的旧稿长文。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
-        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals("时间线上的旧稿长文。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
     @Test
@@ -520,10 +523,10 @@ class GenerateDiaryDraftUseCaseTest {
             body = "短总述。",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
-            fragmentStories = listOf(FragmentAiStory(1L, "时间线上的旧稿长文。")),
+            fragmentStories = listOf(FragmentAiStory("1", "时间线上的旧稿长文。")),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
         )
@@ -543,8 +546,8 @@ class GenerateDiaryDraftUseCaseTest {
             body = "模型补充段落。",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
-            fragmentStories = listOf(FragmentAiStory(2L, "新碎片的 AI。"))
+            sourceFragmentStableIds = emptyList(),
+            fragmentStories = listOf(FragmentAiStory("2", "新碎片的 AI。"))
         )
         val fakeAi = object : AiDiaryDraftGenerator {
             override suspend fun generateDraft(
@@ -567,8 +570,8 @@ class GenerateDiaryDraftUseCaseTest {
         assertTrue(result.body.contains("短总述。"))
         assertTrue(result.body.contains("时间线上的旧稿长文。"))
         assertTrue(result.body.contains("模型补充段落。"))
-        assertEquals("时间线上的旧稿长文。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
-        assertEquals("新碎片的 AI。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals("时间线上的旧稿长文。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("新碎片的 AI。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
     @Test
@@ -581,10 +584,10 @@ class GenerateDiaryDraftUseCaseTest {
             body = "底稿",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
-            fragmentStories = listOf(FragmentAiStory(1L, "必须保留的旧逐条全文。")),
+            fragmentStories = listOf(FragmentAiStory("1", "必须保留的旧逐条全文。")),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
         )
@@ -604,10 +607,10 @@ class GenerateDiaryDraftUseCaseTest {
             body = "AI 正文",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(1L, "模型错误缩写的旧条。"),
-                FragmentAiStory(2L, "新条。")
+                FragmentAiStory("1", "模型错误缩写的旧条。"),
+                FragmentAiStory("2", "新条。")
             )
         )
         val fakeAi = object : AiDiaryDraftGenerator {
@@ -628,8 +631,8 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
-        assertEquals("必须保留的旧逐条全文。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
-        assertEquals("新条。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals("必须保留的旧逐条全文。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("新条。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
     @Test
@@ -642,12 +645,12 @@ class GenerateDiaryDraftUseCaseTest {
             body = "底稿总述",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(10L),
+            sourceFragmentStableIds = listOf("10"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(10L, "旧条十。"),
-                FragmentAiStory(11L, "旧条十一必须在，即使 id 列表漏了 11。")
+                FragmentAiStory("10", "旧条十。"),
+                FragmentAiStory("11", "旧条十一必须在，即使 id 列表漏了 11。")
             ),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
@@ -669,11 +672,11 @@ class GenerateDiaryDraftUseCaseTest {
             body = "AI 正文",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(10L, "模型错写十。"),
-                FragmentAiStory(11L, "模型错写十一。"),
-                FragmentAiStory(99L, "新条。")
+                FragmentAiStory("10", "模型错写十。"),
+                FragmentAiStory("11", "模型错写十一。"),
+                FragmentAiStory("99", "新条。")
             )
         )
         val fakeAi = object : AiDiaryDraftGenerator {
@@ -694,9 +697,9 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
-        assertEquals("旧条十。", result.fragmentStories.find { it.fragmentId == 10L }?.text)
-        assertEquals("旧条十一必须在，即使 id 列表漏了 11。", result.fragmentStories.find { it.fragmentId == 11L }?.text)
-        assertEquals("新条。", result.fragmentStories.find { it.fragmentId == 99L }?.text)
+        assertEquals("旧条十。", result.fragmentStories.find { it.fragmentStableId == "10" }?.text)
+        assertEquals("旧条十一必须在，即使 id 列表漏了 11。", result.fragmentStories.find { it.fragmentStableId == "11" }?.text)
+        assertEquals("新条。", result.fragmentStories.find { it.fragmentStableId == "99" }?.text)
     }
 
     @Test
@@ -709,10 +712,10 @@ class GenerateDiaryDraftUseCaseTest {
             body = "短总述。",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             imageUris = emptyList(),
             locationPins = emptyList(),
-            fragmentStories = listOf(FragmentAiStory(1L, "未随 sourceFragmentIds 持久化的旧长文。")),
+            fragmentStories = listOf(FragmentAiStory("1", "未随 sourceFragmentIds 持久化的旧长文。")),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
         )
@@ -732,10 +735,10 @@ class GenerateDiaryDraftUseCaseTest {
             body = "AI 追加",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(1L, "模型不该采用这句。"),
-                FragmentAiStory(2L, "新碎片的 AI。")
+                FragmentAiStory("1", "模型不该采用这句。"),
+                FragmentAiStory("2", "新碎片的 AI。")
             )
         )
         val fakeAi = object : AiDiaryDraftGenerator {
@@ -758,9 +761,9 @@ class GenerateDiaryDraftUseCaseTest {
 
         assertEquals(
             "未随 sourceFragmentIds 持久化的旧长文。",
-            result.fragmentStories.find { it.fragmentId == 1L }?.text
+            result.fragmentStories.find { it.fragmentStableId == "1" }?.text
         )
-        assertEquals("新碎片的 AI。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals("新碎片的 AI。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
         assertTrue(result.body.contains("短总述。"))
         assertTrue(result.body.contains("未随 sourceFragmentIds 持久化的旧长文。"))
         assertTrue(result.body.contains("AI 追加"))
@@ -776,12 +779,12 @@ class GenerateDiaryDraftUseCaseTest {
             body = "短总述",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(10L, 11L),
+            sourceFragmentStableIds = listOf("10", "11"),
             imageUris = listOf("file:///nas/img1"),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(10L, "旧稿条一"),
-                FragmentAiStory(11L, "旧稿条二")
+                FragmentAiStory("10", "旧稿条一"),
+                FragmentAiStory("11", "旧稿条二")
             ),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
@@ -801,11 +804,11 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
-        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
-        assertEquals("旧稿条一", result.fragmentStories.find { it.fragmentId == 10L }?.text)
-        assertEquals("旧稿条二", result.fragmentStories.find { it.fragmentId == 11L }?.text)
+        assertEquals(listOf("10", "11", "99"), result.sourceFragmentStableIds)
+        assertEquals("旧稿条一", result.fragmentStories.find { it.fragmentStableId == "10" }?.text)
+        assertEquals("旧稿条二", result.fragmentStories.find { it.fragmentStableId == "11" }?.text)
         assertTrue(
-            result.fragmentStories.find { it.fragmentId == 99L }?.text?.contains("今天新加的碎片") == true
+            result.fragmentStories.find { it.fragmentStableId == "99" }?.text?.contains("今天新加的碎片") == true
         )
     }
 
@@ -819,12 +822,12 @@ class GenerateDiaryDraftUseCaseTest {
             body = "述",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(10L, 11L),
+            sourceFragmentStableIds = listOf("10", "11"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(10L, "一"),
-                FragmentAiStory(11L, "二")
+                FragmentAiStory("10", "一"),
+                FragmentAiStory("11", "二")
             ),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
@@ -844,7 +847,7 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
-        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
+        assertEquals(listOf("10", "11", "99"), result.sourceFragmentStableIds)
     }
 
     @Test
@@ -857,12 +860,12 @@ class GenerateDiaryDraftUseCaseTest {
             body = "述",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(10L, 11L),
+            sourceFragmentStableIds = listOf("10", "11"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(10L, "一"),
-                FragmentAiStory(11L, "二")
+                FragmentAiStory("10", "一"),
+                FragmentAiStory("11", "二")
             ),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
@@ -883,7 +886,7 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
-        assertEquals(listOf(10L, 11L, 100L, 101L), result.sourceFragmentIds)
+        assertEquals(listOf("10", "11", "100", "101"), result.sourceFragmentStableIds)
     }
 
     @Test
@@ -896,13 +899,13 @@ class GenerateDiaryDraftUseCaseTest {
             body = "述",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(10L, 11L),
+            sourceFragmentStableIds = listOf("10", "11"),
             imageUris = listOf("content://flat-a", "content://flat-b", "content://flat-extra"),
             fragmentImageUris = emptyMap(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(10L, "旧一"),
-                FragmentAiStory(11L, "旧二")
+                FragmentAiStory("10", "旧一"),
+                FragmentAiStory("11", "旧二")
             ),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
@@ -911,6 +914,7 @@ class GenerateDiaryDraftUseCaseTest {
             listOf(
                 LifeFragment(
                     id = 99L,
+                    stableId = "99",
                     content = "新碎片",
                     imageUris = listOf("content://new-c"),
                     mood = Mood.CALM,
@@ -930,8 +934,8 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
 
-        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
-        val forNew = result.fragmentImageUris[99L].orEmpty()
+        assertEquals(listOf("10", "11", "99"), result.sourceFragmentStableIds)
+        val forNew = result.fragmentImageUris["99"].orEmpty()
         assertEquals(listOf("content://new-c"), forNew)
         assertTrue(forNew.none { it.startsWith("content://flat") })
     }
@@ -946,7 +950,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "旧",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             imageUris = listOf("content://old-a", "content://old-b"),
             fragmentImageUris = emptyMap(),
             locationPins = emptyList(),
@@ -958,6 +962,7 @@ class GenerateDiaryDraftUseCaseTest {
             listOf(
                 LifeFragment(
                     id = 99L,
+                    stableId = "99",
                     content = "新",
                     imageUris = listOf("content://new-c"),
                     mood = Mood.CALM,
@@ -975,8 +980,8 @@ class GenerateDiaryDraftUseCaseTest {
             NeverCalledAi
         )
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
-        assertEquals(listOf(99L), result.sourceFragmentIds)
-        val forNew = result.fragmentImageUris[99L].orEmpty()
+        assertEquals(listOf("99"), result.sourceFragmentStableIds)
+        val forNew = result.fragmentImageUris["99"].orEmpty()
         assertEquals(listOf("content://new-c"), forNew)
         assertTrue(result.imageUris.contains("content://old-a"))
     }
@@ -991,9 +996,9 @@ class GenerateDiaryDraftUseCaseTest {
             body = "",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             imageUris = listOf("content://flat-only"),
-            fragmentImageUris = mapOf(10L to listOf("content://on-10")),
+            fragmentImageUris = mapOf("10" to listOf("content://on-10")),
             locationPins = emptyList(),
             fragmentStories = emptyList(),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
@@ -1010,8 +1015,8 @@ class GenerateDiaryDraftUseCaseTest {
             NeverCalledAi
         )
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
-        assertEquals(listOf(10L, 99L), result.sourceFragmentIds)
-        assertEquals(listOf("content://on-10"), result.fragmentImageUris[10L])
+        assertEquals(listOf("10", "99"), result.sourceFragmentStableIds)
+        assertEquals(listOf("content://on-10"), result.fragmentImageUris["10"])
     }
 
     @Test
@@ -1024,11 +1029,11 @@ class GenerateDiaryDraftUseCaseTest {
             body = "",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(10L),
+            sourceFragmentStableIds = listOf("10"),
             imageUris = emptyList(),
             fragmentImageUris = mapOf(
-                10L to listOf("content://on-10"),
-                11L to listOf("content://on-11")
+                "10" to listOf("content://on-10"),
+                "11" to listOf("content://on-11")
             ),
             locationPins = emptyList(),
             fragmentStories = emptyList(),
@@ -1046,7 +1051,7 @@ class GenerateDiaryDraftUseCaseTest {
             NeverCalledAi
         )
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
-        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
+        assertEquals(listOf("10", "11", "99"), result.sourceFragmentStableIds)
     }
 
     @Test
@@ -1059,10 +1064,10 @@ class GenerateDiaryDraftUseCaseTest {
             body = "述",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
-            fragmentStories = listOf(FragmentAiStory(1L, "条一")),
+            fragmentStories = listOf(FragmentAiStory("1", "条一")),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
         )
@@ -1085,7 +1090,7 @@ class GenerateDiaryDraftUseCaseTest {
             prior,
             appendDayFragmentsOutsidePrior = true
         )
-        assertEquals(listOf(1L, 99L), expanded.sourceFragmentIds)
+        assertEquals(listOf("1", "99"), expanded.sourceFragmentStableIds)
 
         val restricted = useCase(
             date,
@@ -1093,7 +1098,7 @@ class GenerateDiaryDraftUseCaseTest {
             prior,
             appendDayFragmentsOutsidePrior = false
         )
-        assertEquals(listOf(1L), restricted.sourceFragmentIds)
+        assertEquals(listOf("1"), restricted.sourceFragmentStableIds)
     }
 
     @Test
@@ -1106,12 +1111,12 @@ class GenerateDiaryDraftUseCaseTest {
             body = "短总述",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(10L, 11L),
+            sourceFragmentStableIds = listOf("10", "11"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(10L, "旧稿条一"),
-                FragmentAiStory(11L, "旧稿条二")
+                FragmentAiStory("10", "旧稿条一"),
+                FragmentAiStory("11", "旧稿条二")
             ),
             createdAt = Instant.parse("2026-05-13T08:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T08:00:00Z")
@@ -1129,8 +1134,8 @@ class GenerateDiaryDraftUseCaseTest {
             body = "AI 正文",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(99L),
-            fragmentStories = listOf(FragmentAiStory(99L, "AI 写新条"))
+            sourceFragmentStableIds = listOf("99"),
+            fragmentStories = listOf(FragmentAiStory("99", "AI 写新条"))
         )
         val fakeAi = object : AiDiaryDraftGenerator {
             override suspend fun generateDraft(
@@ -1150,10 +1155,10 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
-        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
-        assertEquals("旧稿条一", result.fragmentStories.find { it.fragmentId == 10L }?.text)
-        assertEquals("旧稿条二", result.fragmentStories.find { it.fragmentId == 11L }?.text)
-        assertEquals("AI 写新条", result.fragmentStories.find { it.fragmentId == 99L }?.text)
+        assertEquals(listOf("10", "11", "99"), result.sourceFragmentStableIds)
+        assertEquals("旧稿条一", result.fragmentStories.find { it.fragmentStableId == "10" }?.text)
+        assertEquals("旧稿条二", result.fragmentStories.find { it.fragmentStableId == "11" }?.text)
+        assertEquals("AI 写新条", result.fragmentStories.find { it.fragmentStableId == "99" }?.text)
     }
 
     @Test
@@ -1166,7 +1171,7 @@ class GenerateDiaryDraftUseCaseTest {
             body = "b",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(10L),
+            sourceFragmentStableIds = listOf("10"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = emptyList(),
@@ -1184,7 +1189,7 @@ class GenerateDiaryDraftUseCaseTest {
             NeverCalledAi
         )
         val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY, prior)
-        assertEquals(listOf(10L, 99L), result.sourceFragmentIds)
+        assertEquals(listOf("10", "99"), result.sourceFragmentStableIds)
     }
 
     @Test
@@ -1243,16 +1248,20 @@ class GenerateDiaryDraftUseCaseTest {
         override suspend fun getFragmentsForDate(date: LocalDate): List<LifeFragment> =
             fragments.value.filter { LocalDate.ofInstant(it.createdAt, java.time.ZoneId.systemDefault()) == date }
 
-        override suspend fun getFragmentsForSourceIds(sourceFragmentIds: List<Long>): List<LifeFragment> {
-            if (sourceFragmentIds.isEmpty()) return emptyList()
-            val seen = linkedSetOf<Long>()
-            val ordered = mutableListOf<Long>()
-            for (id in sourceFragmentIds) {
-                if (id > 0L && seen.add(id)) ordered.add(id)
+        override suspend fun getFragmentsForStableIds(stableIds: List<String>): List<LifeFragment> {
+            if (stableIds.isEmpty()) return emptyList()
+            val seen = linkedSetOf<String>()
+            val ordered = mutableListOf<String>()
+            for (id in stableIds) {
+                val k = id.trim()
+                if (k.isNotEmpty() && seen.add(k)) ordered.add(k)
             }
-            val byId = fragments.value.associateBy { it.id }
-            return ordered.mapNotNull { byId[it] }
+            val byStable = fragments.value.associateBy { it.stableId }
+            return ordered.mapNotNull { byStable[it] }
         }
+
+        override suspend fun getFragmentByStableId(stableId: String): LifeFragment? =
+            fragments.value.find { it.stableId == stableId }
 
         override suspend fun getFragmentById(id: Long): LifeFragment? =
             fragments.value.find { it.id == id }
@@ -1278,6 +1287,7 @@ class GenerateDiaryDraftUseCaseTest {
         createdAt: String
     ): LifeFragment = LifeFragment(
         id = id,
+        stableId = id.toString(),
         content = content,
         imageUris = emptyList(),
         mood = mood,

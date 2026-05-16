@@ -10,7 +10,7 @@ fun pinsFromFragments(sorted: List<LifeFragment>): List<DiaryLocationPin> =
         val name = loc.label?.trim()?.takeIf { it.isNotEmpty() }
             ?: String.format(Locale.CHINA, "约 %.4f，%.4f", loc.latitude, loc.longitude)
         DiaryLocationPin(
-            fragmentId = fragment.id,
+            fragmentStableId = fragment.stableId,
             placeName = name,
             latitude = loc.latitude,
             longitude = loc.longitude

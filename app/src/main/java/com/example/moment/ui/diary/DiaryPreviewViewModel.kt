@@ -57,9 +57,9 @@ class DiaryPreviewViewModel @Inject constructor(
     }
 
     private suspend fun loadPlogFragments(draft: DiaryDraft): List<LifeFragment> {
-        if (draft.sourceFragmentIds.isEmpty()) return emptyList()
-        val loaded = fragmentRepository.getFragmentsForSourceIds(draft.sourceFragmentIds)
-        return lifeFragmentsForPlogTimeline(draft.sourceFragmentIds, loaded)
+        if (draft.sourceFragmentStableIds.isEmpty()) return emptyList()
+        val loaded = fragmentRepository.getFragmentsForStableIds(draft.sourceFragmentStableIds)
+        return lifeFragmentsForPlogTimeline(draft.sourceFragmentStableIds, loaded)
     }
 
     private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>, mergeDate: LocalDate) {
@@ -71,7 +71,7 @@ class DiaryPreviewViewModel @Inject constructor(
                 body = draft.body,
                 highlights = draft.highlights,
                 moodSummary = draft.moodSummary,
-                sourceFragmentIds = draft.sourceFragmentIds,
+                sourceFragmentStableIds = draft.sourceFragmentStableIds,
                 plogFragments = plogFragments,
                 fragmentStories = draft.fragmentStories,
                 fragmentImageUris = draft.fragmentImageUris,
@@ -86,7 +86,7 @@ class DiaryPreviewViewModel @Inject constructor(
 
     fun save() {
         val state = _uiState.value
-        if (state.sourceFragmentIds.isEmpty()) {
+        if (state.sourceFragmentStableIds.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "今天还没有碎片，不能保存空手帐") }
             return
         }
@@ -99,7 +99,7 @@ class DiaryPreviewViewModel @Inject constructor(
                     body = state.body,
                     highlights = state.highlights,
                     moodSummary = state.moodSummary,
-                    sourceFragmentIds = state.sourceFragmentIds,
+                    sourceFragmentStableIds = state.sourceFragmentStableIds,
                     imageUris = state.imageUris,
                     locationPins = state.locationPins,
                     fragmentStories = state.fragmentStories,

@@ -46,7 +46,7 @@ class RuleBasedDiaryGeneratorTest {
         )
         assertEquals("今天整体偏平静。", draft.moodSummary)
         assertEquals(1, draft.fragmentStories.size)
-        assertEquals(1L, draft.fragmentStories.first().fragmentId)
+        assertEquals("1", draft.fragmentStories.first().fragmentStableId)
         assertTrue(draft.fragmentStories.first().text.contains("热咖啡"))
     }
 
@@ -58,9 +58,9 @@ class RuleBasedDiaryGeneratorTest {
             fragment(3, "上午和同事确认了项目方向。", Mood.FOCUSED, "2026-05-13T10:15:00Z")
         )
 
-        val stories = generator.generate(date, fragments).fragmentStories.map { it.fragmentId to it.text }
+        val stories = generator.generate(date, fragments).fragmentStories.map { it.fragmentStableId to it.text }
 
-        assertEquals(listOf(3L, 2L, 1L), stories.map { it.first })
+        assertEquals(listOf("3", "2", "1"), stories.map { it.first })
         assertTrue(stories[0].second.contains("项目方向"))
         assertTrue(stories[1].second.contains("小任务"))
         assertTrue(stories[2].second.contains("读了几页书"))
@@ -123,7 +123,7 @@ class RuleBasedDiaryGeneratorTest {
             body = "已写好的手帐正文。",
             highlights = listOf("亮点 A"),
             moodSummary = "今天整体偏平静。",
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             createdAt = Instant.parse("2026-05-13T07:00:00Z"),
@@ -139,11 +139,11 @@ class RuleBasedDiaryGeneratorTest {
         assertTrue(draft.body.contains("已写好的手帐正文。"))
         assertTrue(draft.body.contains("新增碎片"))
         assertTrue(draft.body.contains("14:00 午后去公园散步。"))
-        assertEquals(listOf(1L, 2L), draft.sourceFragmentIds)
+        assertEquals(listOf("1", "2"), draft.sourceFragmentStableIds)
         assertEquals("原标题", draft.title)
         assertEquals(2, draft.fragmentStories.size)
-        assertEquals("早上喝了咖啡。", draft.fragmentStories.find { it.fragmentId == 1L }?.text)
-        assertEquals("午后去公园散步。", draft.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals("早上喝了咖啡。", draft.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("午后去公园散步。", draft.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
     @Test
@@ -155,7 +155,7 @@ class RuleBasedDiaryGeneratorTest {
             body = "之前纯手写的正文。",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = emptyList(),
+            sourceFragmentStableIds = emptyList(),
             imageUris = emptyList(),
             locationPins = emptyList(),
             createdAt = Instant.parse("2026-05-13T07:00:00Z"),
@@ -170,7 +170,7 @@ class RuleBasedDiaryGeneratorTest {
         assertTrue(draft.body.contains("之前纯手写的正文。"))
         assertTrue(draft.body.contains("新增碎片"))
         assertTrue(draft.body.contains("07:30 早上喝了咖啡。"))
-        assertEquals(listOf(1L), draft.sourceFragmentIds)
+        assertEquals(listOf("1"), draft.sourceFragmentStableIds)
     }
 
     @Test
@@ -182,11 +182,11 @@ class RuleBasedDiaryGeneratorTest {
             body = "",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(1L, "已保存的 AI 长故事，比碎片原话详细。")
+                FragmentAiStory("1", "已保存的 AI 长故事，比碎片原话详细。")
             ),
             createdAt = Instant.parse("2026-05-13T07:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T07:00:00Z")
@@ -200,9 +200,9 @@ class RuleBasedDiaryGeneratorTest {
 
         assertEquals(
             "已保存的 AI 长故事，比碎片原话详细。",
-            draft.fragmentStories.find { it.fragmentId == 1L }?.text
+            draft.fragmentStories.find { it.fragmentStableId == "1" }?.text
         )
-        assertTrue(draft.fragmentStories.find { it.fragmentId == 2L }?.text?.contains("午后新记录") == true)
+        assertTrue(draft.fragmentStories.find { it.fragmentStableId == "2" }?.text?.contains("午后新记录") == true)
         assertTrue(draft.body.contains("已保存的 AI 长故事"))
         assertTrue(draft.body.contains("新增碎片"))
         assertTrue(draft.body.contains("14:00 午后新记录"))
@@ -217,11 +217,11 @@ class RuleBasedDiaryGeneratorTest {
             body = "短总述。",
             highlights = emptyList(),
             moodSummary = null,
-            sourceFragmentIds = listOf(1L),
+            sourceFragmentStableIds = listOf("1"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(1L, "逐条长文，不应在增量合并时被忽略。")
+                FragmentAiStory("1", "逐条长文，不应在增量合并时被忽略。")
             ),
             createdAt = Instant.parse("2026-05-13T07:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T07:00:00Z")
@@ -248,12 +248,12 @@ class RuleBasedDiaryGeneratorTest {
             body = "总述一段。",
             highlights = listOf("旧亮"),
             moodSummary = "平静。",
-            sourceFragmentIds = listOf(1L, 2L),
+            sourceFragmentStableIds = listOf("1", "2"),
             imageUris = emptyList(),
             locationPins = emptyList(),
             fragmentStories = listOf(
-                FragmentAiStory(1L, "第一条长文。"),
-                FragmentAiStory(2L, "第二条长文。")
+                FragmentAiStory("1", "第一条长文。"),
+                FragmentAiStory("2", "第二条长文。")
             ),
             createdAt = Instant.parse("2026-05-13T07:00:00Z"),
             updatedAt = Instant.parse("2026-05-13T07:00:00Z")
@@ -268,9 +268,9 @@ class RuleBasedDiaryGeneratorTest {
         assertEquals("珍藏标题", draft.title)
         assertTrue(draft.body.contains("总述一段。"))
         assertTrue(draft.body.contains("第一条长文。"))
-        assertEquals("第一条长文。", draft.fragmentStories.find { it.fragmentId == 1L }?.text)
-        assertEquals("第二条长文。", draft.fragmentStories.find { it.fragmentId == 2L }?.text)
-        assertEquals(listOf(1L, 2L), draft.sourceFragmentIds)
+        assertEquals("第一条长文。", draft.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("第二条长文。", draft.fragmentStories.find { it.fragmentStableId == "2" }?.text)
+        assertEquals(listOf("1", "2"), draft.sourceFragmentStableIds)
     }
 
     private fun fragment(
@@ -281,6 +281,7 @@ class RuleBasedDiaryGeneratorTest {
         tags: List<String> = emptyList()
     ): LifeFragment = LifeFragment(
         id = id,
+        stableId = id.toString(),
         content = content,
         imageUris = emptyList(),
         mood = mood,

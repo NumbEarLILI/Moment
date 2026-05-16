@@ -27,19 +27,28 @@ class FragmentRepositoryImpl @Inject constructor(
         return dao.getForRange(start, end).map { it.toDomain() }
     }
 
-    override suspend fun getFragmentsForSourceIds(sourceFragmentIds: List<Long>): List<LifeFragment> {
-        if (sourceFragmentIds.isEmpty()) return emptyList()
-        val seen = linkedSetOf<Long>()
-        val orderedIds = mutableListOf<Long>()
-        for (id in sourceFragmentIds) {
-            if (id > 0L && seen.add(id)) orderedIds.add(id)
+    override suspend fun getFragmentsForStableIds(stableIds: List<String>): List<LifeFragment> {
+        if (stableIds.isEmpty()) return emptyList()
+        val seen = linkedSetOf<String>()
+        val ordered = mutableListOf<String>()
+        for (s in stableIds) {
+            val t = s.trim()
+            if (t.isNotEmpty() && seen.add(t)) ordered.add(t)
         }
-        val byId = dao.getByIds(orderedIds).associateBy { it.id }
-        return orderedIds.mapNotNull { byId[it] }.map { it.toDomain() }
+        if (ordered.isEmpty()) return emptyList()
+        val rows = dao.getByStableIds(ordered)
+        val byStable = rows.associateBy { it.stableId }
+        return ordered.mapNotNull { byStable[it] }.map { it.toDomain() }
     }
 
     override suspend fun getFragmentById(id: Long): LifeFragment? =
         dao.getById(id)?.toDomain()
+
+    override suspend fun getFragmentByStableId(stableId: String): LifeFragment? {
+        val t = stableId.trim()
+        if (t.isEmpty()) return null
+        return dao.getByStableId(t)?.toDomain()
+    }
 
     override suspend fun addFragment(fragment: LifeFragment): Long =
         dao.insert(fragment.toEntity())
@@ -54,12 +63,13 @@ class FragmentRepositoryImpl @Inject constructor(
 
     override suspend fun ensureGhostPlaceholderFragmentsForDiary(entry: DiaryEntry) {
         val base = GHOST_PLACEHOLDER_EPOCH_MS
-        for (id in entry.anchoredFragmentIds().sorted()) {
-            if (dao.getById(id) != null) continue
-            val ms = base + id
+        for (sid in entry.anchoredFragmentIds().sorted()) {
+            if (dao.getByStableId(sid) != null) continue
+            val ms = base + (sid.hashCode().toLong() and 0x7FFF_FFFF)
             dao.insert(
                 FragmentEntity(
-                    id = id,
+                    id = 0,
+                    stableId = sid,
                     content = "",
                     imageUris = emptyList(),
                     mood = null,
@@ -81,7 +91,6 @@ class FragmentRepositoryImpl @Inject constructor(
     }
 
     private companion object {
-        /** 占位碎片时间：远离真实记录日，避免出现在「某日碎片」列表里，仅占位主键 id。 */
         val GHOST_PLACEHOLDER_EPOCH_MS: Long =
             LocalDate.of(1970, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
     }

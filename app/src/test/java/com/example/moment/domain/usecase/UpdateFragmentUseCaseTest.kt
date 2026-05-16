@@ -19,6 +19,7 @@ class UpdateFragmentUseCaseTest {
         val created = Instant.parse("2026-05-13T10:00:00Z")
         val existing = LifeFragment(
             id = 1,
+            stableId = "1",
             content = "旧内容",
             imageUris = emptyList(),
             mood = Mood.CALM,
@@ -74,6 +75,7 @@ class UpdateFragmentUseCaseTest {
     fun invokeReturnsEmptyWhenClearedToBlank() = runTest {
         val existing = LifeFragment(
             id = 1,
+            stableId = "1",
             content = "有字",
             imageUris = emptyList(),
             mood = null,
@@ -105,16 +107,20 @@ class UpdateFragmentUseCaseTest {
 
         override suspend fun getFragmentsForDate(date: LocalDate): List<LifeFragment> = fragments.value
 
-        override suspend fun getFragmentsForSourceIds(sourceFragmentIds: List<Long>): List<LifeFragment> {
-            if (sourceFragmentIds.isEmpty()) return emptyList()
-            val seen = linkedSetOf<Long>()
-            val ordered = mutableListOf<Long>()
-            for (id in sourceFragmentIds) {
-                if (id > 0L && seen.add(id)) ordered.add(id)
+        override suspend fun getFragmentsForStableIds(stableIds: List<String>): List<LifeFragment> {
+            if (stableIds.isEmpty()) return emptyList()
+            val seen = linkedSetOf<String>()
+            val ordered = mutableListOf<String>()
+            for (id in stableIds) {
+                val k = id.trim()
+                if (k.isNotEmpty() && seen.add(k)) ordered.add(k)
             }
-            val byId = fragments.value.associateBy { it.id }
-            return ordered.mapNotNull { byId[it] }
+            val byStable = fragments.value.associateBy { it.stableId }
+            return ordered.mapNotNull { byStable[it] }
         }
+
+        override suspend fun getFragmentByStableId(stableId: String): LifeFragment? =
+            fragments.value.find { it.stableId == stableId }
 
         override suspend fun getFragmentById(id: Long): LifeFragment? =
             fragments.value.find { it.id == id }

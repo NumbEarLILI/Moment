@@ -128,7 +128,7 @@ fun DiaryDetailScreen(
                                         pin.latitude,
                                         pin.longitude,
                                         pin.placeName,
-                                        pin.fragmentId,
+                                        pin.fragmentStableId,
                                         diaryId
                                     )
                                 )
@@ -203,7 +203,7 @@ fun DiaryDetailScreen(
                                         pin.latitude,
                                         pin.longitude,
                                         pin.placeName,
-                                        pin.fragmentId,
+                                        pin.fragmentStableId,
                                         diaryId
                                     )
                                 )

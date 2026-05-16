@@ -37,8 +37,11 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
             val userPrompt = userPrompt(date, sorted, priorSavedDiary)
             val raw = chatClient.chatCompletion(config, systemPrompt, userPrompt)
             val parsed = AiDiaryResponseParser.parse(raw).getOrElse { throw it }
-            val stories = parsed.fragmentStories.map {
-                FragmentAiStory(fragmentId = it.fragmentId, text = it.story.trim())
+            val stories = parsed.fragmentStories.mapNotNull { j ->
+                val sid = j.fragmentStableId?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: j.fragmentId?.let { lid -> sorted.find { f -> f.id == lid }?.stableId }
+                if (sid.isNullOrBlank()) return@mapNotNull null
+                FragmentAiStory(fragmentStableId = sid, text = j.story.trim())
             }.filter { it.text.isNotEmpty() }
             DiaryDraft(
                 title = parsed.title.trim().ifBlank { "${date} 的手帐" },
@@ -48,7 +51,7 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
                     .filter { it.isNotEmpty() }
                     .take(8),
                 moodSummary = parsed.moodSummary?.trim()?.takeIf { it.isNotEmpty() },
-                sourceFragmentIds = sorted.map { it.id },
+                sourceFragmentStableIds = sorted.map { it.stableId },
                 fragmentStories = stories
             )
         }
@@ -61,7 +64,7 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
         JSON 字段与要求：
         - title：短标题，适合手帐封面，不超过 20 字为宜。
         - body：可选的全天总述或收束，0～2 段、段间用 \\n；宜简短，不要把每条碎片的细节都写进 body。
-        - fragmentStories：数组，**每个当天碎片一条**，对象含 fragmentId（与输入中的碎片 id 一致）与 story（1～3 句，写该时刻的小故事或感受，温暖自然）。
+        - fragmentStories：数组，**每个当天碎片一条**，对象含 fragmentStableId（与输入中的碎片稳定 id 字符串一致）与 story（1～3 句，写该时刻的小故事或感受，温暖自然）。
         - highlights：字符串数组，0～5 条，每条一句当天值得记住的亮点（可从碎片提炼）。
         - moodSummary：一句话概括当天情绪氛围；若没有明显情绪可写 null 或空字符串。
     """.trimIndent()
@@ -80,15 +83,16 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
             prior.moodSummary?.trim()?.takeIf { it.isNotEmpty() }?.let { appendLine("氛围概括：$it") }
             if (prior.fragmentStories.isNotEmpty()) {
                 appendLine("既有逐条手记（底稿，可在新版中改写但勿编造事实）：")
-                prior.fragmentStories.forEach { appendLine("- fragmentId ${it.fragmentId}：${it.text}") }
+                prior.fragmentStories.forEach { appendLine("- fragmentStableId ${it.fragmentStableId}：${it.text}") }
             }
         }
         appendLine()
-        appendLine("以下按时间顺序列出当天全部碎片，请输出手帐 JSON（务必为每条碎片写 fragmentStories，fragmentId 与下表一致）：")
+        appendLine("以下按时间顺序列出当天全部碎片，请输出手帐 JSON（务必为每条碎片写 fragmentStories，fragmentStableId 与下表一致）：")
         fragments.forEachIndexed { index, f ->
             appendLine()
             appendLine("--- 碎片 ${index + 1} ---")
-            appendLine("fragmentId：${f.id}")
+            appendLine("fragmentStableId：${f.stableId}")
+            appendLine("localRowId（勿写入 JSON，仅供参考）：${f.id}")
             appendLine("记录时间：${timeFormatter.format(f.createdAt)}")
             appendLine("心情：${f.mood?.displayName ?: "未标注"}")
             if (f.tags.isNotEmpty()) {
@@ -99,7 +103,10 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
             appendLine("地点：${formatLocation(f.location)}")
         }
         appendLine()
-        appendLine("fragmentStories 中须覆盖的 fragmentId 列表（缺一不可）：${fragments.joinToString(", ") { it.id.toString() }}")
+        appendLine(
+            "fragmentStories 中须覆盖的 fragmentStableId 列表（缺一不可）：" +
+                fragments.joinToString(", ") { it.stableId }
+        )
     }
 
     private fun formatLocation(loc: FragmentLocation?): String {

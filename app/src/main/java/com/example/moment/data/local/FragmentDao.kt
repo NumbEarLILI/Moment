@@ -36,6 +36,12 @@ interface FragmentDao {
     @Query("SELECT * FROM fragments WHERE id IN (:ids)")
     suspend fun getByIds(ids: List<Long>): List<FragmentEntity>
 
+    @Query("SELECT * FROM fragments WHERE stableId = :stableId LIMIT 1")
+    suspend fun getByStableId(stableId: String): FragmentEntity?
+
+    @Query("SELECT * FROM fragments WHERE stableId IN (:stableIds)")
+    suspend fun getByStableIds(stableIds: List<String>): List<FragmentEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(fragment: FragmentEntity): Long
 
