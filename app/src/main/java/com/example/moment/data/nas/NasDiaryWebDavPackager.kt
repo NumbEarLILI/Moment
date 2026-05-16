@@ -384,15 +384,53 @@ class NasDiaryWebDavPackager @Inject constructor(
         fragmentImageIndices: Map<String, List<Int>>,
         resolvedByIndex: Array<String?>
     ): Map<String, List<String>> {
-        if (fragmentImageIndices.isNotEmpty()) {
-            return fragmentImageIndices.mapNotNull { (key, indices) ->
-                val sid = key.trim()
-                if (sid.isEmpty()) return@mapNotNull null
-                val uris = indices.mapNotNull { i -> resolvedByIndex.getOrNull(i) }
-                if (uris.isEmpty()) null else sid to uris
-            }.toMap()
+        val resolvedIndices = resolvedByIndex.indices.filter { resolvedByIndex[it] != null }.toSet()
+        if (resolvedIndices.isEmpty()) return emptyMap()
+
+        val stableSet = sourceStableIds.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        if (fragmentImageIndices.referencesAllResolvedSlots(stableSet, resolvedByIndex, resolvedIndices)) {
+            return fragmentImageIndices.toRestoredFragmentMap(stableSet, resolvedByIndex)
         }
         return legacyFragmentImageUrisFromFlat(sourceStableIds, resolvedByIndex)
+    }
+
+    /**
+     * [fragmentImageIndices] 必须与 NAS 槽位一致：每个成功下载的下标都要出现，且只信与 [stableSet] 匹配的 key。
+     * 否则常见情况是 JSON 里只有 [0] 或 key 与 stableId 对不上，界面会只剩一张图。
+     */
+    private fun Map<String, List<Int>>.referencesAllResolvedSlots(
+        stableSet: Set<String>,
+        resolvedByIndex: Array<String?>,
+        resolvedIndices: Set<Int>
+    ): Boolean {
+        if (isEmpty() || stableSet.isEmpty()) return false
+        val used = mutableSetOf<Int>()
+        for ((key, indices) in this) {
+            val sid = key.trim()
+            if (sid.isEmpty() || sid !in stableSet) continue
+            for (i in indices) {
+                if (i !in resolvedByIndex.indices) return false
+                if (resolvedByIndex[i] != null) used.add(i)
+            }
+        }
+        return used == resolvedIndices
+    }
+
+    private fun Map<String, List<Int>>.toRestoredFragmentMap(
+        stableSet: Set<String>,
+        resolvedByIndex: Array<String?>
+    ): Map<String, List<String>> {
+        val out = LinkedHashMap<String, ArrayList<String>>()
+        for ((key, indices) in this) {
+            val sid = key.trim()
+            if (sid.isEmpty() || sid !in stableSet) continue
+            val uris = out.getOrPut(sid) { ArrayList() }
+            for (i in indices) {
+                val uri = resolvedByIndex.getOrNull(i) ?: continue
+                if (uri.isNotBlank()) uris.add(uri)
+            }
+        }
+        return out.mapValues { it.value }.filterValues { it.isNotEmpty() }
     }
 
     /**
