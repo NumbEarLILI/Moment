@@ -820,6 +820,56 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun nasRestoredDiaryOrphanFlatImagesDoNotMergeOntoNewlyAddedFragment() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "恢复的",
+            body = "述",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(10L, 11L),
+            imageUris = listOf("content://flat-a", "content://flat-b", "content://flat-extra"),
+            fragmentImageUris = emptyMap(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(10L, "旧一"),
+                FragmentAiStory(11L, "旧二")
+            ),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                LifeFragment(
+                    id = 99L,
+                    content = "新碎片",
+                    imageUris = listOf("content://new-c"),
+                    mood = Mood.CALM,
+                    tags = emptyList(),
+                    createdAt = Instant.parse("2026-05-13T17:53:00Z"),
+                    updatedAt = Instant.parse("2026-05-13T17:53:00Z")
+                )
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+
+        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
+        val forNew = result.fragmentImageUris[99L].orEmpty()
+        assertEquals(listOf("content://new-c"), forNew)
+        assertTrue(forNew.none { it.startsWith("content://flat") })
+    }
+
+    @Test
     fun nasRestoredPriorPreservesOldStoriesWhenAiOnlyReturnsNewFragment() = runTest {
         val date = LocalDate.of(2026, 5, 13)
         val prior = DiaryEntry(

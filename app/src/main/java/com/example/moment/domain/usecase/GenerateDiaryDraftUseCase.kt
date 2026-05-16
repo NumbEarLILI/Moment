@@ -391,11 +391,33 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         if (orphans.isEmpty()) {
             return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
         }
-        val idsNeeding = mergedIds.filter { byFrag[it].isNullOrEmpty() }
-        val targets = if (idsNeeding.isNotEmpty()) idsNeeding else mergedIds
+        /**
+         * 仅有「底稿/NAS 已保存」里的碎片 id 才参与「扁平 imageUris」的兜底分配；当日**新增**的 id 只应带自己在
+         * fragments 表里的照片，避免恢复后手帐顶栏未映射图被轮询进新碎片，与老条目揉在同一张 plog 卡片里。
+         */
+        val priorAnchored = priorAnchoredFragmentIds(prior)
+        val orphanTargetsPool = if (priorAnchored.isEmpty()) {
+            mergedIds
+        } else {
+            mergedIds.filter { it in priorAnchored }
+        }.ifEmpty { mergedIds }
+
+        val idsNeedingAmongAnchored = orphanTargetsPool.filter { byFrag[it].isNullOrEmpty() }
+        val targets = when {
+            idsNeedingAmongAnchored.isNotEmpty() -> idsNeedingAmongAnchored
+            orphanTargetsPool.isNotEmpty() -> orphanTargetsPool
+            else -> mergedIds
+        }
         orphans.forEachIndexed { idx, u ->
             add(targets[idx % targets.size], u)
         }
         return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
+    }
+
+    /** 底稿中有过「这一刻」的 id：用于孤儿 URI 分配边界；无已存手帐时不限制。 */
+    private fun priorAnchoredFragmentIds(prior: DiaryEntry?): Set<Long> {
+        if (prior == null) return emptySet()
+        if (prior.sourceFragmentIds.isNotEmpty()) return prior.sourceFragmentIds.toSet()
+        return prior.fragmentStories.map { it.fragmentId }.toSet()
     }
 }
