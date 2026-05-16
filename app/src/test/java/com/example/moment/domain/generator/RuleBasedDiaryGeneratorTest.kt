@@ -1,6 +1,7 @@
 package com.example.moment.domain.generator
 
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
@@ -170,6 +171,41 @@ class RuleBasedDiaryGeneratorTest {
         assertTrue(draft.body.contains("新增碎片"))
         assertTrue(draft.body.contains("07:30 早上喝了咖啡。"))
         assertEquals(listOf(1L), draft.sourceFragmentIds)
+    }
+
+    @Test
+    fun generateMergeKeepsSavedFragmentStoriesWhenBodyEmptyAndNewFragmentAdded() {
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "原标题",
+            body = "",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(1L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(1L, "已保存的 AI 长故事，比碎片原话详细。")
+            ),
+            createdAt = Instant.parse("2026-05-13T07:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T07:00:00Z")
+        )
+        val fragments = listOf(
+            fragment(1, "短。", Mood.CALM, "2026-05-13T07:30:00Z"),
+            fragment(2, "午后新记录。", Mood.HAPPY, "2026-05-13T14:00:00Z")
+        )
+
+        val draft = generator.generate(date, fragments, prior)
+
+        assertEquals(
+            "已保存的 AI 长故事，比碎片原话详细。",
+            draft.fragmentStories.find { it.fragmentId == 1L }?.text
+        )
+        assertTrue(draft.fragmentStories.find { it.fragmentId == 2L }?.text?.contains("午后新记录") == true)
+        assertTrue(draft.body.contains("已保存的 AI 长故事"))
+        assertTrue(draft.body.contains("新增碎片"))
+        assertTrue(draft.body.contains("14:00 午后新记录"))
     }
 
     private fun fragment(

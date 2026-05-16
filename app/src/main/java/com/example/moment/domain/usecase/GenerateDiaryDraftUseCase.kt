@@ -68,7 +68,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         if (prior == null) return ai
         val newFrags = newFragmentsRelativeToPrior(prior, sorted)
         if (newFrags.isEmpty()) return ai
-        val pb = prior.body.trim()
+        val pb = effectivePriorNarrative(prior)
         val ab = ai.body.trim()
         val body = when {
             pb.isEmpty() -> ab
@@ -84,6 +84,17 @@ class GenerateDiaryDraftUseCase @Inject constructor(
             .toList()
         val mood = ai.moodSummary?.trim()?.takeIf { it.isNotEmpty() } ?: prior.moodSummary
         return ai.copy(title = title, body = body, highlights = highlights, moodSummary = mood)
+    }
+
+    /** 与 RuleBasedDiaryGenerator：正文为空时用已保存的逐条故事拼出底稿，便于与模型输出合并。 */
+    private fun effectivePriorNarrative(prior: DiaryEntry): String {
+        val body = prior.body.trim()
+        if (body.isNotEmpty()) return body
+        return prior.fragmentStories
+            .asSequence()
+            .map { it.text.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString("\n\n")
     }
 
     private fun newFragmentsRelativeToPrior(prior: DiaryEntry, sorted: List<LifeFragment>): List<LifeFragment> {

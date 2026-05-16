@@ -373,6 +373,65 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun invokeMergesAiWithPriorNarrativeFromFragmentStoriesWhenBodyBlank() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 9,
+            date = date,
+            title = "已保存",
+            body = "",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(1L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(FragmentAiStory(1L, "时间线上的旧稿长文。")),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(1, "短。", Mood.CALM, "2026-05-13T08:00:00Z"),
+                fragment(2, "新碎片。", Mood.HAPPY, "2026-05-13T18:00:00Z")
+            )
+        )
+        val prefs = UserAppPreferences(
+            aiBaseUrl = "https://example.com/v1",
+            aiApiKey = "k",
+            aiModel = "m"
+        )
+        val outDraft = DiaryDraft(
+            title = "新",
+            body = "",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = emptyList(),
+            fragmentStories = emptyList()
+        )
+        val fakeAi = object : AiDiaryDraftGenerator {
+            override suspend fun generateDraft(
+                date: LocalDate,
+                fragments: List<LifeFragment>,
+                config: LlmConnectionConfig,
+                priorSavedDiary: DiaryEntry?
+            ): Result<DiaryDraft> = Result.success(outDraft)
+        }
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(prefs),
+            fakeAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.AUTO)
+
+        assertTrue(result.body.contains("时间线上的旧稿长文。"))
+        assertEquals("时间线上的旧稿长文。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
+    }
+
+    @Test
     fun addFragmentRejectsCompletelyEmptyInput() = runTest {
         val repository = FakeFragmentRepository(emptyList())
         val useCase = AddFragmentUseCase(repository)
