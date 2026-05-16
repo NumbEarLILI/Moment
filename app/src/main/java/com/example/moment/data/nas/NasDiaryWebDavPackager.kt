@@ -20,11 +20,6 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -57,23 +52,20 @@ class NasDiaryWebDavPackager @Inject constructor(
         val flatUris = flatOrderedUniqueImageUris(entry)
         webDavHttp.ensureCollectionPath(client, root, diaryFolderSegments + listOf("images"))
         val relativePaths = MutableList<String?>(flatUris.size) { null }
-        val sem = Semaphore(4)
-        val results = coroutineScope {
-            flatUris.indices.map { index ->
-                async {
-                    sem.withPermit {
-                        val uriString = flatUris[index]
-                        val (rel, ok) = backupOneImage(client, root, diaryFolderSegments, index, uriString)
-                        Triple(index, rel, ok)
-                    }
-                }
-            }.awaitAll()
-        }
         var uploaded = 0
         var skipped = 0
-        for ((index, rel, ok) in results) {
-            relativePaths[index] = rel
-            if (ok) uploaded++ else skipped++
+        withContext(Dispatchers.IO) {
+            for (index in flatUris.indices) {
+                val (rel, ok) = backupOneImage(
+                    client,
+                    root,
+                    diaryFolderSegments,
+                    index,
+                    flatUris[index]
+                )
+                relativePaths[index] = rel
+                if (ok) uploaded++ else skipped++
+            }
         }
         val fragmentImageIndices = fragmentImageIndicesForBackup(entry, flatUris)
         val dto = NasBackupDiaryFileDto(
@@ -383,73 +375,8 @@ class NasDiaryWebDavPackager @Inject constructor(
         sourceStableIds: List<String>,
         fragmentImageIndices: Map<String, List<Int>>,
         resolvedByIndex: Array<String?>
-    ): Map<String, List<String>> {
-        val resolvedIndices = resolvedByIndex.indices.filter { resolvedByIndex[it] != null }.toSet()
-        if (resolvedIndices.isEmpty()) return emptyMap()
-
-        val stableSet = sourceStableIds.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-        if (fragmentImageIndices.referencesAllResolvedSlots(stableSet, resolvedByIndex, resolvedIndices)) {
-            return fragmentImageIndices.toRestoredFragmentMap(stableSet, resolvedByIndex)
-        }
-        return legacyFragmentImageUrisFromFlat(sourceStableIds, resolvedByIndex)
-    }
-
-    /**
-     * [fragmentImageIndices] 必须与 NAS 槽位一致：每个成功下载的下标都要出现，且只信与 [stableSet] 匹配的 key。
-     * 否则常见情况是 JSON 里只有 [0] 或 key 与 stableId 对不上，界面会只剩一张图。
-     */
-    private fun Map<String, List<Int>>.referencesAllResolvedSlots(
-        stableSet: Set<String>,
-        resolvedByIndex: Array<String?>,
-        resolvedIndices: Set<Int>
-    ): Boolean {
-        if (isEmpty() || stableSet.isEmpty()) return false
-        val used = mutableSetOf<Int>()
-        for ((key, indices) in this) {
-            val sid = key.trim()
-            if (sid.isEmpty() || sid !in stableSet) continue
-            for (i in indices) {
-                if (i !in resolvedByIndex.indices) return false
-                if (resolvedByIndex[i] != null) used.add(i)
-            }
-        }
-        return used == resolvedIndices
-    }
-
-    private fun Map<String, List<Int>>.toRestoredFragmentMap(
-        stableSet: Set<String>,
-        resolvedByIndex: Array<String?>
-    ): Map<String, List<String>> {
-        val out = LinkedHashMap<String, ArrayList<String>>()
-        for ((key, indices) in this) {
-            val sid = key.trim()
-            if (sid.isEmpty() || sid !in stableSet) continue
-            val uris = out.getOrPut(sid) { ArrayList() }
-            for (i in indices) {
-                val uri = resolvedByIndex.getOrNull(i) ?: continue
-                if (uri.isNotBlank()) uris.add(uri)
-            }
-        }
-        return out.mapValues { it.value }.filterValues { it.isNotEmpty() }
-    }
-
-    /**
-     * 无 [fragmentImageIndices] 的旧存档：按 NAS `imageRelativePaths` 下标轮询到各碎片。
-     * 必须用带空位的 [resolvedByIndex]，不能用 [mapNotNull] 压缩后的列表（否则会整体错位）。
-     */
-    private fun legacyFragmentImageUrisFromFlat(
-        sourceStableIds: List<String>,
-        resolvedByIndex: Array<String?>
-    ): Map<String, List<String>> {
-        if (sourceStableIds.isEmpty()) return emptyMap()
-        val buckets = sourceStableIds.associateWith { ArrayList<String>() }.toMutableMap()
-        for (idx in resolvedByIndex.indices) {
-            val u = resolvedByIndex[idx] ?: continue
-            val sid = sourceStableIds[idx % sourceStableIds.size]
-            buckets[sid]?.add(u)
-        }
-        return buckets.filterValues { it.isNotEmpty() }
-    }
+    ): Map<String, List<String>> =
+        mergeRestoredFragmentBuckets(sourceStableIds, fragmentImageIndices, resolvedByIndex)
 
     private suspend fun downloadDiaryImagesFromWebDav(
         client: OkHttpClient,
