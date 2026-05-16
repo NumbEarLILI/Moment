@@ -4,11 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.domain.model.AppThemeMode
+import com.example.moment.domain.model.NasArchiveConflictChoice
+import com.example.moment.domain.model.NasArchiveConflictInfo
+import com.example.moment.domain.model.NasWebdavConfig
 import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.domain.model.toNasWebdavConfig
+import com.example.moment.domain.repository.NasArchiveRepository
 import com.example.moment.domain.repository.NasBackupRepository
+import com.example.moment.domain.repository.NasMomentAccountRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,11 +24,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val nasBackupRepository: NasBackupRepository
+    private val nasBackupRepository: NasBackupRepository,
+    private val nasArchiveRepository: NasArchiveRepository,
+    private val nasMomentAccountRepository: NasMomentAccountRepository
 ) : ViewModel() {
 
     val preferences = userPreferencesRepository.preferences.stateIn(
@@ -62,6 +72,29 @@ class SettingsViewModel @Inject constructor(
     private val _saveSuccessMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val saveSuccessMessage = _saveSuccessMessage.asSharedFlow()
 
+    private val _nasMomentAccountUsernameDraft = MutableStateFlow("")
+    private val _nasMomentAccountPasswordDraft = MutableStateFlow("")
+    val nasMomentAccountUsernameDraft: StateFlow<String> = _nasMomentAccountUsernameDraft.asStateFlow()
+    val nasMomentAccountPasswordDraft: StateFlow<String> = _nasMomentAccountPasswordDraft.asStateFlow()
+
+    private val _nasArchiveConflict = MutableStateFlow<NasArchiveConflictInfo?>(null)
+    val nasArchiveConflictInfo: StateFlow<NasArchiveConflictInfo?> = _nasArchiveConflict.asStateFlow()
+
+    private var nasArchiveConflictContinuation:
+        kotlinx.coroutines.CancellableContinuation<NasArchiveConflictChoice>? = null
+
+    override fun onCleared() {
+        nasArchiveConflictContinuation?.cancel()
+        super.onCleared()
+    }
+
+    fun resolveNasArchiveConflict(choice: NasArchiveConflictChoice) {
+        val c = nasArchiveConflictContinuation ?: return
+        nasArchiveConflictContinuation = null
+        _nasArchiveConflict.value = null
+        c.resumeWith(Result.success(choice))
+    }
+
     fun reloadDraftFieldsFromStore() {
         viewModelScope.launch {
             val p = userPreferencesRepository.preferences.first()
@@ -73,6 +106,67 @@ class SettingsViewModel @Inject constructor(
             _nasUsername.value = p.nasWebdavUsername
             _nasPassword.value = p.nasWebdavPassword
             _nasTrustSelfSigned.value = p.nasWebdavTrustSelfSignedCertificates
+            _nasMomentAccountUsernameDraft.value = ""
+            _nasMomentAccountPasswordDraft.value = ""
+        }
+    }
+
+    fun setNasMomentAccountUsernameDraft(value: String) {
+        _nasMomentAccountUsernameDraft.value = value
+    }
+
+    fun setNasMomentAccountPasswordDraft(value: String) {
+        _nasMomentAccountPasswordDraft.value = value
+    }
+
+    fun registerNasMomentAccount() {
+        viewModelScope.launch {
+            _nasBusy.value = true
+            _nasStatusMessage.value = null
+            val r = nasMomentAccountRepository.registerMomentAccount(
+                currentNasConfigFromForm(),
+                _nasMomentAccountUsernameDraft.value,
+                _nasMomentAccountPasswordDraft.value
+            )
+            _nasBusy.value = false
+            if (r.isSuccess) {
+                val name = userPreferencesRepository.preferences.first().nasMomentAccountUsername
+                _nasMomentAccountPasswordDraft.value = ""
+                _nasStatusMessage.value = "注册成功，已登录为「$name」。备份与存档将位于该账号目录下。"
+            } else {
+                val e = r.exceptionOrNull()
+                _nasStatusMessage.value = "注册失败：${e?.message ?: e?.javaClass?.simpleName ?: "错误"}"
+            }
+        }
+    }
+
+    fun loginNasMomentAccount() {
+        viewModelScope.launch {
+            _nasBusy.value = true
+            _nasStatusMessage.value = null
+            val r = nasMomentAccountRepository.loginMomentAccount(
+                currentNasConfigFromForm(),
+                _nasMomentAccountUsernameDraft.value,
+                _nasMomentAccountPasswordDraft.value
+            )
+            _nasBusy.value = false
+            if (r.isSuccess) {
+                val name = userPreferencesRepository.preferences.first().nasMomentAccountUsername
+                _nasMomentAccountPasswordDraft.value = ""
+                _nasStatusMessage.value = "已登录「$name」。"
+            } else {
+                val e = r.exceptionOrNull()
+                _nasStatusMessage.value = "登录失败：${e?.message ?: e?.javaClass?.simpleName ?: "错误"}"
+            }
+        }
+    }
+
+    fun logoutNasMomentAccount() {
+        viewModelScope.launch {
+            userPreferencesRepository.clearNasMomentAccount()
+            _nasMomentAccountUsernameDraft.value = ""
+            _nasMomentAccountPasswordDraft.value = ""
+            _nasStatusMessage.value = "已退出 Moment 账号。未登录时使用根目录下的 MomentBackup / MomentArchive（与旧版本路径一致）。"
         }
     }
 
@@ -149,6 +243,37 @@ class SettingsViewModel @Inject constructor(
             )
             _saveSuccessMessage.emit("NAS 配置已保存")
         }
+    }
+
+    fun setNasArchiveSyncEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNasArchiveSyncEnabled(enabled)
+            if (enabled) {
+                pullNasArchiveAfterEnablingSync()
+            }
+        }
+    }
+
+    private suspend fun pullNasArchiveAfterEnablingSync() {
+        _nasBusy.value = true
+        _nasStatusMessage.value = null
+        val r = runCatching {
+            nasArchiveRepository.pullArchiveToLocal(currentNasConfigFromForm()) { info ->
+                withContext(Dispatchers.Main.immediate) {
+                    suspendCancellableCoroutine { cont ->
+                        nasArchiveConflictContinuation = cont
+                        _nasArchiveConflict.value = info
+                    }
+                }
+            }
+        }.getOrElse { Result.failure(it) }
+        _nasBusy.value = false
+        _nasStatusMessage.value = r.fold(
+            onSuccess = { s ->
+                "已同步 NAS 存档：处理 ${s.diariesApplied} 日，跳过 ${s.diariesSkipped}，图片 ${s.imagesRestored} 张"
+            },
+            onFailure = { e -> "开启同步后拉取失败：${e.message ?: e.javaClass.simpleName}" }
+        )
     }
 
     fun testNasWebdavConnection() {
@@ -292,8 +417,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun currentNasConfigFromForm() =
-        UserAppPreferences(
+    private fun currentNasConfigFromForm(): NasWebdavConfig =
+        preferences.value.copy(
             nasWebdavBaseUrl = _nasBaseUrl.value,
             nasWebdavUsername = _nasUsername.value,
             nasWebdavPassword = _nasPassword.value,

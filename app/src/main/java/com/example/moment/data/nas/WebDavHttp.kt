@@ -252,6 +252,19 @@ class WebDavHttp @Inject constructor(
             }
         }
 
+    /** 404 返回 null，其余错误抛 [IOException]。 */
+    suspend fun getBytesOrNull(client: OkHttpClient, url: HttpUrl): ByteArray? =
+        withContext(Dispatchers.IO) {
+            val req = Request.Builder().url(url).get().build()
+            client.newCall(req).execute().use { resp ->
+                when (resp.code) {
+                    404 -> null
+                    in 200..299 -> resp.body?.bytes() ?: throw IOException("空响应体")
+                    else -> throw IOException("GET 失败（HTTP ${resp.code}）")
+                }
+            }
+        }
+
     /** 流式写入本地文件，避免大图整包进内存；失败时删除不完整文件。 */
     suspend fun getToFile(client: OkHttpClient, url: HttpUrl, destination: File) {
         withContext(Dispatchers.IO) {

@@ -3,8 +3,12 @@
     <cache-path
         name="camera_captures"
         path="camera/" />
-    <!-- NAS 恢复的图片写入 files/nas_restore/…，需通过 FileProvider 暴露为 content:// 供 Coil 等稳定加载 -->
+    <!-- 备份恢复：files/nas_restore/… -->
     <files-path
         name="nas_restore"
         path="nas_restore/" />
+    <!-- MomentArchive 拉取：files/nas_archive_pull/…（与 nas_restore 路径不同，须单独声明） -->
+    <files-path
+        name="nas_archive_pull"
+        path="nas_archive_pull/" />
 </paths>

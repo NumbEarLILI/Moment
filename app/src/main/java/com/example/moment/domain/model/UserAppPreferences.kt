@@ -13,7 +13,19 @@ data class UserAppPreferences(
     val nasWebdavBaseUrl: String = "",
     val nasWebdavUsername: String = "",
     val nasWebdavPassword: String = "",
-    val nasWebdavTrustSelfSignedCertificates: Boolean = false
+    val nasWebdavTrustSelfSignedCertificates: Boolean = false,
+    /**
+     * 在 WebDAV 上注册并登录后写入：与 [nasMomentAccountUsername] 对应，用于目录
+     * `MomentApp/users/<userId>/`。[NasWebdavConfig.momentStorageUserId] 来源。
+     */
+    val nasMomentStorageUserId: String = "",
+    /** 当前已登录的 Moment 账户显示名（与远端 `MomentApp/account_registry.json` 中一致）。 */
+    val nasMomentAccountUsername: String = "",
+    /**
+     * 为 true 时：保存/刷新手帐后上传到 `MomentArchive/`，删除手帐时删除对应存档目录；
+     * 仍可在设置中手动「从存档拉取」。不影响 `MomentBackup/runs/` 快照备份。
+     */
+    val nasArchiveSyncEnabled: Boolean = false
 ) {
     /**
      * 已填写 API 根地址与模型名，且对公网接口已填 API Key（本地/回环地址可不填 Key）时，

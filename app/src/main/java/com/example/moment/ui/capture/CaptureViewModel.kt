@@ -3,11 +3,16 @@ package com.example.moment.ui.capture
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.data.location.FragmentLocationCapture
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
+import com.example.moment.domain.model.NasArchiveConflictChoice
+import com.example.moment.domain.model.NasArchiveConflictInfo
+import com.example.moment.domain.model.toNasWebdavConfig
+import com.example.moment.domain.repository.NasArchiveRepository
 import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.DeleteFragmentUseCase
@@ -23,16 +28,22 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -44,6 +55,8 @@ class CaptureViewModel @Inject constructor(
     private val deleteFragment: DeleteFragmentUseCase,
     private val getFragmentById: GetFragmentByIdUseCase,
     private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val nasArchiveRepository: NasArchiveRepository,
     observeFragmentsForDate: ObserveFragmentsForDateUseCase,
     observeDiaryEntries: ObserveDiaryEntriesUseCase,
     private val fragmentLocationCapture: FragmentLocationCapture,
@@ -51,6 +64,71 @@ class CaptureViewModel @Inject constructor(
     private val zoneId: ZoneId,
     private val clock: Clock
 ) : ViewModel() {
+
+    private val _nasArchiveConflict = MutableStateFlow<NasArchiveConflictInfo?>(null)
+    val nasArchiveConflictInfo: StateFlow<NasArchiveConflictInfo?> =
+        _nasArchiveConflict.asStateFlow()
+
+    private var nasArchiveConflictContinuation: CancellableContinuation<NasArchiveConflictChoice>? = null
+
+    override fun onCleared() {
+        nasArchiveConflictContinuation?.cancel()
+        super.onCleared()
+    }
+
+    fun resolveNasArchiveConflict(choice: NasArchiveConflictChoice) {
+        val c = nasArchiveConflictContinuation ?: return
+        nasArchiveConflictContinuation = null
+        _nasArchiveConflict.value = null
+        c.resumeWith(Result.success(choice))
+    }
+
+    fun refreshNasArchivePull() {
+        viewModelScope.launch {
+            val prefs = userPreferencesRepository.preferences.first()
+            if (!prefs.nasArchiveSyncEnabled) {
+                _uiState.update {
+                    it.copy(nasArchiveSyncMessage = "请先在设置中开启「保存后自动同步到 NAS 存档」")
+                }
+                return@launch
+            }
+            val cfg = prefs.toNasWebdavConfig()
+            if (!cfg.isConfigured()) {
+                _uiState.update {
+                    it.copy(nasArchiveSyncMessage = "请先在设置中填写并保存 WebDAV 地址")
+                }
+                return@launch
+            }
+            _uiState.update {
+                it.copy(nasArchiveRefreshing = true, nasArchiveSyncMessage = null)
+            }
+            val r = runCatching {
+                nasArchiveRepository.pullArchiveToLocal(cfg) { info ->
+                    withContext(Dispatchers.Main.immediate) {
+                        suspendCancellableCoroutine { cont ->
+                            nasArchiveConflictContinuation = cont
+                            _nasArchiveConflict.value = info
+                        }
+                    }
+                }
+            }.getOrElse { Result.failure(it) }
+            _uiState.update {
+                it.copy(nasArchiveRefreshing = false)
+            }
+            _uiState.update {
+                it.copy(
+                    nasArchiveSyncMessage = r.fold(
+                        onSuccess = { s ->
+                            "已同步存档：处理 ${s.diariesApplied} 日，跳过 ${s.diariesSkipped}，图片 ${s.imagesRestored} 张"
+                        },
+                        onFailure = { e ->
+                            "存档同步失败：${e.message ?: e.javaClass.simpleName}"
+                        }
+                    )
+                )
+            }
+        }
+    }
     private val _uiState = MutableStateFlow(CaptureUiState())
     private val imageAutoSuggestMutex = Mutex()
 
@@ -288,6 +366,10 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
+    fun clearNasArchiveSyncMessage() {
+        _uiState.update { it.copy(nasArchiveSyncMessage = null) }
+    }
+
     fun deleteEditingFragment() {
         val id = _uiState.value.editingFragmentId
         if (id <= 0L || _uiState.value.isLoadingDraft || _uiState.value.isDeleting) return
@@ -333,5 +415,7 @@ data class CaptureUiState(
     val summaryCalendarDay: LocalDate? = null,
     val otherFragmentsOnDay: List<LifeFragment> = emptyList(),
     val canGenerateDiary: Boolean = false,
-    val savedDiaryEntries: List<DiaryEntry> = emptyList()
+    val savedDiaryEntries: List<DiaryEntry> = emptyList(),
+    val nasArchiveRefreshing: Boolean = false,
+    val nasArchiveSyncMessage: String? = null
 )
