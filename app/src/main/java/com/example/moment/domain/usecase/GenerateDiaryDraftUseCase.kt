@@ -204,10 +204,12 @@ class GenerateDiaryDraftUseCase @Inject constructor(
                 byId[id] = FragmentAiStory(id, priorStory)
             }
         }
-        return mergedIds.map { frId ->
+        val stories = mergedIds.map { frId ->
             val fr = fragmentById[frId]
             byId[frId] ?: FragmentAiStory(frId, fr?.let { storyFallback(it) }.orEmpty())
-        }
+        }.toMutableList()
+        applyNarrativeFallbackForGhostPriorFragments(stories, prior)
+        return stories
     }
 
     private fun storyFallback(f: LifeFragment): String {
@@ -287,7 +289,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         prior: DiaryEntry?
     ): List<FragmentAiStory> {
         val priorById = prior?.fragmentStories.orEmpty().associateBy { it.fragmentId }
-        return mergedIds.map { id ->
+        val stories = mergedIds.map { id ->
             val f = fragmentById[id]
             val saved = priorById[id]?.text?.trim().orEmpty()
             val fromFrag = f?.let { fr ->
@@ -303,6 +305,28 @@ class GenerateDiaryDraftUseCase @Inject constructor(
                 else -> ""
             }
             FragmentAiStory(id, text)
+        }.toMutableList()
+        applyNarrativeFallbackForGhostPriorFragments(stories, prior)
+        return stories
+    }
+
+    /**
+     * 备份里仅有 sourceFragmentIds、没有逐条 story（或本地无对应碎片行）时，时间线卡片会全空。
+     * 将整段底稿叙述填回「第一条仍空文的、且属于底稿 sourceFragmentIds 的」时间线，避免预览只剩缩略图。
+     */
+    private fun applyNarrativeFallbackForGhostPriorFragments(
+        stories: MutableList<FragmentAiStory>,
+        prior: DiaryEntry?
+    ) {
+        if (prior == null) return
+        val priorIdSet = prior.sourceFragmentIds.toSet()
+        if (priorIdSet.isEmpty()) return
+        val pn = prior.body.trim().ifEmpty { effectivePriorNarrative(prior).trim() }
+        if (pn.isEmpty()) return
+        val i = stories.indexOfFirst { it.text.isBlank() && it.fragmentId in priorIdSet }
+        if (i >= 0) {
+            val s = stories[i]
+            stories[i] = FragmentAiStory(s.fragmentId, pn)
         }
     }
 
