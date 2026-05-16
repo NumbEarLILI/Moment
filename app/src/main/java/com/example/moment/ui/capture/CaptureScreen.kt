@@ -41,6 +41,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -69,6 +73,7 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.Routes
 import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.theme.appScaffoldContainerColor
@@ -85,6 +90,7 @@ private val HeaderDateFormatter: DateTimeFormatter =
 
 private const val CAPTURE_MOMENT_EXPANDED_KEY = "captureMomentExpanded"
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun CaptureScreen(
     navController: NavHostController,
@@ -97,6 +103,11 @@ fun CaptureScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val nasArchiveConflict by viewModel.nasArchiveConflictInfo.collectAsStateWithLifecycle()
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = state.nasArchiveRefreshing,
+        onRefresh = viewModel::refreshNasArchivePull
+    )
     val pickJson by backStackEntry.savedStateHandle
         .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
         .collectAsStateWithLifecycle()
@@ -186,6 +197,13 @@ fun CaptureScreen(
         if (state.saved) onClose()
     }
 
+    LaunchedEffect(state.nasArchiveSyncMessage) {
+        if (state.nasArchiveSyncMessage != null) {
+            kotlinx.coroutines.delay(5000)
+            viewModel.clearNasArchiveSyncMessage()
+        }
+    }
+
     LaunchedEffect(pickJson) {
         if (pickJson.isNotBlank()) {
             viewModel.applyPickedLocationFromJson(pickJson)
@@ -194,19 +212,31 @@ fun CaptureScreen(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = appScaffoldContainerColor()
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(padding)
-                    .imePadding()
-                    .navigationBarsPadding()
-                    .verticalScroll(scrollState)
-            ) {
-                CaptureHeader(
+    Box(
+        Modifier
+            .fillMaxSize()
+            .pullRefresh(pullRefreshState)
+    ) {
+            Scaffold(
+                containerColor = appScaffoldContainerColor()
+            ) { padding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(padding)
+                        .imePadding()
+                        .navigationBarsPadding()
+                        .verticalScroll(scrollState)
+                ) {
+                    state.nasArchiveSyncMessage?.let { msg ->
+                        Text(
+                            text = msg,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
+                        )
+                    }
+                    CaptureHeader(
                     selectedDate = state.summaryCalendarDay,
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
@@ -370,8 +400,45 @@ fun CaptureScreen(
                         }
                     }
                 }
+                }
             }
-        }
+        PullRefreshIndicator(
+            refreshing = state.nasArchiveRefreshing,
+            state = pullRefreshState,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+    }
+    nasArchiveConflict?.let { conflict ->
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.KEEP_LOCAL)
+            },
+            title = { Text("NAS 存档冲突") },
+            text = {
+                Text(
+                    "「${conflict.date}」手帐：本机修改时间更新，但与 NAS 正文不一致。\n\n" +
+                        "本机标题：${conflict.localTitle}\nNAS 标题：${conflict.remoteTitle}\n\n保留本机还是用 NAS 覆盖？"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.USE_REMOTE)
+                    }
+                ) {
+                    Text("使用 NAS")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.KEEP_LOCAL)
+                    }
+                ) {
+                    Text("保留本地")
+                }
+            }
+        )
     }
     if (showPlacePickPermissionDialog) {
         AlertDialog(

@@ -208,10 +208,80 @@ class NasDiaryWebDavPackager @Inject constructor(
             locationPins = normalized.locationPins,
             fragmentStories = normalized.fragmentStories,
             createdAt = Instant.ofEpochMilli(dto.createdAtEpochMillis),
-            updatedAt = clock.instant()
+            updatedAt = Instant.ofEpochMilli(dto.updatedAtEpochMillis)
         )
         diaryRepository.saveDiary(entry)
         fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(entry)
+        return true to localImages.size
+    }
+
+    /**
+     * 仅从 NAS 重新拉取图片并写入本地手帐，保留正文与其它元数据、[existing.updatedAt]。
+     * 用于远端与本地版本号相同或内容相同仅有图片缺失时的补救。
+     */
+    internal suspend fun refreshDiaryImagesFromNas(
+        client: OkHttpClient,
+        root: HttpUrl,
+        diaryFolderSegments: List<String>,
+        localCacheRelative: String,
+        dto: NasBackupDiaryFileDto,
+        existing: DiaryEntry
+    ): Pair<Boolean, Int> {
+        val date = LocalDate.ofEpochDay(dto.dateEpochDay)
+        if (existing.date != date) return false to 0
+        val localDir = File(context.filesDir, localCacheRelative).apply { mkdirs() }
+        val authority = "${context.packageName}.fileprovider"
+        val pathCount = dto.imageRelativePaths.size
+        val resolvedByIndex = arrayOfNulls<String>(pathCount)
+        coroutineScope {
+            val concurrency = 4
+            val sem = Semaphore(concurrency)
+            val results = dto.imageRelativePaths.indices.map { idx ->
+                async {
+                    val rel = dto.imageRelativePaths[idx]
+                    if (rel.isNullOrBlank()) return@async idx to null
+                    sem.withPermit {
+                        idx to runCatching {
+                            val segments = rel.split('/').filter { it.isNotEmpty() }
+                            val imgUrl = childUrl(root, diaryFolderSegments + segments)
+                            val tmp = File(localDir, "img_${idx}.part")
+                            try {
+                                webDavHttp.getToFile(client, imgUrl, tmp)
+                                val ext = guessImageExtensionFromFileHead(tmp)
+                                val out = File(localDir, "img_$idx$ext")
+                                if (out.exists()) out.delete()
+                                if (!tmp.renameTo(out)) {
+                                    FileInputStream(tmp).use { input ->
+                                        FileOutputStream(out).use { output -> input.copyTo(output) }
+                                    }
+                                    tmp.delete()
+                                }
+                                FileProvider.getUriForFile(context, authority, out).toString()
+                            } finally {
+                                if (tmp.exists()) tmp.delete()
+                            }
+                        }.getOrNull()
+                    }
+                }
+            }.awaitAll()
+            for ((idx, uri) in results) {
+                resolvedByIndex[idx] = uri
+            }
+        }
+        val localImages = resolvedByIndex.mapNotNull { it }
+        val normalized = normalizeNasDiaryRestore(dto)
+        val fragmentImageUris = restoreFragmentImageUris(
+            normalized.sourceStableIds,
+            normalized.fragmentImageIndices,
+            resolvedByIndex,
+            localImages
+        )
+        val merged = existing.copy(
+            imageUris = localImages,
+            fragmentImageUris = fragmentImageUris
+        )
+        diaryRepository.saveDiary(merged)
+        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(merged)
         return true to localImages.size
     }
 

@@ -2,6 +2,8 @@ package com.example.moment.data.nas
 
 import com.example.moment.BuildConfig
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.model.NasArchiveConflictChoice
+import com.example.moment.domain.model.NasArchiveConflictInfo
 import com.example.moment.domain.model.NasWebdavConfig
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.NasArchivePullResult
@@ -207,7 +209,10 @@ class NasBackupRepositoryImpl @Inject constructor(
             }
         }
 
-    override suspend fun pullArchiveToLocal(config: NasWebdavConfig): Result<NasArchivePullResult> =
+    override suspend fun pullArchiveToLocal(
+        config: NasWebdavConfig,
+        onConflict: suspend (NasArchiveConflictInfo) -> NasArchiveConflictChoice
+    ): Result<NasArchivePullResult> =
         withContext(Dispatchers.IO) {
             runCatching {
                 requireConfigured(config)
@@ -232,24 +237,103 @@ class NasBackupRepositoryImpl @Inject constructor(
                     val dto = packager.fetchDiaryDto(client, jsonUrl) ?: continue
                     val localDate = LocalDate.ofEpochDay(epoch)
                     val local = diaryRepository.getDiaryForDate(localDate)
-                    if (local != null &&
-                        local.updatedAt.toEpochMilli() >= dto.updatedAtEpochMillis
-                    ) {
-                        skipped++
+                    val remoteMs = dto.updatedAtEpochMillis
+                    val pullRelative = "nas_archive_pull/${folder}_${remoteMs}"
+                    if (local == null) {
+                        val (ok, imgCount) = packager.restoreDiaryWithDto(
+                            client,
+                            root,
+                            base,
+                            pullRelative,
+                            dto
+                        )
+                        if (ok) {
+                            applied++
+                            images += imgCount
+                        } else {
+                            skipped++
+                        }
                         continue
                     }
-                    val (ok, imgCount) = packager.restoreDiaryWithDto(
-                        client,
-                        root,
-                        base,
-                        "nas_archive_pull/$folder",
-                        dto
-                    )
-                    if (ok) {
-                        applied++
-                        images += imgCount
-                    } else {
-                        skipped++
+                    val localMs = local.updatedAt.toEpochMilli()
+                    when {
+                        remoteMs > localMs -> {
+                            val (ok, imgCount) = packager.restoreDiaryWithDto(
+                                client,
+                                root,
+                                base,
+                                pullRelative,
+                                dto
+                            )
+                            if (ok) {
+                                applied++
+                                images += imgCount
+                            } else {
+                                skipped++
+                            }
+                        }
+                        remoteMs < localMs -> {
+                            val sameText = local.title == dto.title &&
+                                local.body.trim() == dto.body.trim()
+                            if (sameText) {
+                                val (refreshed, imgCount) = packager.refreshDiaryImagesFromNas(
+                                    client,
+                                    root,
+                                    base,
+                                    pullRelative,
+                                    dto,
+                                    local
+                                )
+                                if (refreshed) {
+                                    applied++
+                                    images += imgCount
+                                } else {
+                                    skipped++
+                                }
+                            } else {
+                                val info = NasArchiveConflictInfo(
+                                    date = localDate,
+                                    localTitle = local.title,
+                                    remoteTitle = dto.title,
+                                    localUpdatedAtEpochMs = localMs,
+                                    remoteUpdatedAtEpochMs = remoteMs
+                                )
+                                when (onConflict(info)) {
+                                    NasArchiveConflictChoice.KEEP_LOCAL -> skipped++
+                                    NasArchiveConflictChoice.USE_REMOTE -> {
+                                        val (ok, imgCount) = packager.restoreDiaryWithDto(
+                                            client,
+                                            root,
+                                            base,
+                                            pullRelative,
+                                            dto
+                                        )
+                                        if (ok) {
+                                            applied++
+                                            images += imgCount
+                                        } else {
+                                            skipped++
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else -> {
+                            val (refreshed, imgCount) = packager.refreshDiaryImagesFromNas(
+                                client,
+                                root,
+                                base,
+                                pullRelative,
+                                dto,
+                                local
+                            )
+                            if (refreshed) {
+                                applied++
+                                images += imgCount
+                            } else {
+                                skipped++
+                            }
+                        }
                     }
                 }
                 NasArchivePullResult(

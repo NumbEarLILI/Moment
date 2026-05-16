@@ -43,6 +43,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.AppThemeMode
+import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import kotlinx.coroutines.flow.collectLatest
 
@@ -66,6 +67,7 @@ fun SettingsScreen(
     val nasMomentAccountPasswordDraft by viewModel.nasMomentAccountPasswordDraft.collectAsStateWithLifecycle()
     val nasBackupRunIds by viewModel.nasBackupRunIds.collectAsStateWithLifecycle()
     val selectedNasRunId by viewModel.selectedNasRunId.collectAsStateWithLifecycle()
+    val nasArchiveConflictInfo by viewModel.nasArchiveConflictInfo.collectAsStateWithLifecycle()
     var showDeleteNasConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -354,7 +356,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "与上方「快照备份」独立：远端 MomentArchive/diaries/（若已登录账号则在 MomentApp/users/…/MomentArchive/diaries/）按日历日存放可变老副本。开启开关后，保存或删除手帐会自动同步存档；也可用下面按钮一次性上传全部本地手帐，或从 NAS 合并到本机（仅当远端 diary.json 的更新时间新于本机该日手帐时才覆盖）。",
+                "与上方「快照备份」独立：按日历日在远端保存可变老副本（未登录账号时为 MomentArchive，登录后为 MomentApp/users/…/MomentArchive）。开启开关后会立即从 NAS 合并到本机，之后在首页下拉可再次同步；保存或删除手帐仍会自动推送存档。若同日本地更新更晚且正文与 NAS 不一致，将询问保留本地还是使用 NAS。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -372,25 +374,6 @@ fun SettingsScreen(
                     onCheckedChange = viewModel::setNasArchiveSyncEnabled,
                     enabled = !nasBusy
                 )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { viewModel.pushAllDiariesToNasArchive() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !nasBusy
-                ) {
-                    Text("全部上传到存档")
-                }
-                OutlinedButton(
-                    onClick = { viewModel.pullNasArchiveToLocal() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !nasBusy
-                ) {
-                    Text("从存档合并到本机")
-                }
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -504,6 +487,38 @@ fun SettingsScreen(
                     dismissButton = {
                         TextButton(onClick = { showDeleteNasConfirm = false }) {
                             Text("取消")
+                        }
+                    }
+                )
+            }
+            nasArchiveConflictInfo?.let { conflict ->
+                AlertDialog(
+                    onDismissRequest = {
+                        viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.KEEP_LOCAL)
+                    },
+                    title = { Text("NAS 存档冲突") },
+                    text = {
+                        Text(
+                            "「${conflict.date}」手帐：本机修改时间更新，但与 NAS 正文不一致。\n\n" +
+                                "本机标题：${conflict.localTitle}\nNAS 标题：${conflict.remoteTitle}\n\n保留本机还是用 NAS 覆盖？"
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.USE_REMOTE)
+                            }
+                        ) {
+                            Text("使用 NAS")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.KEEP_LOCAL)
+                            }
+                        ) {
+                            Text("保留本地")
                         }
                     }
                 )

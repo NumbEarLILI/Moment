@@ -1,6 +1,8 @@
 package com.example.moment.domain.repository
 
 import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.domain.model.NasArchiveConflictChoice
+import com.example.moment.domain.model.NasArchiveConflictInfo
 import com.example.moment.domain.model.NasWebdavConfig
 
 data class NasArchivePushAllResult(
@@ -25,9 +27,12 @@ interface NasArchiveRepository {
     suspend fun pushAllDiariesToArchive(config: NasWebdavConfig): Result<NasArchivePushAllResult>
 
     /**
-     * 读取远端存档；若某日本机在远端 **`diary.json` 的 updatedAt** 更新则跳过，否则覆盖本地该日手帐（与现有备份恢复行为一致）。
+     * 从 NAS 合并存档；冲突（同日本地更新更晚且正文不一致等）时由 [onConflict] 决定保留本地或使用远端。
      */
-    suspend fun pullArchiveToLocal(config: NasWebdavConfig): Result<NasArchivePullResult>
+    suspend fun pullArchiveToLocal(
+        config: NasWebdavConfig,
+        onConflict: suspend (NasArchiveConflictInfo) -> NasArchiveConflictChoice
+    ): Result<NasArchivePullResult>
 
     suspend fun deleteArchiveDay(config: NasWebdavConfig, dateEpochDay: Long): Result<Unit>
 }

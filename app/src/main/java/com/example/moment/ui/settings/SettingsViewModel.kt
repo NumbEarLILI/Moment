@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.domain.model.AppThemeMode
+import com.example.moment.domain.model.NasArchiveConflictChoice
+import com.example.moment.domain.model.NasArchiveConflictInfo
 import com.example.moment.domain.model.NasWebdavConfig
 import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.domain.model.toNasWebdavConfig
@@ -12,6 +14,7 @@ import com.example.moment.domain.repository.NasBackupRepository
 import com.example.moment.domain.repository.NasMomentAccountRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,6 +24,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -71,6 +76,24 @@ class SettingsViewModel @Inject constructor(
     private val _nasMomentAccountPasswordDraft = MutableStateFlow("")
     val nasMomentAccountUsernameDraft: StateFlow<String> = _nasMomentAccountUsernameDraft.asStateFlow()
     val nasMomentAccountPasswordDraft: StateFlow<String> = _nasMomentAccountPasswordDraft.asStateFlow()
+
+    private val _nasArchiveConflict = MutableStateFlow<NasArchiveConflictInfo?>(null)
+    val nasArchiveConflictInfo: StateFlow<NasArchiveConflictInfo?> = _nasArchiveConflict.asStateFlow()
+
+    private var nasArchiveConflictContinuation:
+        kotlinx.coroutines.CancellableContinuation<NasArchiveConflictChoice>? = null
+
+    override fun onCleared() {
+        nasArchiveConflictContinuation?.cancel()
+        super.onCleared()
+    }
+
+    fun resolveNasArchiveConflict(choice: NasArchiveConflictChoice) {
+        val c = nasArchiveConflictContinuation ?: return
+        nasArchiveConflictContinuation = null
+        _nasArchiveConflict.value = null
+        c.resumeWith(Result.success(choice))
+    }
 
     fun reloadDraftFieldsFromStore() {
         viewModelScope.launch {
@@ -225,39 +248,32 @@ class SettingsViewModel @Inject constructor(
     fun setNasArchiveSyncEnabled(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setNasArchiveSyncEnabled(enabled)
+            if (enabled) {
+                pullNasArchiveAfterEnablingSync()
+            }
         }
     }
 
-    fun pushAllDiariesToNasArchive() {
-        viewModelScope.launch {
-            _nasBusy.value = true
-            _nasStatusMessage.value = null
-            val config = currentNasConfigFromForm()
-            val r = nasArchiveRepository.pushAllDiariesToArchive(config)
-            _nasBusy.value = false
-            _nasStatusMessage.value = r.fold(
-                onSuccess = { s ->
-                    "存档上传完成：${s.diaryCount} 篇，图片上传 ${s.imagesUploaded}，跳过 ${s.imagesSkipped}（MomentArchive/diaries/）"
-                },
-                onFailure = { e -> "存档上传失败：${e.message ?: e.javaClass.simpleName}" }
-            )
-        }
-    }
-
-    fun pullNasArchiveToLocal() {
-        viewModelScope.launch {
-            _nasBusy.value = true
-            _nasStatusMessage.value = null
-            val config = currentNasConfigFromForm()
-            val r = nasArchiveRepository.pullArchiveToLocal(config)
-            _nasBusy.value = false
-            _nasStatusMessage.value = r.fold(
-                onSuccess = { s ->
-                    "存档合并完成：写入 ${s.diariesApplied} 日，跳过 ${s.diariesSkipped}，图片 ${s.imagesRestored} 张"
-                },
-                onFailure = { e -> "存档拉取失败：${e.message ?: e.javaClass.simpleName}" }
-            )
-        }
+    private suspend fun pullNasArchiveAfterEnablingSync() {
+        _nasBusy.value = true
+        _nasStatusMessage.value = null
+        val r = runCatching {
+            nasArchiveRepository.pullArchiveToLocal(currentNasConfigFromForm()) { info ->
+                withContext(Dispatchers.Main.immediate) {
+                    suspendCancellableCoroutine { cont ->
+                        nasArchiveConflictContinuation = cont
+                        _nasArchiveConflict.value = info
+                    }
+                }
+            }
+        }.getOrElse { Result.failure(it) }
+        _nasBusy.value = false
+        _nasStatusMessage.value = r.fold(
+            onSuccess = { s ->
+                "已同步 NAS 存档：处理 ${s.diariesApplied} 日，跳过 ${s.diariesSkipped}，图片 ${s.imagesRestored} 张"
+            },
+            onFailure = { e -> "开启同步后拉取失败：${e.message ?: e.javaClass.simpleName}" }
+        )
     }
 
     fun testNasWebdavConnection() {
