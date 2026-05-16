@@ -67,7 +67,12 @@ class RuleBasedDiaryGenerator(
         val newSection = newBodyLines.joinToString(separator = "\n\n").ifBlank {
             "新留下了 ${newFragments.sumOf { it.imageUris.size }} 张图片碎片。"
         }
-        val mergedBody = prior.body.trimEnd() + "\n\n" + "—— 新增碎片 ——\n\n" + newSection
+        val baseBody = effectivePriorNarrative(prior).trimEnd()
+        val mergedBody = if (baseBody.isNotEmpty()) {
+            baseBody + "\n\n" + "—— 新增碎片 ——\n\n" + newSection
+        } else {
+            "—— 新增碎片 ——\n\n" + newSection
+        }
         val mergedHighlights = (prior.highlights + highlights(newFragments))
             .asSequence()
             .map { it.trim() }
@@ -87,8 +92,38 @@ class RuleBasedDiaryGenerator(
             highlights = mergedHighlights,
             moodSummary = mergedMood,
             sourceFragmentIds = sorted.map { it.id },
-            fragmentStories = fragmentStoriesFor(sorted)
+            fragmentStories = mergeFragmentStoriesPreservingPrior(sorted, prior)
         )
+    }
+
+    /** 手帐「整篇」与逐条故事：正文为空时，用语义上属于旧稿的 fragmentStories 串起来，避免 plog 用户只剩时间线、没有可并入锅的段落。 */
+    private fun effectivePriorNarrative(prior: DiaryEntry): String {
+        val body = prior.body.trim()
+        if (body.isNotEmpty()) return body
+        return prior.fragmentStories
+            .asSequence()
+            .map { it.text.trim() }
+            .filter { it.isNotEmpty() }
+            .joinToString("\n\n")
+    }
+
+    /** 已有手帐里保存的逐条文案（如模型生成）优先于当前碎片原始 content，避免再生成时旧条被覆盖成短句。 */
+    private fun mergeFragmentStoriesPreservingPrior(
+        sorted: List<LifeFragment>,
+        prior: DiaryEntry
+    ): List<FragmentAiStory> {
+        val priorById = prior.fragmentStories.associateBy { it.fragmentId }
+        return sorted.map { f ->
+            val saved = priorById[f.id]?.text?.trim().orEmpty()
+            val fromFrag = storyForFragment(f)
+            val text = when {
+                saved.isNotEmpty() -> saved
+                fromFrag.isNotBlank() -> fromFrag
+                f.imageUris.isNotEmpty() -> "${f.imageUris.size} 张图片记录"
+                else -> ""
+            }
+            FragmentAiStory(f.id, text)
+        }
     }
 
     private fun mergeMoodLine(prior: String?, mainMood: Mood?): String? {
