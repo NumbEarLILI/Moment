@@ -743,6 +743,83 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun nasRestoredPlogAppendsNewFragmentAfterPriorBlockEvenWhenNewFragmentIsEarlierInDay() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "NAS",
+            body = "述",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(10L, 11L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(10L, "一"),
+                FragmentAiStory(11L, "二")
+            ),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(99L, "凌晨新记", Mood.CALM, "2026-05-13T02:00:00Z")
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+
+        assertEquals(listOf(10L, 11L, 99L), result.sourceFragmentIds)
+    }
+
+    @Test
+    fun nasRestoredPlogAppendsMultipleNewFragmentsInCreatedAtOrderAfterPriorBlock() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "NAS",
+            body = "述",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = listOf(10L, 11L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(10L, "一"),
+                FragmentAiStory(11L, "二")
+            ),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                fragment(101L, "晚二", Mood.HAPPY, "2026-05-13T22:00:00Z"),
+                fragment(100L, "晚一", Mood.CALM, "2026-05-13T20:00:00Z")
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+
+        assertEquals(listOf(10L, 11L, 100L, 101L), result.sourceFragmentIds)
+    }
+
+    @Test
     fun nasRestoredPriorPreservesOldStoriesWhenAiOnlyReturnsNewFragment() = runTest {
         val date = LocalDate.of(2026, 5, 13)
         val prior = DiaryEntry(
