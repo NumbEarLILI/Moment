@@ -11,34 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.moment.domain.model.AppThemeMode
 
-private val MomentOriginalColors = lightColorScheme(
-    primary = Color(0xFF7A4E2D),
-    onPrimary = Color(0xFFFFFBF7),
-    primaryContainer = Color(0xFFFFDCC2),
-    onPrimaryContainer = Color(0xFF2C1608),
-    secondary = Color(0xFF6B5B4F),
-    onSecondary = Color(0xFFFFF8F3),
-    secondaryContainer = Color(0xFFF2DFD0),
-    onSecondaryContainer = Color(0xFF261812),
-    tertiary = Color(0xFF5C6B4E),
-    onTertiary = Color(0xFFF5FCEF),
-    tertiaryContainer = Color(0xFFDFEAD2),
-    onTertiaryContainer = Color(0xFF1A2114),
-    background = Color(0xFFFFFAF5),
-    onBackground = Color(0xFF221A14),
-    surface = Color(0xFFFFF6EC),
-    onSurface = Color(0xFF221A14),
-    surfaceVariant = Color(0xFFF0E4D8),
-    onSurfaceVariant = Color(0xFF52473D),
-    outline = Color(0xFFD1BDA8),
-    outlineVariant = Color(0xFFE8D9CA),
-    error = Color(0xFFBA1A1A),
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF410002)
-)
-
-/** 浅色偏白、中性，与「原始」暖色区分 */
+/** 浅色偏白、中性 */
 private val MomentLightColors = lightColorScheme(
     primary = Color(0xFF6B4423),
     onPrimary = Color.White,
@@ -138,7 +111,6 @@ fun MomentTheme(
     val colorScheme = when (themeMode) {
         AppThemeMode.DARK -> MomentDarkColors
         AppThemeMode.LIGHT -> MomentLightColors
-        AppThemeMode.ORIGINAL -> MomentOriginalColors
         AppThemeMode.COOL -> MomentCoolColors
         AppThemeMode.SYSTEM -> if (systemDark) MomentDarkColors else MomentLightColors
     }
