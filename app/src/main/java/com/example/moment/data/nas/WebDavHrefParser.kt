@@ -9,6 +9,43 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
  */
 object WebDavHrefParser {
 
+    data class ChildEntry(
+        val name: String,
+        val isCollection: Boolean
+    )
+
+    /**
+     * 解析 Depth:1 的 PROPFIND 多状态响应，得到直接子级名称及是否为 collection（文件夹）。
+     * 无 [resourcetype] 时，根据 href 是否以 `/` 结尾推断。
+     */
+    fun directChildEntries(collectionUrl: HttpUrl, xml: String): List<ChildEntry> {
+        val parentPrefix = collectionPathPrefix(collectionUrl)
+        val responseRegex = Regex(
+            "<(?:[^>:/]+:)?response\\b[^>]*>([\\s\\S]*?)</(?:[^>:/]+:)?response>",
+            RegexOption.IGNORE_CASE
+        )
+        val hrefRegex = Regex("<(?:[^>:/]+:)?href>\\s*([^<]+?)\\s*</(?:[^>:/]+:)?href>", RegexOption.IGNORE_CASE)
+        val collectionTypeRegex = Regex("<(?:[^>:/]+:)?collection\\b", RegexOption.IGNORE_CASE)
+        val seen = mutableSetOf<String>()
+        val out = mutableListOf<ChildEntry>()
+        for (m in responseRegex.findAll(xml)) {
+            val block = m.groupValues[1]
+            val hrefMatch = hrefRegex.find(block) ?: continue
+            val raw = hrefMatch.groupValues[1]
+            val path = hrefToEncodedPath(raw, collectionUrl) ?: continue
+            val norm = path.trimEnd('/')
+            val childPrefix = parentPrefix.trimEnd('/') + "/"
+            if (!norm.startsWith(childPrefix)) continue
+            val rel = norm.removePrefix(childPrefix).trim('/')
+            if (rel.isEmpty()) continue
+            if ('/' in rel) continue
+            if (!seen.add(rel)) continue
+            val isCollection = collectionTypeRegex.containsMatchIn(block) || raw.trim().endsWith("/")
+            out.add(ChildEntry(rel, isCollection))
+        }
+        return out
+    }
+
     fun directChildNames(collectionUrl: HttpUrl, xml: String): List<String> {
         val parentPrefix = collectionPathPrefix(collectionUrl)
         val regex = Regex("<(?:[^>:/]+:)?href>\\s*([^<]+?)\\s*</(?:[^>:/]+:)?href>", RegexOption.IGNORE_CASE)

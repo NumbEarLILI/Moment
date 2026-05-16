@@ -188,6 +188,57 @@ class WebDavHttp @Inject constructor(
             }
         }
 
+    suspend fun propfindDirectChildEntries(
+        client: OkHttpClient,
+        collectionUrl: HttpUrl
+    ): List<WebDavHrefParser.ChildEntry> =
+        withContext(Dispatchers.IO) {
+            val url = collectionUrlForPropfind(collectionUrl)
+            val propfindBody = PROPFIND_BODY.toRequestBody("application/xml; charset=utf-8".toMediaType())
+            val req = Request.Builder()
+                .url(url)
+                .method("PROPFIND", propfindBody)
+                .header("Depth", "1")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (resp.code !in 200..299 && resp.code != 207) {
+                    throw IOException("PROPFIND 失败（HTTP ${resp.code}）")
+                }
+                val xml = resp.body?.string().orEmpty()
+                WebDavHrefParser.directChildEntries(url, xml)
+            }
+        }
+
+    suspend fun deleteResource(client: OkHttpClient, url: HttpUrl) {
+        withContext(Dispatchers.IO) {
+            val req = Request.Builder().url(url).delete().build()
+            client.newCall(req).execute().use { resp ->
+                when (resp.code) {
+                    200, 204 -> Unit
+                    404 -> Unit
+                    else -> if (!resp.isSuccessful) {
+                        throw IOException("DELETE 失败（HTTP ${resp.code}）")
+                    }
+                }
+            }
+        }
+    }
+
+    /** 删除 WebDAV collection 及其全部内容（先删子级，再删本目录）。 */
+    suspend fun deleteCollectionRecursive(client: OkHttpClient, collectionUrl: HttpUrl) {
+        val base = collectionUrlForPropfind(collectionUrl)
+        val children = propfindDirectChildEntries(client, base)
+        for (child in children) {
+            val childUrl = base.newBuilder().addPathSegment(child.name).build()
+            if (child.isCollection) {
+                deleteCollectionRecursive(client, childUrl)
+            } else {
+                deleteResource(client, childUrl)
+            }
+        }
+        deleteResource(client, base)
+    }
+
     suspend fun getBytes(client: OkHttpClient, url: HttpUrl): ByteArray =
         withContext(Dispatchers.IO) {
             val req = Request.Builder().url(url).get().build()

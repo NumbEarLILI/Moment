@@ -145,6 +145,23 @@ class NasBackupRepositoryImpl @Inject constructor(
             }
         }
 
+    override suspend fun deleteBackupRun(config: NasWebdavConfig, runId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                if (!config.isConfigured()) {
+                    throw IOException("请先填写 WebDAV 根地址")
+                }
+                if (!runId.matches(Regex("run_\\d+"))) {
+                    throw IOException("无效的备份目录名")
+                }
+                val client = webDavHttp.clientFor(config)
+                val root = config.baseUrl.trim().toHttpUrlOrNull()
+                    ?: throw IOException("无效的 WebDAV 根地址")
+                val runUrl = childUrl(root, listOf("MomentBackup", "runs", runId))
+                webDavHttp.deleteCollectionRecursive(client, runUrl)
+            }
+        }
+
     private suspend fun restoreOneDiary(
         client: OkHttpClient,
         root: HttpUrl,

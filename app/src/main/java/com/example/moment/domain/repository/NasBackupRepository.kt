@@ -27,4 +27,7 @@ interface NasBackupRepository {
 
     /** 从指定备份目录恢复手帐到本地（按日期 upsert；图片写入应用私有目录）。 */
     suspend fun restoreBackupRun(config: NasWebdavConfig, runId: String): Result<NasRestoreResult>
+
+    /** 删除 NAS 上 `MomentBackup/runs/<runId>/` 整棵目录（递归）。 */
+    suspend fun deleteBackupRun(config: NasWebdavConfig, runId: String): Result<Unit>
 }
