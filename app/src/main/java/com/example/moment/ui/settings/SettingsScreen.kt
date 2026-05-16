@@ -139,11 +139,6 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                "从相册选择一张图铺满全屏；各页面底栏略带透明便于阅读。若图片来自相册，请保持文件可读取权限。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
             val context = LocalContext.current
             val wallpaperPicker = rememberLauncherForActivityResult(
                 ActivityResultContracts.OpenDocument()
