@@ -44,6 +44,8 @@ fun DiaryEditorForm(
             focusedLabelColor = MaterialTheme.colorScheme.primary
         )
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            val expandedDiaryLayout =
+                state.plogFragments.isNotEmpty() || state.fragmentStories.isNotEmpty()
             OutlinedTextField(
                 value = state.title,
                 onValueChange = onTitleChange,
@@ -70,20 +72,41 @@ fun DiaryEditorForm(
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
+            } else if (state.fragmentStories.isNotEmpty()) {
+                Text(
+                    "按时间 · 每一刻",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    state.fragmentStories.forEach { story ->
+                        val t = story.text.trim()
+                        if (t.isNotEmpty()) {
+                            Text(
+                                t,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
             }
             OutlinedTextField(
                 value = state.body,
                 onValueChange = onBodyChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(if (state.plogFragments.isNotEmpty()) "整篇文字（可选）" else "正文") },
-                supportingText = if (state.plogFragments.isNotEmpty()) {
+                label = { Text(if (expandedDiaryLayout) "整篇文字（可选）" else "正文") },
+                supportingText = if (expandedDiaryLayout) {
                     { Text("可选：摘要或全文润色。") }
                 } else {
                     null
                 },
                 shape = MaterialTheme.shapes.medium,
                 colors = fieldColors,
-                minLines = if (state.plogFragments.isNotEmpty()) 4 else 6
+                minLines = if (expandedDiaryLayout) 4 else 6
             )
             if (state.plogFragments.isEmpty()) {
                 DiaryLocationPinsRow(

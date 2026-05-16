@@ -52,10 +52,7 @@ class DiaryPreviewViewModel @Inject constructor(
 
     private suspend fun loadPlogFragments(draft: DiaryDraft): List<LifeFragment> {
         if (draft.sourceFragmentIds.isEmpty()) return emptyList()
-        val idSet = draft.sourceFragmentIds.toSet()
-        return fragmentRepository.getFragmentsForDate(date)
-            .filter { it.id in idSet }
-            .sortedBy { it.createdAt }
+        return fragmentRepository.getFragmentsForSourceIds(draft.sourceFragmentIds)
     }
 
     private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>) {
