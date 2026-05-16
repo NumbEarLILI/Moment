@@ -1,6 +1,7 @@
 package com.example.moment.data.nas
 
 import com.example.moment.domain.model.DiaryLocationPin
+import com.example.moment.domain.model.FragmentAiStory
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -26,6 +27,7 @@ internal data class NasBackupDiaryFileDto(
     /** 与保存时 `imageUris` 顺序一致；上传失败则为 null。 */
     val imageRelativePaths: List<String?>,
     val locationPins: List<DiaryLocationPin>,
+    val fragmentStories: List<FragmentAiStory> = emptyList(),
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long
 )

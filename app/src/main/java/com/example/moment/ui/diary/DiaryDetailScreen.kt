@@ -83,6 +83,7 @@ fun DiaryDetailScreen(
                 )
                 else -> {
                     val entry = checkNotNull(state.entry)
+                    val hasPlog = state.plogFragments.isNotEmpty()
                     Text(
                         entry.title,
                         style = MaterialTheme.typography.headlineSmall,
@@ -105,27 +106,63 @@ fun DiaryDetailScreen(
                             Text("删除", color = MaterialTheme.colorScheme.error)
                         }
                     }
-                    Text(
-                        entry.body,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    DiaryLocationPinsRow(
-                        pins = entry.locationPins,
-                        onPinClick = { pin ->
-                            navController.navigate(
-                                Routes.placePick(
-                                    pin.latitude,
-                                    pin.longitude,
-                                    pin.placeName,
-                                    pin.fragmentId,
-                                    diaryId
+                    if (hasPlog) {
+                        DiaryPlogTimeline(
+                            fragments = state.plogFragments,
+                            fragmentStories = entry.fragmentStories,
+                            locationPins = entry.locationPins,
+                            onLocationPinClick = { pin ->
+                                navController.navigate(
+                                    Routes.placePick(
+                                        pin.latitude,
+                                        pin.longitude,
+                                        pin.placeName,
+                                        pin.fragmentId,
+                                        diaryId
+                                    )
                                 )
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        Text(
+                            entry.body,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (hasPlog && entry.body.isNotBlank()) {
+                        Text(
+                            "整篇文字",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            entry.body,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (!hasPlog) {
+                        DiaryLocationPinsRow(
+                            pins = entry.locationPins,
+                            onPinClick = { pin ->
+                                navController.navigate(
+                                    Routes.placePick(
+                                        pin.latitude,
+                                        pin.longitude,
+                                        pin.placeName,
+                                        pin.fragmentId,
+                                        diaryId
+                                    )
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    if (!hasPlog && entry.imageUris.isNotEmpty()) {
+                        DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
+                    }
                     if (entry.highlights.isNotEmpty()) {
                         Text(
                             "亮点：${entry.highlights.joinToString(" / ")}",

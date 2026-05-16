@@ -7,6 +7,7 @@ import com.example.moment.data.local.FragmentDao
 import com.example.moment.data.local.MIGRATION_1_2
 import com.example.moment.data.local.MIGRATION_2_3
 import com.example.moment.data.local.MIGRATION_3_4
+import com.example.moment.data.local.MIGRATION_4_5
 import com.example.moment.data.local.MomentDatabase
 import com.example.moment.data.repository.DiaryRepositoryImpl
 import com.example.moment.data.repository.FragmentRepositoryImpl
@@ -48,7 +49,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MomentDatabase =
         Room.databaseBuilder(context, MomentDatabase::class.java, "moment.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
 
     @Provides
