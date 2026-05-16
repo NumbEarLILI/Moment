@@ -159,7 +159,7 @@ class CaptureViewModel @Inject constructor(
                         summaryCalendarDay = null,
                         otherFragmentsOnDay = emptyList(),
                         canGenerateDiary = false,
-                        savedDiaryEntries = diaryEntries
+                        savedDiaryEntries = emptyList()
                     )
                 )
             } else {
@@ -173,7 +173,7 @@ class CaptureViewModel @Inject constructor(
                             fragments
                         },
                         canGenerateDiary = fragments.isNotEmpty(),
-                        savedDiaryEntries = diaryEntries
+                        savedDiaryEntries = diaryEntries.filter { it.date == dayNullable }
                     )
                 }
             }
