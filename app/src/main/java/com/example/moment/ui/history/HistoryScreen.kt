@@ -36,6 +36,7 @@ import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.MonthCalendar
 import com.example.moment.ui.diary.DiarySummaryCard
+import com.example.moment.ui.theme.appScaffoldContainerColor
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -53,7 +54,7 @@ fun HistoryScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = appScaffoldContainerColor()
     ) { padding ->
         LazyColumn(
             modifier = Modifier

@@ -71,6 +71,7 @@ import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.Routes
 import com.example.moment.ui.diary.DiarySummaryCard
+import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 import java.io.File
 import java.time.LocalDate
@@ -195,7 +196,7 @@ fun CaptureScreen(
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = appScaffoldContainerColor()
         ) { padding ->
             Column(
                 modifier = Modifier

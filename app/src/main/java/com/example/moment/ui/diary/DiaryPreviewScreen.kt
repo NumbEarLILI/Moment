@@ -20,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
+import com.example.moment.ui.theme.appScaffoldContainerColor
 
 @Composable
 fun DiaryPreviewScreen(
@@ -46,7 +47,7 @@ fun DiaryPreviewScreen(
     }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = appScaffoldContainerColor()
     ) { padding ->
         Column(
             modifier = Modifier

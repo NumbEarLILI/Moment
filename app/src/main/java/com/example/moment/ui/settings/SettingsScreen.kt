@@ -1,5 +1,7 @@
 package com.example.moment.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -30,11 +32,15 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.AppThemeMode
+import com.example.moment.ui.theme.appScaffoldContainerColor
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -69,7 +75,7 @@ fun SettingsScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = MaterialTheme.colorScheme.background
+        containerColor = appScaffoldContainerColor()
     ) { padding ->
         Column(
             modifier = Modifier
@@ -128,6 +134,56 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            Text(
+                "自定义背景图",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                "从相册选择一张图铺满全屏；各页面底栏略带透明便于阅读。若图片来自相册，请保持文件可读取权限。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            val context = LocalContext.current
+            val wallpaperPicker = rememberLauncherForActivityResult(
+                ActivityResultContracts.OpenDocument()
+            ) { uri: Uri? ->
+                if (uri != null) {
+                    runCatching {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    }
+                    viewModel.setCustomBackgroundImageUri(uri.toString())
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { wallpaperPicker.launch(arrayOf("image/*")) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("选择背景图")
+                }
+                OutlinedButton(
+                    onClick = { viewModel.clearCustomBackgroundImage() },
+                    enabled = prefs.customBackgroundImageUri.isNotBlank(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("清除")
+                }
+            }
+            if (prefs.customBackgroundImageUri.isNotBlank()) {
+                Text(
+                    "已启用自定义背景",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
