@@ -19,11 +19,13 @@ import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -150,50 +152,20 @@ class NasDiaryWebDavPackager @Inject constructor(
         val existing = diaryRepository.getDiaryForDate(date)
         val localDir = File(context.filesDir, localCacheRelative).apply { mkdirs() }
         val authority = "${context.packageName}.fileprovider"
-        val pathCount = dto.imageRelativePaths.size
-        val resolvedByIndex = arrayOfNulls<String>(pathCount)
-        coroutineScope {
-            val concurrency = 4
-            val sem = Semaphore(concurrency)
-            val results = dto.imageRelativePaths.indices.map { idx ->
-                async {
-                    val rel = dto.imageRelativePaths[idx]
-                    if (rel.isNullOrBlank()) return@async idx to null
-                    sem.withPermit {
-                        idx to runCatching {
-                            val segments = rel.split('/').filter { it.isNotEmpty() }
-                            val imgUrl = childUrl(root, diaryFolderSegments + segments)
-                            val tmp = File(localDir, "img_${idx}.part")
-                            try {
-                                webDavHttp.getToFile(client, imgUrl, tmp)
-                                val ext = guessImageExtensionFromFileHead(tmp)
-                                val out = File(localDir, "img_$idx$ext")
-                                if (out.exists()) out.delete()
-                                if (!tmp.renameTo(out)) {
-                                    FileInputStream(tmp).use { input ->
-                                        FileOutputStream(out).use { output -> input.copyTo(output) }
-                                    }
-                                    tmp.delete()
-                                }
-                                FileProvider.getUriForFile(context, authority, out).toString()
-                            } finally {
-                                if (tmp.exists()) tmp.delete()
-                            }
-                        }.getOrNull()
-                    }
-                }
-            }.awaitAll()
-            for ((idx, uri) in results) {
-                resolvedByIndex[idx] = uri
-            }
-        }
+        val resolvedByIndex = downloadDiaryImagesFromWebDav(
+            client,
+            root,
+            diaryFolderSegments,
+            localDir,
+            authority,
+            dto.imageRelativePaths
+        )
         val localImages = resolvedByIndex.mapNotNull { it }
         val normalized = normalizeNasDiaryRestore(dto)
         val fragmentImageUris = restoreFragmentImageUris(
             normalized.sourceStableIds,
             normalized.fragmentImageIndices,
-            resolvedByIndex,
-            localImages
+            resolvedByIndex
         )
         val entry = DiaryEntry(
             id = existing?.id ?: 0L,
@@ -231,50 +203,20 @@ class NasDiaryWebDavPackager @Inject constructor(
         if (existing.date != date) return false to 0
         val localDir = File(context.filesDir, localCacheRelative).apply { mkdirs() }
         val authority = "${context.packageName}.fileprovider"
-        val pathCount = dto.imageRelativePaths.size
-        val resolvedByIndex = arrayOfNulls<String>(pathCount)
-        coroutineScope {
-            val concurrency = 4
-            val sem = Semaphore(concurrency)
-            val results = dto.imageRelativePaths.indices.map { idx ->
-                async {
-                    val rel = dto.imageRelativePaths[idx]
-                    if (rel.isNullOrBlank()) return@async idx to null
-                    sem.withPermit {
-                        idx to runCatching {
-                            val segments = rel.split('/').filter { it.isNotEmpty() }
-                            val imgUrl = childUrl(root, diaryFolderSegments + segments)
-                            val tmp = File(localDir, "img_${idx}.part")
-                            try {
-                                webDavHttp.getToFile(client, imgUrl, tmp)
-                                val ext = guessImageExtensionFromFileHead(tmp)
-                                val out = File(localDir, "img_$idx$ext")
-                                if (out.exists()) out.delete()
-                                if (!tmp.renameTo(out)) {
-                                    FileInputStream(tmp).use { input ->
-                                        FileOutputStream(out).use { output -> input.copyTo(output) }
-                                    }
-                                    tmp.delete()
-                                }
-                                FileProvider.getUriForFile(context, authority, out).toString()
-                            } finally {
-                                if (tmp.exists()) tmp.delete()
-                            }
-                        }.getOrNull()
-                    }
-                }
-            }.awaitAll()
-            for ((idx, uri) in results) {
-                resolvedByIndex[idx] = uri
-            }
-        }
+        val resolvedByIndex = downloadDiaryImagesFromWebDav(
+            client,
+            root,
+            diaryFolderSegments,
+            localDir,
+            authority,
+            dto.imageRelativePaths
+        )
         val localImages = resolvedByIndex.mapNotNull { it }
         val normalized = normalizeNasDiaryRestore(dto)
         val fragmentImageUris = restoreFragmentImageUris(
             normalized.sourceStableIds,
             normalized.fragmentImageIndices,
-            resolvedByIndex,
-            localImages
+            resolvedByIndex
         )
         val merged = existing.copy(
             imageUris = localImages,
@@ -440,31 +382,111 @@ class NasDiaryWebDavPackager @Inject constructor(
     private fun restoreFragmentImageUris(
         sourceStableIds: List<String>,
         fragmentImageIndices: Map<String, List<Int>>,
-        resolvedByIndex: Array<String?>,
-        localImagesOrdered: List<String>
+        resolvedByIndex: Array<String?>
     ): Map<String, List<String>> {
-        if (fragmentImageIndices.isNotEmpty()) {
-            return fragmentImageIndices.mapNotNull { (key, indices) ->
-                val sid = key.trim()
-                if (sid.isEmpty()) return@mapNotNull null
-                val uris = indices.mapNotNull { i -> resolvedByIndex.getOrNull(i) }
-                if (uris.isEmpty()) null else sid to uris
-            }.toMap()
+        val resolvedIndices = resolvedByIndex.indices.filter { resolvedByIndex[it] != null }.toSet()
+        if (resolvedIndices.isEmpty()) return emptyMap()
+
+        val stableSet = sourceStableIds.map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        if (fragmentImageIndices.referencesAllResolvedSlots(stableSet, resolvedByIndex, resolvedIndices)) {
+            return fragmentImageIndices.toRestoredFragmentMap(stableSet, resolvedByIndex)
         }
-        return legacyFragmentImageUrisFromFlat(sourceStableIds, localImagesOrdered)
+        return legacyFragmentImageUrisFromFlat(sourceStableIds, resolvedByIndex)
     }
 
+    /**
+     * [fragmentImageIndices] 必须与 NAS 槽位一致：每个成功下载的下标都要出现，且只信与 [stableSet] 匹配的 key。
+     * 否则常见情况是 JSON 里只有 [0] 或 key 与 stableId 对不上，界面会只剩一张图。
+     */
+    private fun Map<String, List<Int>>.referencesAllResolvedSlots(
+        stableSet: Set<String>,
+        resolvedByIndex: Array<String?>,
+        resolvedIndices: Set<Int>
+    ): Boolean {
+        if (isEmpty() || stableSet.isEmpty()) return false
+        val used = mutableSetOf<Int>()
+        for ((key, indices) in this) {
+            val sid = key.trim()
+            if (sid.isEmpty() || sid !in stableSet) continue
+            for (i in indices) {
+                if (i !in resolvedByIndex.indices) return false
+                if (resolvedByIndex[i] != null) used.add(i)
+            }
+        }
+        return used == resolvedIndices
+    }
+
+    private fun Map<String, List<Int>>.toRestoredFragmentMap(
+        stableSet: Set<String>,
+        resolvedByIndex: Array<String?>
+    ): Map<String, List<String>> {
+        val out = LinkedHashMap<String, ArrayList<String>>()
+        for ((key, indices) in this) {
+            val sid = key.trim()
+            if (sid.isEmpty() || sid !in stableSet) continue
+            val uris = out.getOrPut(sid) { ArrayList() }
+            for (i in indices) {
+                val uri = resolvedByIndex.getOrNull(i) ?: continue
+                if (uri.isNotBlank()) uris.add(uri)
+            }
+        }
+        return out.mapValues { it.value }.filterValues { it.isNotEmpty() }
+    }
+
+    /**
+     * 无 [fragmentImageIndices] 的旧存档：按 NAS `imageRelativePaths` 下标轮询到各碎片。
+     * 必须用带空位的 [resolvedByIndex]，不能用 [mapNotNull] 压缩后的列表（否则会整体错位）。
+     */
     private fun legacyFragmentImageUrisFromFlat(
         sourceStableIds: List<String>,
-        flat: List<String>
+        resolvedByIndex: Array<String?>
     ): Map<String, List<String>> {
-        if (sourceStableIds.isEmpty() || flat.isEmpty()) return emptyMap()
+        if (sourceStableIds.isEmpty()) return emptyMap()
         val buckets = sourceStableIds.associateWith { ArrayList<String>() }.toMutableMap()
-        flat.forEachIndexed { idx, u ->
+        for (idx in resolvedByIndex.indices) {
+            val u = resolvedByIndex[idx] ?: continue
             val sid = sourceStableIds[idx % sourceStableIds.size]
             buckets[sid]?.add(u)
         }
         return buckets.filterValues { it.isNotEmpty() }
+    }
+
+    private suspend fun downloadDiaryImagesFromWebDav(
+        client: OkHttpClient,
+        root: HttpUrl,
+        diaryFolderSegments: List<String>,
+        localDir: File,
+        authority: String,
+        imageRelativePaths: List<String?>
+    ): Array<String?> {
+        val resolved = arrayOfNulls<String>(imageRelativePaths.size)
+        withContext(Dispatchers.IO) {
+            for (idx in imageRelativePaths.indices) {
+                val rel = imageRelativePaths[idx]
+                if (rel.isNullOrBlank()) continue
+                resolved[idx] = runCatching {
+                    val segments = rel.split('/').filter { it.isNotEmpty() }
+                    val imgUrl = childUrl(root, diaryFolderSegments + segments)
+                    val tmp = File(localDir, "img_${idx}.part")
+                    try {
+                        webDavHttp.getToFile(client, imgUrl, tmp)
+                        val ext = guessImageExtensionFromFileHead(tmp)
+                        val out = File(localDir, "img_$idx$ext")
+                        if (out.exists()) out.delete()
+                        if (!tmp.renameTo(out)) {
+                            FileInputStream(tmp).use { input ->
+                                FileOutputStream(out).use { output -> input.copyTo(output) }
+                            }
+                            tmp.delete()
+                        }
+                        FileProvider.getUriForFile(context, authority, out).toString()
+                    } finally {
+                        if (tmp.exists()) tmp.delete()
+                    }
+                }.getOrNull()
+            }
+        }
+        return resolved
     }
 
     fun childUrl(root: HttpUrl, segments: List<String>): HttpUrl {
