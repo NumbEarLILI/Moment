@@ -6,6 +6,13 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
@@ -58,6 +65,77 @@ class OpenAiCompatibleChatClient @Inject constructor(
         val parsed = runCatching { json.decodeFromString(ChatCompletionResponse.serializer(), raw) }
             .getOrElse { throw IOException("无法解析模型响应 JSON", it) }
         val content = parsed.choices.firstOrNull()?.message?.content?.trim().orEmpty()
+        if (content.isEmpty()) {
+            throw IOException("模型未返回正文（choices 为空或 content 为空）")
+        }
+        return content
+    }
+
+    /**
+     * OpenAI 风格多模态请求：`user.content` 为 text + image_url 数组。
+     * 图片为 data URL（JPEG Base64）。
+     */
+    suspend fun chatCompletionWithVisionJpegs(
+        config: LlmConnectionConfig,
+        systemPrompt: String,
+        userInstruction: String,
+        jpegBase64List: List<String>
+    ): String {
+        require(jpegBase64List.isNotEmpty()) { "至少一张图片" }
+        val userContent = buildJsonArray {
+            addJsonObject {
+                put("type", "text")
+                put("text", userInstruction)
+            }
+            for (b64 in jpegBase64List) {
+                addJsonObject {
+                    put("type", "image_url")
+                    putJsonObject("image_url") {
+                        put("url", "data:image/jpeg;base64,$b64")
+                    }
+                }
+            }
+        }
+        val root = buildJsonObject {
+            put("model", config.model)
+            put("temperature", 0.35)
+            putJsonArray("messages") {
+                addJsonObject {
+                    put("role", "system")
+                    put("content", systemPrompt)
+                }
+                addJsonObject {
+                    put("role", "user")
+                    put("content", userContent)
+                }
+            }
+        }
+        val url = OpenAiChatUrls.chatCompletionsEndpoint(config.baseUrl)
+        val jsonBody = json.encodeToString(JsonElement.serializer(), root)
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .post(jsonBody.toRequestBody(JSON_MEDIA))
+        if (config.apiKey.isNotEmpty()) {
+            requestBuilder.header("Authorization", "Bearer ${config.apiKey}")
+        }
+        val request = requestBuilder.build()
+        val response = okHttpClient.newCall(request).await()
+        val raw = try {
+            response.body?.string().orEmpty()
+        } finally {
+            response.close()
+        }
+        if (!response.isSuccessful) {
+            throw IOException("HTTP ${response.code}: ${raw.take(500)}")
+        }
+        val parsed = runCatching { json.decodeFromString(ChatCompletionResponse.serializer(), raw) }
+            .getOrElse { throw IOException("无法解析模型响应 JSON", it) }
+        val choice = parsed.choices.firstOrNull()?.message
+        val refusal = choice?.refusal?.trim().orEmpty()
+        if (refusal.isNotEmpty()) {
+            throw IOException("模型拒绝回答：${refusal.take(200)}")
+        }
+        val content = choice?.content?.trim().orEmpty()
         if (content.isEmpty()) {
             throw IOException("模型未返回正文（choices 为空或 content 为空）")
         }

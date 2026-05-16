@@ -186,7 +186,8 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "OpenAI 兼容接口（如 DeepSeek）。留空则用手写规则生成手帐。",
+                "OpenAI 兼容 Chat Completions。留空则用手写规则生成手帐。" +
+                    "「大模型识标签」会发送图片（多模态），请使用支持 image_url 的模型与供应商。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
