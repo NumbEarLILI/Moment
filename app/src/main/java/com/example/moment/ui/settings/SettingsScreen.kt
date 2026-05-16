@@ -278,6 +278,50 @@ fun SettingsScreen(
             ) {
                 Text("保存 NAS 配置")
             }
+            Text(
+                "手帐存档（双向同步）",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "与上方「快照备份」独立：使用远端 MomentArchive/diaries/ 下按日历日命名的目录存放每日一篇可变老副本。开启开关后，保存或删除手帐会自动同步存档；也可用下面按钮一次性上传全部本地手帐，或从 NAS 合并到本机（仅当远端 diary.json 的更新时间新于本机该日手帐时才覆盖）。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "保存后自动同步到 NAS 存档",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Switch(
+                    checked = prefs.nasArchiveSyncEnabled,
+                    onCheckedChange = viewModel::setNasArchiveSyncEnabled,
+                    enabled = !nasBusy
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { viewModel.pushAllDiariesToNasArchive() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !nasBusy
+                ) {
+                    Text("全部上传到存档")
+                }
+                OutlinedButton(
+                    onClick = { viewModel.pullNasArchiveToLocal() },
+                    modifier = Modifier.weight(1f),
+                    enabled = !nasBusy
+                ) {
+                    Text("从存档合并到本机")
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)

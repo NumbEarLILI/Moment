@@ -39,7 +39,8 @@ class UserPreferencesRepository @Inject constructor(
             nasWebdavBaseUrl = prefs[Keys.NAS_WEBDAV_BASE_URL].orEmpty(),
             nasWebdavUsername = prefs[Keys.NAS_WEBDAV_USERNAME].orEmpty(),
             nasWebdavPassword = prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty(),
-            nasWebdavTrustSelfSignedCertificates = prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] ?: false
+            nasWebdavTrustSelfSignedCertificates = prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] ?: false,
+            nasArchiveSyncEnabled = prefs[Keys.NAS_ARCHIVE_SYNC_ENABLED] ?: false
         )
     }
 
@@ -73,6 +74,10 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    suspend fun setNasArchiveSyncEnabled(enabled: Boolean) {
+        dataStore.edit { it[Keys.NAS_ARCHIVE_SYNC_ENABLED] = enabled }
+    }
+
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val CUSTOM_BACKGROUND_IMAGE_URI = stringPreferencesKey("custom_background_image_uri")
@@ -83,5 +88,6 @@ class UserPreferencesRepository @Inject constructor(
         val NAS_WEBDAV_USERNAME = stringPreferencesKey("nas_webdav_username")
         val NAS_WEBDAV_PASSWORD = stringPreferencesKey("nas_webdav_password")
         val NAS_WEBDAV_TRUST_SELF_SIGNED = booleanPreferencesKey("nas_webdav_trust_self_signed")
+        val NAS_ARCHIVE_SYNC_ENABLED = booleanPreferencesKey("nas_archive_sync_enabled")
     }
 }

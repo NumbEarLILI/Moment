@@ -1,5 +1,6 @@
 package com.example.moment.domain.usecase
 
+import com.example.moment.domain.nas.NasArchiveSyncCoordinator
 import com.example.moment.domain.repository.DiaryRepository
 import java.time.Clock
 import javax.inject.Inject
@@ -12,6 +13,7 @@ import javax.inject.Inject
 class RefreshSavedDiaryFromFragmentsUseCase @Inject constructor(
     private val diaryRepository: DiaryRepository,
     private val generateDiaryDraft: GenerateDiaryDraftUseCase,
+    private val nasArchiveSync: NasArchiveSyncCoordinator,
     private val clock: Clock = Clock.systemDefaultZone()
 ) {
     suspend operator fun invoke(diaryId: Long) {
@@ -22,7 +24,7 @@ class RefreshSavedDiaryFromFragmentsUseCase @Inject constructor(
             entry,
             appendDayFragmentsOutsidePrior = false
         )
-        diaryRepository.saveDiary(
+        val savedId = diaryRepository.saveDiary(
             entry.copy(
                 title = draft.title,
                 body = draft.body,
@@ -36,5 +38,9 @@ class RefreshSavedDiaryFromFragmentsUseCase @Inject constructor(
                 updatedAt = clock.instant()
             )
         )
+        val persisted = diaryRepository.getDiaryById(savedId)
+        if (persisted != null) {
+            nasArchiveSync.onDiarySaved(persisted)
+        }
     }
 }

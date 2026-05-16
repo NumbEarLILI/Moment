@@ -3,6 +3,7 @@ package com.example.moment.domain.usecase
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
+import com.example.moment.domain.nas.NasArchiveSyncCoordinator
 import com.example.moment.domain.repository.DiaryRepository
 import java.time.Clock
 import java.time.LocalDate
@@ -10,6 +11,7 @@ import javax.inject.Inject
 
 class SaveDiaryUseCase @Inject constructor(
     private val repository: DiaryRepository,
+    private val nasArchiveSync: NasArchiveSyncCoordinator,
     private val clock: Clock = Clock.systemDefaultZone()
 ) {
     suspend operator fun invoke(
@@ -41,6 +43,12 @@ class SaveDiaryUseCase @Inject constructor(
             createdAt = existing?.createdAt ?: now,
             updatedAt = now
         )
-        return repository.saveDiary(entry)
+        val savedId = repository.saveDiary(entry)
+        val persisted = repository.getDiaryById(savedId)
+            ?: repository.getDiaryForDate(date)
+        if (persisted != null) {
+            nasArchiveSync.onDiarySaved(persisted)
+        }
+        return savedId
     }
 }

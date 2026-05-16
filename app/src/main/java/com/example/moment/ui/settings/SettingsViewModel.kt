@@ -6,6 +6,7 @@ import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.domain.model.AppThemeMode
 import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.domain.model.toNasWebdavConfig
+import com.example.moment.domain.repository.NasArchiveRepository
 import com.example.moment.domain.repository.NasBackupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -22,7 +23,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
-    private val nasBackupRepository: NasBackupRepository
+    private val nasBackupRepository: NasBackupRepository,
+    private val nasArchiveRepository: NasArchiveRepository
 ) : ViewModel() {
 
     val preferences = userPreferencesRepository.preferences.stateIn(
@@ -148,6 +150,44 @@ class SettingsViewModel @Inject constructor(
                 trustSelfSignedCertificates = _nasTrustSelfSigned.value
             )
             _saveSuccessMessage.emit("NAS 配置已保存")
+        }
+    }
+
+    fun setNasArchiveSyncEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setNasArchiveSyncEnabled(enabled)
+        }
+    }
+
+    fun pushAllDiariesToNasArchive() {
+        viewModelScope.launch {
+            _nasBusy.value = true
+            _nasStatusMessage.value = null
+            val config = currentNasConfigFromForm()
+            val r = nasArchiveRepository.pushAllDiariesToArchive(config)
+            _nasBusy.value = false
+            _nasStatusMessage.value = r.fold(
+                onSuccess = { s ->
+                    "存档上传完成：${s.diaryCount} 篇，图片上传 ${s.imagesUploaded}，跳过 ${s.imagesSkipped}（MomentArchive/diaries/）"
+                },
+                onFailure = { e -> "存档上传失败：${e.message ?: e.javaClass.simpleName}" }
+            )
+        }
+    }
+
+    fun pullNasArchiveToLocal() {
+        viewModelScope.launch {
+            _nasBusy.value = true
+            _nasStatusMessage.value = null
+            val config = currentNasConfigFromForm()
+            val r = nasArchiveRepository.pullArchiveToLocal(config)
+            _nasBusy.value = false
+            _nasStatusMessage.value = r.fold(
+                onSuccess = { s ->
+                    "存档合并完成：写入 ${s.diariesApplied} 日，跳过 ${s.diariesSkipped}，图片 ${s.imagesRestored} 张"
+                },
+                onFailure = { e -> "存档拉取失败：${e.message ?: e.javaClass.simpleName}" }
+            )
         }
     }
 
