@@ -126,7 +126,7 @@ fun DiaryEditorForm(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-            if (state.imageUris.isNotEmpty()) {
+            if (state.plogFragments.isEmpty() && state.imageUris.isNotEmpty()) {
                 DiaryImageGallery(imageUris = state.imageUris, modifier = Modifier.fillMaxWidth())
             }
             if (state.highlights.isNotEmpty()) {

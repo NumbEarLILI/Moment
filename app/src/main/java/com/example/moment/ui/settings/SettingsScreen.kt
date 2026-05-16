@@ -186,7 +186,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "填写 OpenAI 兼容接口（如 DeepSeek、/chat/completions）、密钥与模型名。已配置时，「生成手帐」会调用模型整合当日碎片；未配置则使用内置规则。",
+                "OpenAI 兼容接口（如 DeepSeek）。留空则用手写规则生成手帐。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -229,7 +229,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "用于将已保存的手帐备份到 NAS，或从 NAS 读回备份。请先保存 WebDAV 根地址与鉴权。若使用下方「Moment 账号」，备份与存档会写到 MomentApp/users/ 下各账号专属子目录，与未登录时的根目录路径相互独立。",
+                "备份与手帐存档走 WebDAV。登录 Moment 后数据在 MomentApp/users/… 下，与未登录路径互相独立。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -271,7 +271,7 @@ fun SettingsScreen(
                 )
             }
             Text(
-                "仅在 NAS 使用 HTTPS 且证书非系统信任时开启；会降低连接安全性。",
+                "仅在 NAS 用自签名 HTTPS 时需要；会降低安全性。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -288,7 +288,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "同一 WebDAV 可被多人共用：在 MomentApp/account_registry.json 中登记账户名与密码摘要，注册时会检查用户名是否已存在。登录后快照备份与手帐存档均只读写当前账号目录。",
+                "多人共用同一 WebDAV 时可注册/登录；备份与存档只读当前账号目录。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -300,7 +300,7 @@ fun SettingsScreen(
                 )
             } else {
                 Text(
-                    "当前未登录 Moment 账号（使用根目录 MomentBackup / MomentArchive，与旧版一致）。",
+                    "未登录：读写根目录下 MomentBackup / MomentArchive。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -356,7 +356,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "与上方「快照备份」独立：按日历日在远端保存可变老副本（未登录账号时为 MomentArchive，登录后为 MomentApp/users/…/MomentArchive）。开启开关后会立即从 NAS 合并到本机，之后在首页下拉可再次同步；保存或删除手帐仍会自动推送存档。若同日本地更新更晚且正文与 NAS 不一致，将询问保留本地还是使用 NAS。",
+                "与快照备份无关：按日同步 MomentArchive，开关联动拉取，首页下拉可再同步；冲突时询问保留本机或 NAS。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -400,7 +400,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "从 MomentBackup/runs/ 下列出本机备份，按日期合并到本地手帐（同一天会覆盖本地该日手帐）。图片会下载到应用私有目录。",
+                "从 MomentBackup/runs/ 选一次备份合并到本机（同日覆盖本地该日手帐）。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
