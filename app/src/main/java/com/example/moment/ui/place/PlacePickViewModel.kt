@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.BuildConfig
 import com.example.moment.data.location.AmapReverseGeocoder
+import com.example.moment.data.location.ChinaCoordinateTransform
 import com.example.moment.data.location.NominatimReverseGeocoder
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.usecase.RefreshSavedDiaryFromFragmentsUseCase
@@ -97,7 +98,10 @@ class PlacePickViewModel @Inject constructor(
                 if (amap.label != null) Log.d(TAG, "【逆地理】高德成功")
                 else Log.d(TAG, "【逆地理】高德未返回：${amap.failureDetail ?: "无详情"}")
             }
-            val nomin = nominatim.reverseLabel(latitude, longitude)
+            val nomin = run {
+                val (wgsLat, wgsLng) = ChinaCoordinateTransform.gcj02ToWgs84(latitude, longitude)
+                nominatim.reverseLabel(wgsLat, wgsLng)
+            }
             if (BuildConfig.DEBUG) {
                 Log.d(TAG, if (nomin != null) "【逆地理】OSM 有备选" else "【逆地理】OSM 无结果")
             }
