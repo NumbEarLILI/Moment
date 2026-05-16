@@ -377,7 +377,8 @@ class GenerateDiaryDraftUseCaseTest {
         assertTrue(result.body.contains("旧稿整体段落。"))
         assertTrue(result.body.contains("条1 旧逐条。"))
         assertTrue(result.body.contains("条2 旧逐条。"))
-        assertTrue(result.body.contains("模型只写了这一段。"))
+        // 无新增碎片时不叠模型段落，避免重复打开预览导致正文雪球
+        assertTrue(!result.body.contains("模型只写了这一段。"))
         assertEquals("条1 旧逐条。", result.fragmentStories.find { it.fragmentId == 1L }?.text)
         assertEquals("条2 旧逐条。", result.fragmentStories.find { it.fragmentId == 2L }?.text)
         assertTrue(result.highlights.contains("旧亮"))

@@ -39,6 +39,10 @@ class RuleBasedDiaryGenerator(
             return mergeOntoPriorDiary(priorSavedDiary, sorted, newFragments)
         }
 
+        if (priorSavedDiary != null && newFragments.isEmpty()) {
+            return preservePriorDiaryAgainstFragments(priorSavedDiary, sorted)
+        }
+
         val mainMood = sorted.mapNotNull { it.mood }
             .groupingBy { it }
             .eachCount()
@@ -91,6 +95,29 @@ class RuleBasedDiaryGenerator(
             body = mergedBody,
             highlights = mergedHighlights,
             moodSummary = mergedMood,
+            sourceFragmentIds = sorted.map { it.id },
+            fragmentStories = mergeFragmentStoriesPreservingPrior(sorted, prior)
+        )
+    }
+
+    /**
+     * 底稿中的 fragment id 已覆盖当前全部碎片（未识别到「新增」）时，仍保留已保存正文与逐条 story。
+     * 若走下方「全新生成」，会把 AI/长文手帐覆盖成「今日共 N 则瞬间」模板（地图选点刷新、规则重算等均会触发）。
+     */
+    private fun preservePriorDiaryAgainstFragments(
+        prior: DiaryEntry,
+        sorted: List<LifeFragment>
+    ): DiaryDraft {
+        val mainMood = sorted.mapNotNull { it.mood }
+            .groupingBy { it }
+            .eachCount()
+            .maxWithOrNull(compareBy<Map.Entry<Mood, Int>> { it.value }.thenBy { it.key.ordinal })
+            ?.key
+        return DiaryDraft(
+            title = prior.title.ifBlank { "${mainMood?.displayName ?: "有记录"}的一天" },
+            body = effectivePriorNarrative(prior),
+            highlights = prior.highlights,
+            moodSummary = prior.moodSummary,
             sourceFragmentIds = sorted.map { it.id },
             fragmentStories = mergeFragmentStoriesPreservingPrior(sorted, prior)
         )

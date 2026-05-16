@@ -50,7 +50,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
 
         val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config, priorSaved).getOrElse { throw it }
         val filledStories = normalizeAiFragmentStories(sorted, aiDraft.fragmentStories, priorSaved)
-        val mergedDraft = mergeAiDraftWithPriorIfNeeded(priorSaved, aiDraft)
+        val mergedDraft = mergeAiDraftWithPriorIfNeeded(priorSaved, sorted, aiDraft)
         return mergedDraft.copy(
             sourceFragmentIds = sorted.map { it.id },
             imageUris = mergedImageUris,
@@ -60,16 +60,37 @@ class GenerateDiaryDraftUseCase @Inject constructor(
     }
 
     /**
-     * 已有当日手帐时，始终将底稿叙述与模型输出的正文叠在一起，避免误判「无新增碎片」时整篇被模型覆盖。
-     * （例如保存后 sourceFragmentIds 已含当日全部碎片 id 时，原先会误判为无新增并跳过合并。）
+     * 有已保存手帐时：
+     * - **相对底稿有新增碎片**：底稿叙述 + 模型正文叠放，防止模型单段覆盖旧稿。
+     * - **无新增碎片**（例如再次打开预览、或 id 列表已齐全）：**只保留底稿叙述**，不把模型全文再拼在后面，避免每次生成都多叠一层。
      */
     private fun mergeAiDraftWithPriorIfNeeded(
         prior: DiaryEntry?,
+        sorted: List<LifeFragment>,
         ai: DiaryDraft
     ): DiaryDraft {
         if (prior == null) return ai
+        val newFrags = newFragmentsRelativeToPrior(prior, sorted)
         val pb = effectivePriorNarrative(prior).trim()
         val ab = ai.body.trim()
+
+        if (newFrags.isEmpty()) {
+            if (pb.isEmpty()) return ai
+            val mergedHighlights = (prior.highlights + ai.highlights).asSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .take(8)
+                .toList()
+            return ai.copy(
+                title = ai.title.trim().ifBlank { prior.title },
+                body = pb,
+                highlights = mergedHighlights,
+                moodSummary = prior.moodSummary?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: ai.moodSummary?.trim()?.takeIf { it.isNotEmpty() }
+            )
+        }
+
         val body = when {
             pb.isEmpty() -> ab
             ab.isEmpty() -> pb
@@ -84,6 +105,15 @@ class GenerateDiaryDraftUseCase @Inject constructor(
             .toList()
         val mood = ai.moodSummary?.trim()?.takeIf { it.isNotEmpty() } ?: prior.moodSummary
         return ai.copy(title = title, body = body, highlights = highlights, moodSummary = mood)
+    }
+
+    private fun newFragmentsRelativeToPrior(prior: DiaryEntry, sorted: List<LifeFragment>): List<LifeFragment> {
+        val priorIds = prior.sourceFragmentIds.toSet()
+        return when {
+            sorted.isEmpty() -> emptyList()
+            priorIds.isEmpty() -> sorted
+            else -> sorted.filter { it.id !in priorIds }
+        }
     }
 
     /**

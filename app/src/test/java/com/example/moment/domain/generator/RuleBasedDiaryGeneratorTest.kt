@@ -239,6 +239,40 @@ class RuleBasedDiaryGeneratorTest {
         assertTrue(draft.body.contains("14:00 午后新记录"))
     }
 
+    @Test
+    fun generatePreservesSavedDiaryWhenAllFragmentsAlreadyInPriorSources() {
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "珍藏标题",
+            body = "总述一段。",
+            highlights = listOf("旧亮"),
+            moodSummary = "平静。",
+            sourceFragmentIds = listOf(1L, 2L),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = listOf(
+                FragmentAiStory(1L, "第一条长文。"),
+                FragmentAiStory(2L, "第二条长文。")
+            ),
+            createdAt = Instant.parse("2026-05-13T07:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T07:00:00Z")
+        )
+        val fragments = listOf(
+            fragment(1, "短1", Mood.CALM, "2026-05-13T07:30:00Z"),
+            fragment(2, "短2", Mood.HAPPY, "2026-05-13T14:00:00Z")
+        )
+
+        val draft = generator.generate(date, fragments, prior)
+
+        assertEquals("珍藏标题", draft.title)
+        assertTrue(draft.body.contains("总述一段。"))
+        assertTrue(draft.body.contains("第一条长文。"))
+        assertEquals("第一条长文。", draft.fragmentStories.find { it.fragmentId == 1L }?.text)
+        assertEquals("第二条长文。", draft.fragmentStories.find { it.fragmentId == 2L }?.text)
+        assertEquals(listOf(1L, 2L), draft.sourceFragmentIds)
+    }
+
     private fun fragment(
         id: Long,
         content: String,
