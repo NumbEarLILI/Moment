@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,7 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -61,6 +64,7 @@ fun SettingsScreen(
     val nasStatusMessage by viewModel.nasStatusMessage.collectAsStateWithLifecycle()
     val nasBackupRunIds by viewModel.nasBackupRunIds.collectAsStateWithLifecycle()
     val selectedNasRunId by viewModel.selectedNasRunId.collectAsStateWithLifecycle()
+    var showDeleteNasConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.reloadDraftFieldsFromStore()
@@ -367,6 +371,43 @@ fun SettingsScreen(
                 enabled = !nasBusy && selectedNasRunId != null
             ) {
                 Text("同步选中备份到本机")
+            }
+            OutlinedButton(
+                onClick = { showDeleteNasConfirm = true },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !nasBusy && selectedNasRunId != null
+            ) {
+                Text(
+                    "删除选中备份（NAS）",
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            if (showDeleteNasConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteNasConfirm = false },
+                    title = { Text("删除 NAS 备份") },
+                    text = {
+                        Text(
+                            "将永久删除远端目录 MomentBackup/runs/${selectedNasRunId.orEmpty()}/" +
+                                "及其全部内容，且无法撤销。确定删除？"
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showDeleteNasConfirm = false
+                                viewModel.deleteNasSelectedBackup()
+                            }
+                        ) {
+                            Text("删除", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteNasConfirm = false }) {
+                            Text("取消")
+                        }
+                    }
+                )
             }
             if (nasBusy) {
                 CircularProgressIndicator(modifier = Modifier.padding(top = 4.dp))

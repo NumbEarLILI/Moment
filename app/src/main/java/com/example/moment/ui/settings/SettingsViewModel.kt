@@ -227,6 +227,42 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun deleteNasSelectedBackup() {
+        viewModelScope.launch {
+            val runId = _selectedNasRunId.value
+            if (runId == null) {
+                _nasStatusMessage.value = "请先「刷新备份列表」并选择一个备份"
+                return@launch
+            }
+            _nasBusy.value = true
+            _nasStatusMessage.value = null
+            val config = currentNasConfigFromForm()
+            val r = nasBackupRepository.deleteBackupRun(config, runId)
+            if (r.isFailure) {
+                _nasBusy.value = false
+                val e = r.exceptionOrNull()
+                _nasStatusMessage.value =
+                    "删除失败：${e?.message ?: e?.javaClass?.simpleName ?: "错误"}"
+                return@launch
+            }
+            val runs = nasBackupRepository.listBackupRuns(config).getOrElse { e ->
+                _nasBackupRunIds.value = emptyList()
+                _selectedNasRunId.value = null
+                _nasBusy.value = false
+                _nasStatusMessage.value =
+                    "已删除远端备份 $runId，但刷新列表失败：${e.message ?: e.javaClass.simpleName}"
+                return@launch
+            }
+            _nasBackupRunIds.value = runs
+            _selectedNasRunId.value = runs.firstOrNull()
+            _nasBusy.value = false
+            _nasStatusMessage.value = when {
+                runs.isEmpty() -> "已删除备份 $runId。远端暂无其他备份。"
+                else -> "已删除备份 $runId。还可选择其余 ${runs.size} 个备份。"
+            }
+        }
+    }
+
     fun restoreNasLatestBackup() {
         viewModelScope.launch {
             _nasBusy.value = true
