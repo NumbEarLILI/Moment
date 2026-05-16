@@ -201,7 +201,7 @@ fun DiaryDetailScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
-                    if (!hasPlog && entry.imageUris.isNotEmpty()) {
+                    if (entry.imageUris.isNotEmpty()) {
                         DiaryImageGallery(imageUris = entry.imageUris, modifier = Modifier.fillMaxWidth())
                     }
                     if (entry.highlights.isNotEmpty()) {
