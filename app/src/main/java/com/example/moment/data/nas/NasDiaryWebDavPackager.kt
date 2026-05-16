@@ -122,6 +122,116 @@ class NasDiaryWebDavPackager @Inject constructor(
         }
     }
 
+    /**
+     * 判断本地手帐与 NAS `diary.json` 是否语义一致（无需再次 restore / 拉图）。
+     * v2+ 在规范化后与本地 stableId 等逐字段比对；v1 用条数与正文 multiset 等弱约束。
+     */
+    internal fun localDiaryContentMatchesNasDto(local: DiaryEntry, dto: NasBackupDiaryFileDto): Boolean {
+        if (local.date.toEpochDay() != dto.dateEpochDay) return false
+        if (local.title != dto.title) return false
+        if (local.body.trim() != dto.body.trim()) return false
+        if (local.highlights != dto.highlights) return false
+        val moodL = local.moodSummary?.trim().orEmpty()
+        val moodR = dto.moodSummary?.trim().orEmpty()
+        if (moodL != moodR) return false
+
+        val localFlat = flatOrderedUniqueImageUris(local)
+        if (dto.imageRelativePaths.size != localFlat.size) return false
+        val remoteFilled = dto.imageRelativePaths.count { !it.isNullOrBlank() }
+        if (remoteFilled != localFlat.size) return false
+
+        if (dto.schemaVersion >= 2 && dto.sourceFragmentStableIds.isNotEmpty()) {
+            val nrm = normalizeNasDiaryRestore(dto)
+            if (local.sourceFragmentStableIds != nrm.sourceStableIds) return false
+            if (!storiesEqualOrdered(local.fragmentStories, nrm.fragmentStories)) return false
+            if (!pinsEqualIgnoringSidOrder(local.locationPins, nrm.locationPins)) return false
+            if (!fragmentImageSlotCountsMatch(local, nrm.fragmentImageIndices)) return false
+            return true
+        }
+
+        if (local.sourceFragmentStableIds.size != dto.sourceFragmentIds.size) return false
+        val localStoryTexts = local.fragmentStories.map { it.text.trim() }.sorted()
+        val remoteStoryTexts = dto.fragmentStories.map { it.text.trim() }.sorted()
+        if (localStoryTexts != remoteStoryTexts) return false
+        if (!pinsEqualIgnoringSidOrderLegacy(local.locationPins, dto.locationPins)) return false
+        return fragmentImageSlotCountsMatchLegacy(local, dto.fragmentImageIndices)
+    }
+
+    private fun storiesEqualOrdered(a: List<FragmentAiStory>, b: List<FragmentAiStory>): Boolean {
+        if (a.size != b.size) return false
+        for (i in a.indices) {
+            if (a[i].fragmentStableId.trim() != b[i].fragmentStableId.trim()) return false
+            if (a[i].text.trim() != b[i].text.trim()) return false
+        }
+        return true
+    }
+
+    private fun pinsEqualIgnoringSidOrder(
+        local: List<DiaryLocationPin>,
+        remote: List<DiaryLocationPin>
+    ): Boolean {
+        if (local.size != remote.size) return false
+        fun sig(p: DiaryLocationPin) =
+            listOf(p.fragmentStableId.trim(), p.placeName, p.latitude.toString(), p.longitude.toString())
+        return canonicalizedSignatureList(local.map { sig(it) }) ==
+            canonicalizedSignatureList(remote.map { sig(it) })
+    }
+
+    private fun pinsEqualIgnoringSidOrderLegacy(
+        local: List<DiaryLocationPin>,
+        remote: List<NasFileLocationPin>
+    ): Boolean {
+        if (local.size != remote.size) return false
+        fun sigLocal(p: DiaryLocationPin) =
+            listOf(p.fragmentStableId.trim(), p.placeName, p.latitude.toString(), p.longitude.toString())
+        fun sigRemote(p: NasFileLocationPin): List<String> {
+            val sid =
+                p.fragmentStableId.trim().ifBlank { if (p.fragmentId > 0L) p.fragmentId.toString() else "" }
+            return listOf(sid, p.placeName, p.latitude.toString(), p.longitude.toString())
+        }
+        return canonicalizedSignatureList(local.map { sigLocal(it) }) ==
+            canonicalizedSignatureList(remote.map { sigRemote(it) })
+    }
+
+    private fun canonicalizedSignatureList(rows: List<List<String>>): List<String> =
+        rows.map { it.joinToString("\u0001") }.sorted()
+
+    private fun fragmentImageSlotCountsMatch(
+        local: DiaryEntry,
+        fragmentImageIndices: Map<String, List<Int>>
+    ): Boolean {
+        val trimKeys: (Map<String, List<Int>>) -> Map<String, List<Int>> = { m ->
+            m.mapNotNull { (k, v) ->
+                val t = k.trim()
+                if (t.isEmpty()) null else t to v
+            }.toMap()
+        }
+        val dtoMap = trimKeys(fragmentImageIndices)
+        val localMap = local.fragmentImageUris
+            .mapKeys { it.key.trim() }
+            .filterKeys { it.isNotEmpty() }
+            .mapValues { (_, uris) -> uris.count { it.isNotBlank() } }
+            .filterValues { it > 0 }
+        if (dtoMap.keys != localMap.keys) return false
+        for ((k, nLocal) in localMap) {
+            val idx = dtoMap[k] ?: return false
+            if (idx.size != nLocal) return false
+        }
+        return true
+    }
+
+    /**
+     * v1 存档里 fragment 图 key 为数字 id，恢复后为 stableId，无法逐 key 对齐；只比对附属图总数。
+     */
+    private fun fragmentImageSlotCountsMatchLegacy(
+        local: DiaryEntry,
+        fragmentImageIndices: Map<String, List<Int>>
+    ): Boolean {
+        val dtoSlots = fragmentImageIndices.values.sumOf { it.size }
+        val localSlots = local.fragmentImageUris.values.sumOf { uris -> uris.count { it.isNotBlank() } }
+        return dtoSlots == localSlots
+    }
+
     suspend fun restoreDiaryFromFolder(
         client: OkHttpClient,
         root: HttpUrl,

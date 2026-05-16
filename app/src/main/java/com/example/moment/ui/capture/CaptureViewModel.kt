@@ -153,27 +153,34 @@ class CaptureViewModel @Inject constructor(
         // 必须用最新的 _uiState.value 合并碎片列表：仅 observeFragmentsForDate 发射时 combine 不会触发，
         // 若沿用 flatMapLatest 闭包里旧的 state，会回滚用户正在输入的正文并造成光标异常。
         .flatMapLatest { (dayNullable, _, diaryEntries) ->
-            if (dayNullable == null) {
+            val base = _uiState.value
+            // 根路由新建碎片：摘要日/「当天手帐」始终以 clock 为准，避免 contextDay 在午夜后仍停留在昨天。
+            val summaryDay: LocalDate? = when {
+                base.editingFragmentId > 0L -> dayNullable
+                newFragmentForDate != null -> newFragmentForDate
+                else -> clock.instant().atZone(zoneId).toLocalDate()
+            }
+            if (summaryDay == null) {
                 flowOf(
-                    _uiState.value.copy(
+                    base.copy(
                         summaryCalendarDay = null,
                         otherFragmentsOnDay = emptyList(),
                         canGenerateDiary = false,
-                        savedDiaryEntries = diaryEntries
+                        savedDiaryEntries = emptyList()
                     )
                 )
             } else {
-                observeFragmentsForDate(dayNullable).map { fragments ->
-                    val base = _uiState.value
-                    base.copy(
-                        summaryCalendarDay = dayNullable,
-                        otherFragmentsOnDay = if (base.editingFragmentId > 0) {
-                            fragments.filter { it.id != base.editingFragmentId }
+                observeFragmentsForDate(summaryDay).map { fragments ->
+                    val s = _uiState.value
+                    s.copy(
+                        summaryCalendarDay = summaryDay,
+                        otherFragmentsOnDay = if (s.editingFragmentId > 0) {
+                            fragments.filter { it.id != s.editingFragmentId }
                         } else {
                             fragments
                         },
                         canGenerateDiary = fragments.isNotEmpty(),
-                        savedDiaryEntries = diaryEntries
+                        savedDiaryEntries = diaryEntries.filter { it.date == summaryDay }
                     )
                 }
             }
