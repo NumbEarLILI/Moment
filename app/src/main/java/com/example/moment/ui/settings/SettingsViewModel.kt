@@ -9,9 +9,11 @@ import com.example.moment.domain.model.toNasWebdavConfig
 import com.example.moment.domain.repository.NasBackupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -57,6 +59,9 @@ class SettingsViewModel @Inject constructor(
     private val _selectedNasRunId = MutableStateFlow<String?>(null)
     val selectedNasRunId: StateFlow<String?> = _selectedNasRunId.asStateFlow()
 
+    private val _saveSuccessMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val saveSuccessMessage = _saveSuccessMessage.asSharedFlow()
+
     fun reloadDraftFieldsFromStore() {
         viewModelScope.launch {
             val p = userPreferencesRepository.preferences.first()
@@ -96,6 +101,7 @@ class SettingsViewModel @Inject constructor(
                 apiKey = _aiApiKey.value,
                 model = _aiModel.value
             )
+            _saveSuccessMessage.emit("大模型配置已保存")
         }
     }
 
@@ -127,7 +133,7 @@ class SettingsViewModel @Inject constructor(
                 password = _nasPassword.value,
                 trustSelfSignedCertificates = _nasTrustSelfSigned.value
             )
-            _nasStatusMessage.value = "NAS 连接信息已保存"
+            _saveSuccessMessage.emit("NAS 配置已保存")
         }
     }
 
