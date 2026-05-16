@@ -254,6 +254,7 @@ class GenerateDiaryDraftUseCase @Inject constructor(
      * **顺序（与「在恢复的 plog 上只加新节点」一致）：**
      * 1. 先按底稿中已保存的顺序加入 `sourceFragmentIds`（NAS 恢复的 plog 骨架不变）。
      * 2. 若底稿未存 id 列表，则按 `fragmentStories` 出现顺序补齐 id。
+     * 3. 若仍为空（仅有 `fragmentImageUris` 的旧备份），则按 per-id 图集的 key 补齐，避免时间线只剩新碎片。
      * 3. 再将当日数据库里**尚未出现在上述列表中的**碎片 id，按 `createdAt` 升序**依次追加在末尾**
      *    （不根据时间把新碎片插到底稿节点之间，避免打乱恢复的时间线）。
      */
@@ -268,6 +269,9 @@ class GenerateDiaryDraftUseCase @Inject constructor(
             for (id in prior.sourceFragmentIds) add(id)
             if (prior.sourceFragmentIds.isEmpty()) {
                 for (s in prior.fragmentStories) add(s.fragmentId)
+            }
+            if (prior.sourceFragmentIds.isEmpty() && prior.fragmentStories.isEmpty()) {
+                for (id in prior.fragmentImageUris.keys.sorted()) add(id)
             }
         }
         for (f in sortedDayFragments.sortedBy { it.createdAt }) add(f.id)
@@ -392,21 +396,28 @@ class GenerateDiaryDraftUseCase @Inject constructor(
             return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
         }
         /**
-         * 仅有「底稿/NAS 已保存」里的碎片 id 才参与「扁平 imageUris」的兜底分配；当日**新增**的 id 只应带自己在
-         * fragments 表里的照片，避免恢复后手帐顶栏未映射图被轮询进新碎片，与老条目揉在同一张 plog 卡片里。
+         * 仅有「底稿」里的碎片 id 才参与「扁平 imageUris」的兜底分配。
+         * 若已有存盘手帐但 anchors 全空（仅顶栏图、无任何 id 线索），则**绝不**把孤儿图写进某一 plog 卡片，
+         * 以免仅剩「当日新碎片」时所有备份图被揉进该节点；图片仍保留在草稿 `imageUris` 供顶栏相册展示。
          */
         val priorAnchored = priorAnchoredFragmentIds(prior)
-        val orphanTargetsPool = if (priorAnchored.isEmpty()) {
-            mergedIds
-        } else {
-            mergedIds.filter { it in priorAnchored }
-        }.ifEmpty { mergedIds }
+        val orphanTargetsPool: List<Long> = when {
+            prior == null -> mergedIds
+            priorAnchored.isEmpty() -> emptyList()
+            else -> mergedIds.filter { it in priorAnchored }
+        }
+        if (orphans.isNotEmpty() && orphanTargetsPool.isEmpty()) {
+            return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
+        }
 
         val idsNeedingAmongAnchored = orphanTargetsPool.filter { byFrag[it].isNullOrEmpty() }
         val targets = when {
             idsNeedingAmongAnchored.isNotEmpty() -> idsNeedingAmongAnchored
             orphanTargetsPool.isNotEmpty() -> orphanTargetsPool
-            else -> mergedIds
+            else -> emptyList()
+        }
+        if (orphans.isNotEmpty() && targets.isEmpty()) {
+            return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
         }
         orphans.forEachIndexed { idx, u ->
             add(targets[idx % targets.size], u)
@@ -414,10 +425,15 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
     }
 
-    /** 底稿中有过「这一刻」的 id：用于孤儿 URI 分配边界；无已存手帐时不限制。 */
+    /**
+     * 底稿锚点 id：`sourceFragmentIds` → `fragmentStories` → `fragmentImageUris` 的 key。
+     * 用于判断哪些卡片可以接收「仅在手帐顶栏出现」的未映射图片；**不含**这些线索时不向任何卡片强塞孤儿图。
+     */
     private fun priorAnchoredFragmentIds(prior: DiaryEntry?): Set<Long> {
         if (prior == null) return emptySet()
         if (prior.sourceFragmentIds.isNotEmpty()) return prior.sourceFragmentIds.toSet()
-        return prior.fragmentStories.map { it.fragmentId }.toSet()
+        val fromStories = prior.fragmentStories.map { it.fragmentId }.toSet()
+        if (fromStories.isNotEmpty()) return fromStories
+        return prior.fragmentImageUris.keys.toSet()
     }
 }

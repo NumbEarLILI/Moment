@@ -870,6 +870,84 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
+    fun priorWithOnlyFlatImageUrisAndNoFragmentAnchorsDoesNotStickBackupPhotosOnNewFragment() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "仅顶栏图",
+            body = "旧",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = emptyList(),
+            imageUris = listOf("content://old-a", "content://old-b"),
+            fragmentImageUris = emptyMap(),
+            locationPins = emptyList(),
+            fragmentStories = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(
+                LifeFragment(
+                    id = 99L,
+                    content = "新",
+                    imageUris = listOf("content://new-c"),
+                    mood = Mood.CALM,
+                    tags = emptyList(),
+                    createdAt = Instant.parse("2026-05-13T17:53:00Z"),
+                    updatedAt = Instant.parse("2026-05-13T17:53:00Z")
+                )
+            )
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+        assertEquals(listOf(99L), result.sourceFragmentIds)
+        val forNew = result.fragmentImageUris[99L].orEmpty()
+        assertEquals(listOf("content://new-c"), forNew)
+        assertTrue(result.imageUris.contains("content://old-a"))
+    }
+
+    @Test
+    fun priorFragmentImageUrisKeysRestorePlogNodesWhenSourceIdsMissing() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val prior = DiaryEntry(
+            id = 1,
+            date = date,
+            title = "键在图集",
+            body = "",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentIds = emptyList(),
+            imageUris = listOf("content://flat-only"),
+            fragmentImageUris = mapOf(10L to listOf("content://on-10")),
+            locationPins = emptyList(),
+            fragmentStories = emptyList(),
+            createdAt = Instant.parse("2026-05-13T08:00:00Z"),
+            updatedAt = Instant.parse("2026-05-13T08:00:00Z")
+        )
+        val repository = FakeFragmentRepository(
+            listOf(fragment(99L, "新", Mood.CALM, "2026-05-13T18:00:00Z"))
+        )
+        val useCase = GenerateDiaryDraftUseCase(
+            repository,
+            StubDiaryRepository(prior),
+            RuleBasedDiaryGenerator(),
+            StaticUserPreferences(UserAppPreferences()),
+            NeverCalledAi
+        )
+        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
+        assertEquals(listOf(10L, 99L), result.sourceFragmentIds)
+        assertEquals(listOf("content://on-10"), result.fragmentImageUris[10L])
+    }
+
+    @Test
     fun nasRestoredPriorPreservesOldStoriesWhenAiOnlyReturnsNewFragment() = runTest {
         val date = LocalDate.of(2026, 5, 13)
         val prior = DiaryEntry(

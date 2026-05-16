@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -98,13 +99,21 @@ fun DiaryDetailScreen(
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = { onEditDiary(diaryId) }) {
-                            Text("编辑", color = MaterialTheme.colorScheme.primary)
+                        TextButton(
+                            onClick = { navController.navigate("preview/${entry.date}") }
+                        ) {
+                            Text("合并新碎片", color = MaterialTheme.colorScheme.secondary)
                         }
-                        TextButton(onClick = viewModel::requestDeleteConfirmation) {
-                            Text("删除", color = MaterialTheme.colorScheme.error)
+                        Row(horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { onEditDiary(diaryId) }) {
+                                Text("编辑", color = MaterialTheme.colorScheme.primary)
+                            }
+                            TextButton(onClick = viewModel::requestDeleteConfirmation) {
+                                Text("删除", color = MaterialTheme.colorScheme.error)
+                            }
                         }
                     }
                     if (hasPlog) {
