@@ -37,6 +37,7 @@ import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.FullscreenImageViewer
+import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -244,3 +245,35 @@ private fun DiaryPlogMomentCard(
         }
     }
 }
+
+/**
+ * 按手帐保存的 [orderedSourceIds] 顺序构建时间线；本地库里不存在的 id（例如 NAS 只恢复了日记）
+ * 用占位 [LifeFragment]，正文由 [DiaryPlogTimeline] 从 [FragmentAiStory] 读取。
+ */
+fun lifeFragmentsForPlogTimeline(
+    orderedSourceIds: List<Long>,
+    loadedFragments: List<LifeFragment>
+): List<LifeFragment> {
+    if (orderedSourceIds.isEmpty()) return emptyList()
+    val byId = loadedFragments.associateBy { it.id }
+    val seen = linkedSetOf<Long>()
+    var placeholderSeq = 0
+    return orderedSourceIds.mapNotNull { id ->
+        if (id <= 0L || !seen.add(id)) return@mapNotNull null
+        byId[id] ?: run {
+            val t = placeholderInstantForNasOnlyRow(placeholderSeq++)
+            LifeFragment(
+                id = id,
+                content = "",
+                imageUris = emptyList(),
+                mood = null,
+                tags = emptyList(),
+                createdAt = t,
+                updatedAt = t
+            )
+        }
+    }
+}
+
+private fun placeholderInstantForNasOnlyRow(sequenceIndex: Int): Instant =
+    Instant.ofEpochSecond(1_700_000_000L + sequenceIndex * 60L)
