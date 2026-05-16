@@ -26,8 +26,10 @@ class UserPreferencesRepository @Inject constructor(
     private val dataStore = context.userPreferencesDataStore
 
     val preferences: Flow<UserAppPreferences> = dataStore.data.map { prefs ->
-        val themeRaw = prefs[Keys.THEME_MODE].orEmpty()
-        val themeMode = AppThemeMode.entries.find { it.name == themeRaw } ?: AppThemeMode.SYSTEM
+        val themeMode = when (val raw = prefs[Keys.THEME_MODE].orEmpty()) {
+            "ORIGINAL" -> AppThemeMode.LIGHT
+            else -> AppThemeMode.entries.find { it.name == raw } ?: AppThemeMode.SYSTEM
+        }
         UserAppPreferences(
             themeMode = themeMode,
             customBackgroundImageUri = prefs[Keys.CUSTOM_BACKGROUND_IMAGE_URI].orEmpty(),
