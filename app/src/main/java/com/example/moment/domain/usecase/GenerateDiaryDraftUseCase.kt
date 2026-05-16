@@ -250,6 +250,12 @@ class GenerateDiaryDraftUseCase @Inject constructor(
      * 合并已保存手帐中的 sourceFragmentIds（及无 id 列表时的 fragmentStories）与「当日查询到的」碎片 id。
      * NAS 只恢复日记时，底稿 id 仍在本机 fragments 表中不存在；必须在草稿中保留这些 id，
      * 否则预览会把旧稿时间线整段丢掉，只剩新建碎片与备份里的图片 URI。
+     *
+     * **顺序（与「在恢复的 plog 上只加新节点」一致）：**
+     * 1. 先按底稿中已保存的顺序加入 `sourceFragmentIds`（NAS 恢复的 plog 骨架不变）。
+     * 2. 若底稿未存 id 列表，则按 `fragmentStories` 出现顺序补齐 id。
+     * 3. 再将当日数据库里**尚未出现在上述列表中的**碎片 id，按 `createdAt` 升序**依次追加在末尾**
+     *    （不根据时间把新碎片插到底稿节点之间，避免打乱恢复的时间线）。
      */
     private fun mergedSourceFragmentIds(prior: DiaryEntry?, sortedDayFragments: List<LifeFragment>): List<Long> {
         val seen = linkedSetOf<Long>()
