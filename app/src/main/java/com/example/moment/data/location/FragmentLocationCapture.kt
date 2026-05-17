@@ -10,8 +10,6 @@ import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.core.os.CancellationSignal
 import com.example.moment.domain.model.FragmentLocation
-import com.google.android.gms.common.ConnectionResult
-import com.google.android.gms.common.GoogleApiAvailability
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -31,11 +29,12 @@ import kotlin.coroutines.resume
  * 使用 [LocationManager]（含 Android 12+ 的 [LocationManager.FUSED_PROVIDER]），不依赖 Play 定位 SDK。
  * 自动定位标签为简短经纬度摘要，不做链路程式逆地理。
  *
- * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：**GPS** 恒按 WGS→GCJ；**fused** 仅在
- * [GoogleApiAvailability] 判断 Play 服务 **可用** 时当作 WGS 再转（国产 ROM 上仅安装 GMS 壳但仍输出 GCJ 时少二次偏移）。
+ * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：**GPS** 恒按 WGS→GCJ；**fused** 仅当
+ * [GooglePlayServicesAvailability.isPlayServicesUsable] 为真时按 WGS→GCJ，否则假定 fused 已是 GCJ。
  * **网络**定位在国内多已为 GCJ，一般不转。
  *
- * 在中国大陆且 GPS 精度尚可时 **优先采用 GPS** 结果再转 GCJ，避免 fused  datum 与高德不一致造成固定向偏移。
+ * 各 provider **并行**单次拉取，按精度/时效合并；在中国大陆且 GPS 精度尚可时 **优先 GPS**，
+ * 减轻融合坐标系与高德不一致造成的固定偏移。
  */
 @Singleton
 class FragmentLocationCapture @Inject constructor(
@@ -49,7 +48,7 @@ class FragmentLocationCapture @Inject constructor(
             fetchBestLocation()
         } ?: return@withContext null
 
-        val fusedAssumedWgs84 = isGooglePlayServicesAvailableForLocation()
+        val fusedAssumedWgs84 = GooglePlayServicesAvailability.isPlayServicesUsable(context)
         val (lat, lng) =
             if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
                     location.provider,
@@ -81,15 +80,15 @@ class FragmentLocationCapture @Inject constructor(
     }
 
     /**
-     * 各 provider 并行单次拉取，再综合精度/时效（及国内 GPS 优先策略）取一点。
+     * 各 provider 并行单次拉取（顺序与语义：GPS → fused → 网络），再综合精度/时效与国内 GPS 优先策略取一点。
      */
     private suspend fun fetchBestLocation(): Location? {
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
         val providers = kotlin.collections.buildList {
+            add(LocationManager.GPS_PROVIDER)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(LocationManager.FUSED_PROVIDER)
             }
-            add(LocationManager.GPS_PROVIDER)
             add(LocationManager.NETWORK_PROVIDER)
         }.filter { lm.isProviderEnabled(it) }
 
@@ -180,16 +179,12 @@ class FragmentLocationCapture @Inject constructor(
     private fun effectiveAccuracyMeters(location: Location): Float =
         if (location.hasAccuracy()) location.accuracy else Float.MAX_VALUE
 
-    private fun isGooglePlayServicesAvailableForLocation(): Boolean =
-        GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) ==
-            ConnectionResult.SUCCESS
-
     private fun formatCoordinateLabel(lat: Double, lng: Double): String =
         String.format(Locale.CHINA, "约 %.4f，%.4f", lat, lng)
 
     private companion object {
-        private const val LOCATION_TIMEOUT_MS = 12_000L
-        private const val PER_PROVIDER_TIMEOUT_MS = 11_000L
+        private const val LOCATION_TIMEOUT_MS = 15_000L
+        private const val PER_PROVIDER_TIMEOUT_MS = 14_000L
         private const val TWO_MINUTES_MS = 120_000L
         private const val ACCURACY_COMPARISON_RATIO = 2f
         /** 国内优先 GPS 的最大可接受精度；更差时退回 fused/网络以免室内飘移过大 */
