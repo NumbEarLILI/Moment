@@ -254,6 +254,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setUploadOriginalImagesToNas(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setUploadOriginalImagesToNas(enabled)
+        }
+    }
+
     private suspend fun pullNasArchiveAfterEnablingSync() {
         _nasBusy.value = true
         _nasStatusMessage.value = null

@@ -1,6 +1,7 @@
 package com.example.moment.data.nas
 
 import com.example.moment.BuildConfig
+import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.domain.model.NasArchiveConflictInfo
@@ -17,6 +18,7 @@ import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import okhttp3.HttpUrl
@@ -27,7 +29,8 @@ import okhttp3.OkHttpClient
 class NasBackupRepositoryImpl @Inject constructor(
     private val diaryRepository: DiaryRepository,
     private val webDavHttp: WebDavHttp,
-    private val packager: NasDiaryWebDavPackager
+    private val packager: NasDiaryWebDavPackager,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : NasBackupRepository, NasArchiveRepository {
 
     private fun NasWebdavConfig.dataSegments(vararg segments: String): List<String> {
@@ -59,11 +62,12 @@ class NasBackupRepositoryImpl @Inject constructor(
                 val runPrefix = config.dataSegments("MomentBackup", "runs", runId)
                 webDavHttp.ensureCollectionPath(client, root, runPrefix)
                 val diaries = diaryRepository.getAllDiaries()
+                val imageUploadMode = currentImageUploadMode()
                 var imagesUploaded = 0
                 var imagesSkipped = 0
                 for (entry in diaries) {
                     val base = config.dataSegments("MomentBackup", "runs", runId, "diaries", entry.id.toString())
-                    val (up, skip) = packager.uploadDiary(client, root, base, entry)
+                    val (up, skip) = packager.uploadDiary(client, root, base, entry, imageUploadMode)
                     imagesUploaded += up
                     imagesSkipped += skip
                 }
@@ -179,7 +183,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                 webDavHttp.ensureCollectionPath(client, root, config.dataSegments("MomentArchive", "diaries"))
                 val day = entry.date.toEpochDay().toString()
                 val base = config.dataSegments("MomentArchive", "diaries", day)
-                packager.uploadDiary(client, root, base, entry)
+                packager.uploadDiary(client, root, base, entry, currentImageUploadMode())
                 Unit
             }
         }
@@ -192,12 +196,13 @@ class NasBackupRepositoryImpl @Inject constructor(
                 val root = rootOrThrow(config)
                 webDavHttp.ensureCollectionPath(client, root, config.dataSegments("MomentArchive", "diaries"))
                 val diaries = diaryRepository.getAllDiaries()
+                val imageUploadMode = currentImageUploadMode()
                 var up = 0
                 var skip = 0
                 for (entry in diaries) {
                     val day = entry.date.toEpochDay().toString()
                     val base = config.dataSegments("MomentArchive", "diaries", day)
-                    val (u, s) = packager.uploadDiary(client, root, base, entry)
+                    val (u, s) = packager.uploadDiary(client, root, base, entry, imageUploadMode)
                     up += u
                     skip += s
                 }
@@ -371,4 +376,7 @@ class NasBackupRepositoryImpl @Inject constructor(
 
     private fun rootOrThrow(config: NasWebdavConfig): HttpUrl =
         config.baseUrl.trim().toHttpUrlOrNull() ?: throw IOException("无效的 WebDAV 根地址")
+
+    private suspend fun currentImageUploadMode(): NasImageUploadMode =
+        NasImageUploadMode.fromPreferences(userPreferencesRepository.preferences.first())
 }
