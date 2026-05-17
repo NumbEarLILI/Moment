@@ -4,6 +4,7 @@ import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.Clock
+import java.time.Instant
 import javax.inject.Inject
 
 class UpdateFragmentUseCase @Inject constructor(
@@ -16,6 +17,7 @@ class UpdateFragmentUseCase @Inject constructor(
         imageUris: List<String>,
         mood: Mood?,
         tags: List<String>,
+        recordedAt: Instant? = null,
         location: FragmentLocation? = null
     ): UpdateFragmentResult {
         val existing = repository.getFragmentById(id) ?: return UpdateFragmentResult.NotFound
@@ -33,6 +35,7 @@ class UpdateFragmentUseCase @Inject constructor(
                 imageUris = imageUris,
                 mood = mood,
                 tags = normalizedTags,
+                createdAt = recordedAt ?: existing.createdAt,
                 updatedAt = now,
                 location = location ?: existing.location
             )

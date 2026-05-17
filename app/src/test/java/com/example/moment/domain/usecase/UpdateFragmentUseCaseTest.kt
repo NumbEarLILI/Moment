@@ -56,6 +56,44 @@ class UpdateFragmentUseCaseTest {
     }
 
     @Test
+    fun invokeUpdatesCreatedAtWhenRecordedAtProvided() = runTest {
+        val created = Instant.parse("2026-05-13T10:00:00Z")
+        val customRecordedAt = Instant.parse("2026-05-13T22:30:00Z")
+        val existing = LifeFragment(
+            id = 1,
+            stableId = "1",
+            content = "旧内容",
+            imageUris = emptyList(),
+            mood = Mood.CALM,
+            tags = listOf("a"),
+            createdAt = created,
+            updatedAt = created
+        )
+        val repo = FakeFragmentRepository(listOf(existing))
+        val useCase = UpdateFragmentUseCase(
+            repository = repo,
+            clock = java.time.Clock.fixed(
+                Instant.parse("2026-05-14T01:00:00Z"),
+                java.time.ZoneOffset.UTC
+            )
+        )
+
+        val result = useCase(
+            id = 1,
+            content = "新内容",
+            imageUris = emptyList(),
+            mood = Mood.FOCUSED,
+            tags = listOf("b"),
+            recordedAt = customRecordedAt
+        )
+
+        assertEquals(UpdateFragmentResult.Saved, result)
+        val updated = repo.fragments.value.single()
+        assertEquals(customRecordedAt, updated.createdAt)
+        assertEquals(Instant.parse("2026-05-14T01:00:00Z"), updated.updatedAt)
+    }
+
+    @Test
     fun invokeReturnsNotFoundWhenMissing() = runTest {
         val repo = FakeFragmentRepository(emptyList())
         val useCase = UpdateFragmentUseCase(repository = repo)

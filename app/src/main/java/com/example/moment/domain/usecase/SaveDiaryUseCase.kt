@@ -76,7 +76,7 @@ class SaveDiaryUseCase @Inject constructor(
             .filterNot { it.isNasGhostPlaceholder() }
             .associate { it.stableId.trim() to it.createdAt.toEpochMilli() }
         return orderedStableIds.mapNotNull { sid ->
-            val epochMillis = existingTimes[sid] ?: liveTimes[sid] ?: return@mapNotNull null
+            val epochMillis = liveTimes[sid] ?: existingTimes[sid] ?: return@mapNotNull null
             sid to epochMillis
         }.toMap()
     }

@@ -13,6 +13,10 @@ import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.domain.model.NasArchiveConflictInfo
 import com.example.moment.domain.model.toNasWebdavConfig
 import com.example.moment.domain.repository.NasArchiveRepository
+import com.example.moment.domain.time.FragmentRecordedAtText
+import com.example.moment.domain.time.formatFragmentRecordedAtText
+import com.example.moment.domain.time.parseFragmentRecordedAtText
+import com.example.moment.domain.time.resolveFragmentRecordedAtForSave
 import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.DeleteFragmentUseCase
@@ -196,6 +200,7 @@ class CaptureViewModel @Inject constructor(
                     .onSuccess { fragment ->
                         if (fragment != null) {
                             contextDay.value = fragment.createdAt.atZone(zoneId).toLocalDate()
+                            val recordedAtText = formatFragmentRecordedAtText(fragment.createdAt, zoneId)
                             _uiState.update {
                                 it.copy(
                                     isLoadingDraft = false,
@@ -204,6 +209,11 @@ class CaptureViewModel @Inject constructor(
                                     tags = fragment.tags.joinToString(", "),
                                     imageUris = fragment.imageUris.joinToString(", "),
                                     mood = fragment.mood,
+                                    recordedDate = recordedAtText.date,
+                                    recordedTime = recordedAtText.time,
+                                    baselineRecordedDate = recordedAtText.date,
+                                    baselineRecordedTime = recordedAtText.time,
+                                    baselineRecordedAt = fragment.createdAt,
                                     baselineLocation = fragment.location,
                                     locationOverride = null,
                                     errorMessage = null
@@ -227,12 +237,26 @@ class CaptureViewModel @Inject constructor(
                         }
                     }
             }
+        } else {
+            val recordedAt = resolveNewFragmentRecordedAt(clock, zoneId, newFragmentForDate) ?: clock.instant()
+            val recordedAtText = formatFragmentRecordedAtText(recordedAt, zoneId)
+            _uiState.update {
+                it.copy(
+                    recordedDate = recordedAtText.date,
+                    recordedTime = recordedAtText.time,
+                    baselineRecordedDate = recordedAtText.date,
+                    baselineRecordedTime = recordedAtText.time,
+                    baselineRecordedAt = recordedAt
+                )
+            }
         }
     }
 
     fun updateContent(value: String) = _uiState.update { it.copy(content = value, errorMessage = null) }
     fun updateTags(value: String) = _uiState.update { it.copy(tags = value) }
     fun updateImageUris(value: String) = _uiState.update { it.copy(imageUris = value) }
+    fun updateRecordedDate(value: String) = _uiState.update { it.copy(recordedDate = value, errorMessage = null) }
+    fun updateRecordedTime(value: String) = _uiState.update { it.copy(recordedTime = value, errorMessage = null) }
 
     fun addTag(raw: String) {
         val tag = raw.trim()
@@ -327,6 +351,27 @@ class CaptureViewModel @Inject constructor(
         if (state.isLoadingDraft || state.isDeleting) return
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
+            val currentRecordedAtText = FragmentRecordedAtText(
+                date = state.recordedDate,
+                time = state.recordedTime
+            )
+            val parsedRecordedAt = parseFragmentRecordedAtText(
+                dateText = state.recordedDate,
+                timeText = state.recordedTime,
+                zoneId = zoneId
+            )
+            if (parsedRecordedAt == null) {
+                _uiState.update {
+                    it.copy(isSaving = false, errorMessage = "请填写正确的记录时间（日期 2026-05-13，时间 22:30）")
+                }
+                return@launch
+            }
+            val recordedAt = resolveFragmentRecordedAtForSave(
+                parsedRecordedAt = parsedRecordedAt,
+                currentText = currentRecordedAtText,
+                baselineRecordedAt = state.baselineRecordedAt,
+                baselineText = state.baselineRecordedText()
+            )
             runCatching {
                 if (state.editingFragmentId > 0) {
                     when (
@@ -336,6 +381,7 @@ class CaptureViewModel @Inject constructor(
                             imageUris = state.imageUris.csvValues(),
                             mood = state.mood,
                             tags = state.tags.csvValues(),
+                            recordedAt = recordedAt,
                             location = state.locationOverride ?: state.baselineLocation
                         )
                     ) {
@@ -348,7 +394,6 @@ class CaptureViewModel @Inject constructor(
                         UpdateFragmentResult.Saved -> _uiState.update { it.copy(isSaving = false, saved = true) }
                     }
                 } else {
-                    val recordedAt = resolveNewFragmentRecordedAt(clock, zoneId, newFragmentForDate)
                     val location = state.locationOverride
                         ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
                     when (
@@ -412,6 +457,11 @@ data class CaptureUiState(
     val tags: String = "",
     val imageUris: String = "",
     val mood: Mood? = null,
+    val recordedDate: String = "",
+    val recordedTime: String = "",
+    val baselineRecordedDate: String = "",
+    val baselineRecordedTime: String = "",
+    val baselineRecordedAt: java.time.Instant? = null,
     val baselineLocation: FragmentLocation? = null,
     val locationOverride: FragmentLocation? = null,
     val isAnalyzingImages: Boolean = false,
@@ -425,4 +475,11 @@ data class CaptureUiState(
     val savedDiaryEntries: List<DiaryEntry> = emptyList(),
     val nasArchiveRefreshing: Boolean = false,
     val nasArchiveSyncMessage: String? = null
-)
+) {
+    fun baselineRecordedText(): FragmentRecordedAtText? =
+        if (baselineRecordedDate.isNotBlank() && baselineRecordedTime.isNotBlank()) {
+            FragmentRecordedAtText(date = baselineRecordedDate, time = baselineRecordedTime)
+        } else {
+            null
+        }
+}
