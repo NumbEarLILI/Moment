@@ -23,12 +23,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
- * Uses Android framework [LocationManager] only — no Google Play services / Fused provider.
- * Suitable for devices without GMS (common in mainland China). Address text is a short
- * coordinate summary instead of reverse-geocoding (which often depends on Google backends).
+ * 使用 [LocationManager]（含 Android 12+ 的 [LocationManager.FUSED_PROVIDER]），不依赖 Play 定位 SDK。
+ * 自动定位标签为简短经纬度摘要，不做链路程式逆地理。
  *
- * **Coordinates:** GPS / 融合定位得到的是 WGS-84，会在写入前转为 **GCJ-02**，与高德 Web 地图及逆地理接口一致；
- * 网络定位在国内机型上可能已是 GCJ-02，则不再二次转换。
+ * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：GPS 恒按 WGS→GCJ；fused 在 **已安装 GMS** 时按 WGS→GCJ，**无 GMS** 的国内 ROM 上 fused 多已为 GCJ 则不再转换，避免二次偏移。
  */
 @Singleton
 class FragmentLocationCapture @Inject constructor(
@@ -42,8 +40,13 @@ class FragmentLocationCapture @Inject constructor(
             fetchBestLocation()
         } ?: return@withContext null
 
+        val fusedAssumedWgs84 = hasGooglePlayServicesPackage()
         val (lat, lng) =
-            if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(location.provider)) {
+            if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                    location.provider,
+                    fusedOutputAssumedWgs84 = fusedAssumedWgs84,
+                )
+            ) {
                 ChinaCoordinateTransform.wgs84ToGcj02(location.latitude, location.longitude)
             } else {
                 location.latitude to location.longitude
@@ -104,6 +107,18 @@ class FragmentLocationCapture @Inject constructor(
             executor.shutdownNow()
         }
     }
+
+    /**
+     * 有 GMS 时系统 [LocationManager.FUSED_PROVIDER] 多为 WGS-84；无 GMS 的国内 ROM 上 fused 常为 GCJ，不可再转。
+     */
+    private fun hasGooglePlayServicesPackage(): Boolean =
+        try {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo("com.google.android.gms", 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
 
     private fun formatCoordinateLabel(lat: Double, lng: Double): String =
         String.format(Locale.CHINA, "约 %.4f，%.4f", lat, lng)

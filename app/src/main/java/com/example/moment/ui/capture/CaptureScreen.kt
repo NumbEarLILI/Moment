@@ -258,6 +258,7 @@ fun CaptureScreen(
                         viewModel.addTag(newTagInput)
                         newTagInput = ""
                     },
+                    onSuggestLlmTags = viewModel::suggestTagsFromImagesWithLlm,
                     imageUriList = imageUriList,
                     onRemoveImage = viewModel::removeImageUri,
                     onCamera = {
@@ -288,8 +289,9 @@ fun CaptureScreen(
                         }
                     },
                     location = state.locationOverride ?: state.baselineLocation,
-                    isAnalyzingImages = state.isAnalyzingImages,
-                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
+                    isSuggestingLlmTags = state.isSuggestingLlmTags,
+                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft &&
+                        !state.isDeleting && !state.isSuggestingLlmTags,
                     canDeleteFragment = state.editingFragmentId > 0,
                     isDeleting = state.isDeleting,
                     onRequestDelete = { showDeleteConfirmDialog = true },
@@ -300,7 +302,7 @@ fun CaptureScreen(
                         else -> "保存碎片"
                     },
                     onSave = { requestSave() },
-                    saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages && !state.isDeleting
+                    saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isSuggestingLlmTags && !state.isDeleting
                 )
                 when {
                     state.isLoadingDraft ->
@@ -526,13 +528,14 @@ private fun CaptureHeader(
     newTagInput: String,
     onNewTagInputChange: (String) -> Unit,
     onCommitNewTag: () -> Unit,
+    onSuggestLlmTags: () -> Unit,
     imageUriList: List<String>,
     onRemoveImage: (String) -> Unit,
     onCamera: () -> Unit,
     onGallery: () -> Unit,
     onPickPlace: () -> Unit,
     location: FragmentLocation?,
-    isAnalyzingImages: Boolean,
+    isSuggestingLlmTags: Boolean,
     momentInteractionsEnabled: Boolean,
     errorMessage: String?,
     saveLabel: String,
@@ -588,13 +591,14 @@ private fun CaptureHeader(
                 newTagInput = newTagInput,
                 onNewTagInputChange = onNewTagInputChange,
                 onCommitNewTag = onCommitNewTag,
+                onSuggestLlmTags = onSuggestLlmTags,
                 imageUriList = imageUriList,
                 onRemoveImage = onRemoveImage,
                 onCamera = onCamera,
                 onGallery = onGallery,
                 onPickPlace = onPickPlace,
                 location = location,
-                isAnalyzingImages = isAnalyzingImages,
+                isSuggestingLlmTags = isSuggestingLlmTags,
                 interactionsEnabled = momentInteractionsEnabled,
                 errorMessage = errorMessage,
                 saveLabel = saveLabel,
@@ -653,13 +657,14 @@ private fun CaptureMomentExpandable(
     newTagInput: String,
     onNewTagInputChange: (String) -> Unit,
     onCommitNewTag: () -> Unit,
+    onSuggestLlmTags: () -> Unit,
     imageUriList: List<String>,
     onRemoveImage: (String) -> Unit,
     onCamera: () -> Unit,
     onGallery: () -> Unit,
     onPickPlace: () -> Unit,
     location: FragmentLocation?,
-    isAnalyzingImages: Boolean,
+    isSuggestingLlmTags: Boolean,
     interactionsEnabled: Boolean,
     errorMessage: String?,
     saveLabel: String,
@@ -761,7 +766,7 @@ private fun CaptureMomentExpandable(
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    if (isAnalyzingImages) {
+                    if (isSuggestingLlmTags) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -771,7 +776,7 @@ private fun CaptureMomentExpandable(
                                 strokeWidth = 2.dp
                             )
                             Text(
-                                "正在自动识别图片并生成标签",
+                                "正在请求大模型识别标签…",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -796,7 +801,7 @@ private fun CaptureMomentExpandable(
                         }
                     } else {
                         Text(
-                            "使用相机或相册添加照片，添加后会自动识别并生成标签",
+                            "添加照片后，可手动写标签，或点下方「大模型识标签」（需在设置中配置支持看图的多模态模型）。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -807,13 +812,13 @@ private fun CaptureMomentExpandable(
                     ) {
                         TextButton(
                             onClick = onCamera,
-                            enabled = interactionsEnabled && !isAnalyzingImages
+                            enabled = interactionsEnabled && !isSuggestingLlmTags
                         ) {
                             Text("相机拍照")
                         }
                         TextButton(
                             onClick = onGallery,
-                            enabled = interactionsEnabled && !isAnalyzingImages
+                            enabled = interactionsEnabled && !isSuggestingLlmTags
                         ) {
                             Text("从相册选择")
                         }
@@ -861,15 +866,14 @@ private fun CaptureMomentExpandable(
                             }
                         }
                     }
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         OutlinedTextField(
                             value = newTagInput,
                             onValueChange = onNewTagInputChange,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             placeholder = { Text("自定义标签") },
                             shape = MaterialTheme.shapes.large,
@@ -879,11 +883,25 @@ private fun CaptureMomentExpandable(
                                 cursorColor = MaterialTheme.colorScheme.primary
                             )
                         )
-                        TextButton(
-                            onClick = onCommitNewTag,
-                            enabled = interactionsEnabled && newTagInput.trim().isNotEmpty()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("添加")
+                            TextButton(
+                                onClick = onSuggestLlmTags,
+                                enabled = interactionsEnabled &&
+                                    !isSuggestingLlmTags &&
+                                    imageUriList.isNotEmpty()
+                            ) {
+                                Text("大模型识标签")
+                            }
+                            TextButton(
+                                onClick = onCommitNewTag,
+                                enabled = interactionsEnabled && newTagInput.trim().isNotEmpty()
+                            ) {
+                                Text("添加")
+                            }
                         }
                     }
                     errorMessage?.let { msg ->
@@ -904,7 +922,7 @@ private fun CaptureMomentExpandable(
                     if (canDeleteFragment) {
                         TextButton(
                             onClick = onRequestDelete,
-                            enabled = interactionsEnabled && !isDeleting && !isAnalyzingImages,
+                            enabled = interactionsEnabled && !isDeleting && !isSuggestingLlmTags,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(

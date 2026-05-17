@@ -19,7 +19,7 @@ import com.example.moment.domain.usecase.DeleteFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
 import com.example.moment.domain.usecase.ObserveDiaryEntriesUseCase
 import com.example.moment.domain.usecase.ObserveFragmentsForDateUseCase
-import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
+import com.example.moment.domain.llm.LlmImageTagSuggester
 import com.example.moment.domain.time.resolveNewFragmentRecordedAt
 import com.example.moment.domain.usecase.UpdateFragmentResult
 import com.example.moment.domain.usecase.UpdateFragmentUseCase
@@ -44,8 +44,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 
 @HiltViewModel
@@ -54,7 +52,7 @@ class CaptureViewModel @Inject constructor(
     private val updateFragment: UpdateFragmentUseCase,
     private val deleteFragment: DeleteFragmentUseCase,
     private val getFragmentById: GetFragmentByIdUseCase,
-    private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
+    private val llmImageTagSuggester: LlmImageTagSuggester,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val nasArchiveRepository: NasArchiveRepository,
     observeFragmentsForDate: ObserveFragmentsForDateUseCase,
@@ -130,7 +128,6 @@ class CaptureViewModel @Inject constructor(
         }
     }
     private val _uiState = MutableStateFlow(CaptureUiState())
-    private val imageAutoSuggestMutex = Mutex()
 
     private val newFragmentForDate: LocalDate? =
         savedStateHandle.get<String>(ARG_FOR_DATE)?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
@@ -255,14 +252,6 @@ class CaptureViewModel @Inject constructor(
             val merged = (it.imageUris.csvValues() + values).distinct().joinToString(", ")
             it.copy(imageUris = merged, errorMessage = null)
         }
-        viewModelScope.launch {
-            imageAutoSuggestMutex.withLock {
-                val uris = _uiState.value.imageUris.csvValues()
-                if (uris.isNotEmpty()) {
-                    runAutoSuggestFromImages(uris)
-                }
-            }
-        }
     }
 
     fun removeImageUri(uri: String) = _uiState.update { state ->
@@ -294,37 +283,56 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
-    private suspend fun runAutoSuggestFromImages(uris: List<String>) {
-        _uiState.update { it.copy(isAnalyzingImages = true, errorMessage = null) }
-        runCatching { suggestCaptionFromImages(uris, null) }
-            .onSuccess { suggestion ->
-                _uiState.update { state ->
-                    val mergedTags =
-                        (state.tags.csvValues() + suggestion.suggestedTags)
-                            .map { t -> t.trim() }
-                            .filter { t -> t.isNotEmpty() }
-                            .distinct()
-                    state.copy(
-                        tags = mergedTags.joinToString(", "),
-                        mood = state.mood,
-                        isAnalyzingImages = false,
-                        errorMessage = null
-                    )
+    fun suggestTagsFromImagesWithLlm() {
+        val uris = _uiState.value.imageUris.csvValues()
+        if (uris.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "请先添加至少一张图片，再使用大模型识标签") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSuggestingLlmTags = true, errorMessage = null) }
+            val r = llmImageTagSuggester.suggestTagsFromImageUris(uris)
+            r.fold(
+                onSuccess = { tags ->
+                    _uiState.update { state ->
+                        val merged = mergeDistinctTagsCaseInsensitive(state.tags.csvValues(), tags)
+                        state.copy(
+                            tags = merged.joinToString(", "),
+                            isSuggestingLlmTags = false,
+                            errorMessage = null
+                        )
+                    }
+                },
+                onFailure = { e ->
+                    _uiState.update {
+                        it.copy(
+                            isSuggestingLlmTags = false,
+                            errorMessage = e.message?.takeIf { m -> m.isNotBlank() }
+                                ?: "大模型识标签失败，请检查网络与设置中的模型接口"
+                        )
+                    }
                 }
-            }
-            .onFailure {
-                _uiState.update {
-                    it.copy(
-                        isAnalyzingImages = false,
-                        errorMessage = "识别图片失败，请检查权限或稍后重试"
-                    )
-                }
-            }
+            )
+        }
+    }
+
+    private fun mergeDistinctTagsCaseInsensitive(
+        existing: List<String>,
+        newOnes: List<String>
+    ): List<String> {
+        val out = existing.map { it.trim() }.filter { it.isNotEmpty() }.toMutableList()
+        for (t in newOnes) {
+            val tag = t.trim()
+            if (tag.isEmpty()) continue
+            if (out.any { it.equals(tag, ignoreCase = true) }) continue
+            out.add(tag)
+        }
+        return out
     }
 
     fun save() {
         val state = _uiState.value
-        if (state.isLoadingDraft || state.isDeleting) return
+        if (state.isLoadingDraft || state.isDeleting || state.isSuggestingLlmTags) return
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
             runCatching {
@@ -414,7 +422,7 @@ data class CaptureUiState(
     val mood: Mood? = null,
     val baselineLocation: FragmentLocation? = null,
     val locationOverride: FragmentLocation? = null,
-    val isAnalyzingImages: Boolean = false,
+    val isSuggestingLlmTags: Boolean = false,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
     val saved: Boolean = false,

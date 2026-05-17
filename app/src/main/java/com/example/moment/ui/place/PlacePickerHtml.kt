@@ -80,7 +80,8 @@ function initWithAMap(AMap) {
       resizeEnable: true,
       zoom: 15,
       center: [lng, lat],
-      viewMode: '2D'
+      viewMode: '2D',
+      features: ['bg', 'point', 'road', 'building']
     });
     if (window.AndroidHost && AndroidHost.onMapTrace) {
       AndroidHost.onMapTrace('Map instance created');

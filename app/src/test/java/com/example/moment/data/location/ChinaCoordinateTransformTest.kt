@@ -1,10 +1,78 @@
 package com.example.moment.data.location
 
+import android.location.LocationManager
 import kotlin.math.abs
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChinaCoordinateTransformTest {
+
+    @Test
+    fun gpsAlwaysConvertedRegardlessOfFusedAssumption() {
+        assertTrue(
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                LocationManager.GPS_PROVIDER,
+                fusedOutputAssumedWgs84 = false,
+            ),
+        )
+        assertTrue(
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                LocationManager.GPS_PROVIDER,
+                fusedOutputAssumedWgs84 = true,
+            ),
+        )
+    }
+
+    @Test
+    fun networkNeverConverted() {
+        assertFalse(
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                LocationManager.NETWORK_PROVIDER,
+                fusedOutputAssumedWgs84 = false,
+            ),
+        )
+        assertFalse(
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                LocationManager.NETWORK_PROVIDER,
+                fusedOutputAssumedWgs84 = true,
+            ),
+        )
+    }
+
+    @Test
+    fun fusedConvertedOnlyWhenAssumedWgs84() {
+        assertFalse(
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                LocationManager.FUSED_PROVIDER,
+                fusedOutputAssumedWgs84 = false,
+            ),
+        )
+        assertTrue(
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                LocationManager.FUSED_PROVIDER,
+                fusedOutputAssumedWgs84 = true,
+            ),
+        )
+        assertFalse(
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                "fused",
+                fusedOutputAssumedWgs84 = false,
+            ),
+        )
+        assertTrue(
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
+                "Fused",
+                fusedOutputAssumedWgs84 = true,
+            ),
+        )
+    }
+
+    @Test
+    fun nullOrEmptyProviderNeverConverted() {
+        assertFalse(ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(null, true))
+        assertFalse(ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02("", false))
+    }
 
     @Test
     fun wgs84ToGcj02ShiftsWithinExpectedRangeInBeijing() {

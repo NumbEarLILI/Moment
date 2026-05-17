@@ -10,3 +10,4 @@ captures/
 *.aab
 
 app/build/
+android-sdk/

@@ -65,12 +65,13 @@ class PlacePickViewModel @Inject constructor(
 
     fun updatePlaceName(value: String) = _uiState.update { s ->
         if (value.isBlank()) {
-            s.copy(placeName = "", errorMessage = null, placeNameUserLocked = false)
+            s.copy(placeName = "", errorMessage = null, placeNameUserLocked = false, geocodeHint = null)
         } else {
             val userEdited = value != s.placeName
             s.copy(
                 placeName = value,
                 errorMessage = null,
+                geocodeHint = null,
                 placeNameUserLocked = s.placeNameUserLocked || userEdited
             )
         }
@@ -90,7 +91,7 @@ class PlacePickViewModel @Inject constructor(
 
     fun onMapPosition(latitude: Double, longitude: Double) {
         if (BuildConfig.DEBUG) Log.d(TAG, "【图钉】Kotlin 收到 lat=$latitude lng=$longitude")
-        _uiState.update { it.copy(mapLat = latitude, mapLng = longitude, errorMessage = null) }
+        _uiState.update { it.copy(mapLat = latitude, mapLng = longitude, errorMessage = null, geocodeHint = null) }
         viewModelScope.launch {
             val locked = _uiState.value.placeNameUserLocked
             if (BuildConfig.DEBUG) Log.d(TAG, "【逆地理】请求 lat=$latitude lng=$longitude 名称锁=$locked")
@@ -109,7 +110,24 @@ class PlacePickViewModel @Inject constructor(
             val suggested = amap.label ?: nomin
             when {
                 !suggested.isNullOrBlank() && !locked -> {
-                    _uiState.update { s -> s.copy(placeName = suggested) }
+                    _uiState.update { s -> s.copy(placeName = suggested, geocodeHint = null) }
+                }
+                suggested.isNullOrBlank() && !locked -> {
+                    val hint = buildString {
+                        if (amap.failureDetail != null) {
+                            append("逆地理未得到地名：")
+                            append(amap.failureDetail)
+                        }
+                        if (nomin == null) {
+                            if (isNotEmpty()) append("；")
+                            append("OpenStreetMap 无结果（国内网络下常见）")
+                        }
+                        if (BuildConfig.AMAP_WEB_SERVICE_KEY.isBlank()) {
+                            if (isNotEmpty()) append("；")
+                            append("请在 local.properties 配置 amap.web.service.key（须为「Web 服务」类 Key，与 JS 地图 Key 不同）")
+                        }
+                    }
+                    _uiState.update { s -> s.copy(geocodeHint = hint.ifEmpty { null }) }
                 }
                 else -> Unit
             }
@@ -166,6 +184,8 @@ data class PlacePickUiState(
     val mapLng: Double = 0.0,
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
+    /** 逆地理失败时的说明（例如未配置 Web 服务 Key、签名错误）。 */
+    val geocodeHint: String? = null,
     /** 用户是否手动改过地点名称；为 true 时移动图钉只更新坐标，不覆盖名称。 */
     val placeNameUserLocked: Boolean = false,
     val finishedLocation: FragmentLocation? = null

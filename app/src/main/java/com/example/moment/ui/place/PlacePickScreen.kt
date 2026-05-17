@@ -126,6 +126,14 @@ fun PlacePickScreen(
                 label = { Text("地点名称") },
                 minLines = 2
             )
+            state.geocodeHint?.let { hint ->
+                Text(
+                    hint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.88f),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
