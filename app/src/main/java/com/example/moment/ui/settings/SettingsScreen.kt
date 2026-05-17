@@ -377,6 +377,26 @@ fun SettingsScreen(
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "上传原图到 NAS",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Switch(
+                    checked = prefs.uploadOriginalImagesToNas,
+                    onCheckedChange = viewModel::setUploadOriginalImagesToNas,
+                    enabled = !nasBusy
+                )
+            }
+            Text(
+                "默认关闭：备份/存档会先压缩图片再上传，减轻手帐同步的网络压力；开启后保留原图。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(

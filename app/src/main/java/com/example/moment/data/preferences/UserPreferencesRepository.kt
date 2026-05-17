@@ -42,7 +42,8 @@ class UserPreferencesRepository @Inject constructor(
             nasWebdavTrustSelfSignedCertificates = prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] ?: false,
             nasMomentStorageUserId = prefs[Keys.NAS_MOMENT_STORAGE_USER_ID].orEmpty(),
             nasMomentAccountUsername = prefs[Keys.NAS_MOMENT_ACCOUNT_USERNAME].orEmpty(),
-            nasArchiveSyncEnabled = prefs[Keys.NAS_ARCHIVE_SYNC_ENABLED] ?: false
+            nasArchiveSyncEnabled = prefs[Keys.NAS_ARCHIVE_SYNC_ENABLED] ?: false,
+            uploadOriginalImagesToNas = prefs[Keys.UPLOAD_ORIGINAL_IMAGES_TO_NAS] ?: false
         )
     }
 
@@ -80,6 +81,10 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { it[Keys.NAS_ARCHIVE_SYNC_ENABLED] = enabled }
     }
 
+    suspend fun setUploadOriginalImagesToNas(enabled: Boolean) {
+        dataStore.edit { it[Keys.UPLOAD_ORIGINAL_IMAGES_TO_NAS] = enabled }
+    }
+
     suspend fun setNasMomentAccount(storageUserId: String, displayUsername: String) {
         dataStore.edit { prefs ->
             prefs[Keys.NAS_MOMENT_STORAGE_USER_ID] = storageUserId.trim()
@@ -105,6 +110,7 @@ class UserPreferencesRepository @Inject constructor(
         val NAS_WEBDAV_PASSWORD = stringPreferencesKey("nas_webdav_password")
         val NAS_WEBDAV_TRUST_SELF_SIGNED = booleanPreferencesKey("nas_webdav_trust_self_signed")
         val NAS_ARCHIVE_SYNC_ENABLED = booleanPreferencesKey("nas_archive_sync_enabled")
+        val UPLOAD_ORIGINAL_IMAGES_TO_NAS = booleanPreferencesKey("upload_original_images_to_nas")
         val NAS_MOMENT_STORAGE_USER_ID = stringPreferencesKey("nas_moment_storage_user_id")
         val NAS_MOMENT_ACCOUNT_USERNAME = stringPreferencesKey("nas_moment_account_username")
     }

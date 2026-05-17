@@ -1,6 +1,8 @@
 package com.example.moment.data.nas
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.example.moment.domain.model.DiaryEntry
@@ -21,6 +23,8 @@ import java.time.LocalDate
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
@@ -42,6 +46,11 @@ class NasDiaryWebDavPackager @Inject constructor(
         ignoreUnknownKeys = true
     }
 
+    private companion object {
+        const val MAX_COMPRESSED_IMAGE_EDGE_PX = 1920
+        const val COMPRESSED_JPEG_QUALITY = 82
+    }
+
     /**
      * @param diaryFolderSegments path segments to folder that contains `diary.json` and `images/`
      */
@@ -49,7 +58,8 @@ class NasDiaryWebDavPackager @Inject constructor(
         client: OkHttpClient,
         root: HttpUrl,
         diaryFolderSegments: List<String>,
-        entry: DiaryEntry
+        entry: DiaryEntry,
+        imageUploadMode: NasImageUploadMode = NasImageUploadMode.COMPRESSED
     ): Pair<Int, Int> {
         val flatUris = flatOrderedUniqueImageUris(entry)
         webDavHttp.ensureCollectionPath(client, root, diaryFolderSegments + listOf("images"))
@@ -63,7 +73,8 @@ class NasDiaryWebDavPackager @Inject constructor(
                     root,
                     diaryFolderSegments,
                     index,
-                    flatUris[index]
+                    flatUris[index],
+                    imageUploadMode
                 )
                 relativePaths[index] = rel
                 if (ok) uploaded++ else skipped++
@@ -452,21 +463,25 @@ class NasDiaryWebDavPackager @Inject constructor(
         root: HttpUrl,
         diaryBase: List<String>,
         index: Int,
-        uriString: String
+        uriString: String,
+        imageUploadMode: NasImageUploadMode
     ): Pair<String?, Boolean> {
-        val name = "$index.bin"
-        val relative = "images/$name"
+        val name = imageUploadMode.remoteFileName(index)
+        val relative = imageUploadMode.relativeImagePath(index)
         val putUrl = childUrl(root, diaryBase + listOf("images", name))
         val uri = Uri.parse(uriString)
+        if (!imageUploadMode.uploadOriginal) {
+            return backupCompressedImage(client, putUrl, relative, uri)
+        }
         val length = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
         if (length == 0L) return null to false
-        val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+        val mime = context.contentResolver.getType(uri)
         return try {
             webDavHttp.putStream(
                 client,
                 putUrl,
                 length,
-                mime
+                imageUploadMode.contentType(mime)
             ) {
                 context.contentResolver.openInputStream(uri)
                     ?: throw IOException("无法读取图片")
@@ -475,6 +490,100 @@ class NasDiaryWebDavPackager @Inject constructor(
         } catch (_: Exception) {
             null to false
         }
+    }
+
+    private suspend fun backupCompressedImage(
+        client: OkHttpClient,
+        putUrl: HttpUrl,
+        relative: String,
+        uri: Uri
+    ): Pair<String?, Boolean> {
+        val file = createCompressedUploadImage(uri) ?: return null to false
+        return try {
+            if (file.length() == 0L) return null to false
+            webDavHttp.putStream(
+                client,
+                putUrl,
+                file.length(),
+                NasImageUploadMode.COMPRESSED.contentType(null)
+            ) {
+                FileInputStream(file)
+            }
+            relative to true
+        } catch (_: Exception) {
+            null to false
+        } finally {
+            if (file.exists()) file.delete()
+        }
+    }
+
+    private fun createCompressedUploadImage(uri: Uri): File? {
+        try {
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, bounds)
+            } ?: return null
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+            val decoded = context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(
+                    it,
+                    null,
+                    BitmapFactory.Options().apply {
+                        inSampleSize = calculateInSampleSize(
+                            bounds.outWidth,
+                            bounds.outHeight,
+                            MAX_COMPRESSED_IMAGE_EDGE_PX
+                        )
+                    }
+                )
+            } ?: return null
+
+            val output = File.createTempFile(
+                "nas_upload_",
+                ".jpg",
+                File(context.cacheDir, "nas_upload").apply { mkdirs() }
+            )
+            var bitmapToWrite: Bitmap = decoded
+            try {
+                val largestEdge = max(decoded.width, decoded.height)
+                if (largestEdge > MAX_COMPRESSED_IMAGE_EDGE_PX) {
+                    val scale = MAX_COMPRESSED_IMAGE_EDGE_PX.toFloat() / largestEdge.toFloat()
+                    bitmapToWrite = Bitmap.createScaledBitmap(
+                        decoded,
+                        (decoded.width * scale).roundToInt().coerceAtLeast(1),
+                        (decoded.height * scale).roundToInt().coerceAtLeast(1),
+                        true
+                    )
+                }
+                val compressed = FileOutputStream(output).use { out ->
+                    bitmapToWrite.compress(Bitmap.CompressFormat.JPEG, COMPRESSED_JPEG_QUALITY, out)
+                }
+                if (!compressed || output.length() == 0L) {
+                    output.delete()
+                    return null
+                }
+                return output
+            } catch (_: Exception) {
+                output.delete()
+                return null
+            } finally {
+                if (bitmapToWrite !== decoded) bitmapToWrite.recycle()
+                decoded.recycle()
+            }
+        } catch (_: Exception) {
+            return null
+        }
+    }
+
+    private fun calculateInSampleSize(width: Int, height: Int, maxEdge: Int): Int {
+        var sampleSize = 1
+        val halfWidth = width / 2
+        val halfHeight = height / 2
+        while (max(halfWidth / sampleSize, halfHeight / sampleSize) >= maxEdge) {
+            sampleSize *= 2
+        }
+        return sampleSize
     }
 
     private fun flatOrderedUniqueImageUris(entry: DiaryEntry): List<String> {
