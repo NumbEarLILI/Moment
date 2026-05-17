@@ -27,8 +27,7 @@ import kotlin.coroutines.resume
  * Suitable for devices without GMS (common in mainland China). Address text is a short
  * coordinate summary instead of reverse-geocoding (which often depends on Google backends).
  *
- * **Coordinates:** GPS / 融合定位得到的是 WGS-84，会在写入前转为 **GCJ-02**，与高德 Web 地图及逆地理接口一致；
- * 网络定位在国内机型上可能已是 GCJ-02，则不再二次转换。
+ * 网络定位在国内机型上可能已是 GCJ-02；**仅卫星 GPS**（WGS-84）在写入前转为 **GCJ-02**，与高德 Web 地图及逆地理接口一致。
  */
 @Singleton
 class FragmentLocationCapture @Inject constructor(

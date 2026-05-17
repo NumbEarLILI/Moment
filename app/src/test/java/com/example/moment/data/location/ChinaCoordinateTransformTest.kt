@@ -1,10 +1,22 @@
 package com.example.moment.data.location
 
+import android.location.LocationManager
 import kotlin.math.abs
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChinaCoordinateTransformTest {
+
+    @Test
+    fun onlyGpsProviderAssumedWgsForCaptureConversion() {
+        assertTrue(ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(LocationManager.GPS_PROVIDER))
+        assertFalse(ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(LocationManager.NETWORK_PROVIDER))
+        assertFalse(ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(LocationManager.FUSED_PROVIDER))
+        assertFalse(ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02("fused"))
+        assertFalse(ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(null))
+        assertFalse(ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(""))
+    }
 
     @Test
     fun wgs84ToGcj02ShiftsWithinExpectedRangeInBeijing() {
