@@ -49,6 +49,8 @@ internal data class NasBackupDiaryFileDto(
     val imageRelativePaths: List<String?>,
     /** key 为 stableId 字符串（v2）或 v1 时仍为数字字符串。 */
     val fragmentImageIndices: Map<String, List<Int>> = emptyMap(),
+    /** v3+：key 为 stableId，value 为对应 plog 碎片的真实记录时间。 */
+    val fragmentCreatedAtEpochMillis: Map<String, Long> = emptyMap(),
     val locationPins: List<NasFileLocationPin> = emptyList(),
     val fragmentStories: List<NasFileFragmentStory> = emptyList(),
     val createdAtEpochMillis: Long,

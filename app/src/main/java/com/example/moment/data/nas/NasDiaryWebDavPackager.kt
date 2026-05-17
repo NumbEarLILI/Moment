@@ -6,6 +6,8 @@ import androidx.core.content.FileProvider
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
+import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.model.anchoredFragmentIds
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -68,8 +70,9 @@ class NasDiaryWebDavPackager @Inject constructor(
             }
         }
         val fragmentImageIndices = fragmentImageIndicesForBackup(entry, flatUris)
+        val fragmentCreatedAtEpochMillis = fragmentCreatedAtEpochMillisForBackup(entry)
         val dto = NasBackupDiaryFileDto(
-            schemaVersion = 2,
+            schemaVersion = 3,
             id = entry.id,
             dateEpochDay = entry.date.toEpochDay(),
             title = entry.title,
@@ -80,6 +83,7 @@ class NasDiaryWebDavPackager @Inject constructor(
             sourceFragmentIds = emptyList(),
             imageRelativePaths = relativePaths,
             fragmentImageIndices = fragmentImageIndices,
+            fragmentCreatedAtEpochMillis = fragmentCreatedAtEpochMillis,
             locationPins = entry.locationPins.map {
                 NasFileLocationPin(
                     fragmentStableId = it.fragmentStableId,
@@ -143,6 +147,13 @@ class NasDiaryWebDavPackager @Inject constructor(
         if (dto.schemaVersion >= 2 && dto.sourceFragmentStableIds.isNotEmpty()) {
             val nrm = normalizeNasDiaryRestore(dto)
             if (local.sourceFragmentStableIds != nrm.sourceStableIds) return false
+            if (!remoteFragmentCreatedAtMatchesLocal(
+                    remote = nrm.fragmentCreatedAtEpochMillis,
+                    local = local.fragmentCreatedAtEpochMillis
+                )
+            ) {
+                return false
+            }
             if (!storiesEqualOrdered(local.fragmentStories, nrm.fragmentStories)) return false
             if (!pinsEqualIgnoringSidOrder(local.locationPins, nrm.locationPins)) return false
             if (!fragmentImageSlotCountsMatch(local, nrm.fragmentImageIndices)) return false
@@ -195,6 +206,15 @@ class NasDiaryWebDavPackager @Inject constructor(
 
     private fun canonicalizedSignatureList(rows: List<List<String>>): List<String> =
         rows.map { it.joinToString("\u0001") }.sorted()
+
+    private fun remoteFragmentCreatedAtMatchesLocal(
+        remote: Map<String, Long>,
+        local: Map<String, Long>
+    ): Boolean {
+        if (remote.isEmpty()) return true
+        val localClean = cleanFragmentCreatedAtEpochMillis(local)
+        return remote.all { (sid, epochMillis) -> localClean[sid] == epochMillis }
+    }
 
     private fun fragmentImageSlotCountsMatch(
         local: DiaryEntry,
@@ -281,6 +301,7 @@ class NasDiaryWebDavPackager @Inject constructor(
             fragmentImageUris = fragmentImageUris,
             locationPins = normalized.locationPins,
             fragmentStories = normalized.fragmentStories,
+            fragmentCreatedAtEpochMillis = normalized.fragmentCreatedAtEpochMillis,
             createdAt = Instant.ofEpochMilli(dto.createdAtEpochMillis),
             updatedAt = Instant.ofEpochMilli(dto.updatedAtEpochMillis)
         )
@@ -322,7 +343,11 @@ class NasDiaryWebDavPackager @Inject constructor(
         )
         val merged = existing.copy(
             imageUris = localImages,
-            fragmentImageUris = fragmentImageUris
+            fragmentImageUris = fragmentImageUris,
+            fragmentCreatedAtEpochMillis = mergeFragmentCreatedAtEpochMillis(
+                existing.fragmentCreatedAtEpochMillis,
+                normalized.fragmentCreatedAtEpochMillis
+            )
         )
         diaryRepository.saveDiary(merged)
         fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(merged)
@@ -333,13 +358,15 @@ class NasDiaryWebDavPackager @Inject constructor(
         val sourceStableIds: List<String>,
         val fragmentImageIndices: Map<String, List<Int>>,
         val fragmentStories: List<FragmentAiStory>,
-        val locationPins: List<DiaryLocationPin>
+        val locationPins: List<DiaryLocationPin>,
+        val fragmentCreatedAtEpochMillis: Map<String, Long>
     )
 
     private fun normalizeNasDiaryRestore(dto: NasBackupDiaryFileDto): NasRestoreNormalized {
         if (dto.schemaVersion >= 2 && dto.sourceFragmentStableIds.isNotEmpty()) {
+            val sourceStableIds = dto.sourceFragmentStableIds
             return NasRestoreNormalized(
-                sourceStableIds = dto.sourceFragmentStableIds,
+                sourceStableIds = sourceStableIds,
                 fragmentImageIndices = dto.fragmentImageIndices,
                 fragmentStories = dto.fragmentStories.map {
                     FragmentAiStory(it.fragmentStableId.trim(), it.text)
@@ -351,7 +378,10 @@ class NasDiaryWebDavPackager @Inject constructor(
                         latitude = it.latitude,
                         longitude = it.longitude
                     )
-                }
+                },
+                fragmentCreatedAtEpochMillis = cleanFragmentCreatedAtEpochMillis(
+                    dto.fragmentCreatedAtEpochMillis
+                )
             )
         }
         val longIds = dto.sourceFragmentIds
@@ -379,7 +409,13 @@ class NasDiaryWebDavPackager @Inject constructor(
             val sid = longToStable[lid] ?: return@mapNotNull null
             sid to v
         }.toMap()
-        return NasRestoreNormalized(stableOrdered, remappedIdx, stories, pins)
+        return NasRestoreNormalized(
+            sourceStableIds = stableOrdered,
+            fragmentImageIndices = remappedIdx,
+            fragmentStories = stories,
+            locationPins = pins,
+            fragmentCreatedAtEpochMillis = emptyMap()
+        )
     }
 
     private fun guessImageExtension(bytes: ByteArray): String {
@@ -480,6 +516,38 @@ class NasDiaryWebDavPackager @Inject constructor(
         }
         return out.mapValues { it.value }
     }
+
+    private suspend fun fragmentCreatedAtEpochMillisForBackup(entry: DiaryEntry): Map<String, Long> {
+        val stableIds = entry.anchoredFragmentIds().map { it.trim() }.filter { it.isNotEmpty() }
+        if (stableIds.isEmpty()) return emptyMap()
+        val fromEntry = cleanFragmentCreatedAtEpochMillis(entry.fragmentCreatedAtEpochMillis)
+        val fromFragments = fragmentRepository.getFragmentsForStableIds(stableIds)
+            .filterNot { it.isNasGhostPlaceholder() }
+            .associate { it.stableId.trim() to it.createdAt.toEpochMilli() }
+        return stableIds.mapNotNull { sid ->
+            val epochMillis = fromEntry[sid] ?: fromFragments[sid] ?: return@mapNotNull null
+            sid to epochMillis
+        }.toMap()
+    }
+
+    private fun cleanFragmentCreatedAtEpochMillis(map: Map<String, Long>): Map<String, Long> =
+        map.mapNotNull { (k, v) ->
+            val key = k.trim()
+            if (key.isEmpty()) null else key to v
+        }.toMap()
+
+    private fun mergeFragmentCreatedAtEpochMillis(
+        local: Map<String, Long>,
+        remote: Map<String, Long>
+    ): Map<String, Long> =
+        cleanFragmentCreatedAtEpochMillis(local) + cleanFragmentCreatedAtEpochMillis(remote)
+
+    private fun LifeFragment.isNasGhostPlaceholder(): Boolean =
+        content.isBlank() &&
+            imageUris.isEmpty() &&
+            mood == null &&
+            tags.isEmpty() &&
+            location == null
 
     private fun restoreFragmentImageUris(
         sourceStableIds: List<String>,

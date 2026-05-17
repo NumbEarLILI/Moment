@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.domain.model.DiaryDraft
+import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
@@ -44,10 +45,11 @@ class DiaryPreviewViewModel @Inject constructor(
 
     private suspend fun loadDraft() {
         try {
-            val anchor = if (diaryIdArg > 0L) diaryRepository.getDiaryById(diaryIdArg) else null
-            val mergeDate = anchor?.date ?: dateArg
+            val explicitAnchor = if (diaryIdArg > 0L) diaryRepository.getDiaryById(diaryIdArg) else null
+            val mergeDate = explicitAnchor?.date ?: dateArg
+            val anchor = explicitAnchor ?: diaryRepository.getDiaryForDate(mergeDate)
             val draft = generateDiaryDraft(mergeDate, DiaryGenerationMode.AUTO, anchor)
-            val plog = loadPlogFragments(draft)
+            val plog = loadPlogFragments(draft, anchor)
             applyDraft(draft, plog, mergeDate)
         } catch (e: Throwable) {
             val detail = e.message?.takeIf { it.isNotBlank() }
@@ -56,10 +58,14 @@ class DiaryPreviewViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadPlogFragments(draft: DiaryDraft): List<LifeFragment> {
+    private suspend fun loadPlogFragments(draft: DiaryDraft, anchor: DiaryEntry?): List<LifeFragment> {
         if (draft.sourceFragmentStableIds.isEmpty()) return emptyList()
         val loaded = fragmentRepository.getFragmentsForStableIds(draft.sourceFragmentStableIds)
-        return lifeFragmentsForPlogTimeline(draft.sourceFragmentStableIds, loaded)
+        return lifeFragmentsForPlogTimeline(
+            draft.sourceFragmentStableIds,
+            loaded,
+            anchor?.fragmentCreatedAtEpochMillis.orEmpty()
+        )
     }
 
     private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>, mergeDate: LocalDate) {

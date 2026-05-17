@@ -271,17 +271,29 @@ private fun DiaryPlogMomentCard(
  */
 fun lifeFragmentsForPlogTimeline(
     orderedStableIds: List<String>,
-    loadedFragments: List<LifeFragment>
+    loadedFragments: List<LifeFragment>,
+    fragmentCreatedAtEpochMillis: Map<String, Long> = emptyMap()
 ): List<LifeFragment> {
     if (orderedStableIds.isEmpty()) return emptyList()
     val byStable = loadedFragments.associateBy { it.stableId }
+    val archivedCreatedAt = fragmentCreatedAtEpochMillis.mapNotNull { (sid, epochMillis) ->
+        val key = sid.trim()
+        if (key.isEmpty()) null else key to Instant.ofEpochMilli(epochMillis)
+    }.toMap()
     val seen = linkedSetOf<String>()
     var placeholderSeq = 0
     return orderedStableIds.mapNotNull { sid ->
         val key = sid.trim()
         if (key.isEmpty() || !seen.add(key)) return@mapNotNull null
-        byStable[key] ?: run {
-            val t = placeholderInstantForNasOnlyRow(placeholderSeq++)
+        val archivedTime = archivedCreatedAt[key]
+        byStable[key]?.let { fragment ->
+            if (archivedTime != null && fragment.createdAt != archivedTime) {
+                fragment.copy(createdAt = archivedTime)
+            } else {
+                fragment
+            }
+        } ?: run {
+            val t = archivedTime ?: placeholderInstantForNasOnlyRow(placeholderSeq++)
             LifeFragment(
                 id = 0L,
                 stableId = key,

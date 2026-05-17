@@ -397,6 +397,9 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         }
 
         val idsNeedingAmongAnchored = orphanTargetsPool.filter { byFrag[it].isNullOrEmpty() }
+        if (prior != null && idsNeedingAmongAnchored.isEmpty()) {
+            return byFrag.mapValues { it.value.toList() }.filterValues { it.isNotEmpty() }
+        }
         val targets = when {
             idsNeedingAmongAnchored.isNotEmpty() -> idsNeedingAmongAnchored
             orphanTargetsPool.isNotEmpty() -> orphanTargetsPool
