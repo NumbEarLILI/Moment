@@ -41,7 +41,8 @@ data class UserAppPreferences(
     }
 
     companion object {
-        const val DEFAULT_AI_BASE_URL = "https://api.deepseek.com"
-        const val DEFAULT_AI_MODEL = "deepseek-v4-flash"
+        /** 与 [AiProviderPresets] 中 DeepSeek 预设一致。 */
+        const val DEFAULT_AI_BASE_URL = "https://api.deepseek.com/v1"
+        const val DEFAULT_AI_MODEL = "deepseek-chat"
     }
 }

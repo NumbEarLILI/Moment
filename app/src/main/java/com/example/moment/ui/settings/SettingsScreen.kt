@@ -42,6 +42,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.moment.domain.model.AiProviderPresets
 import com.example.moment.domain.model.AppThemeMode
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.theme.appScaffoldContainerColor
@@ -191,12 +192,31 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Text(
+                "服务商预设（填入地址与模型名；API Key 仍须手动输入后点保存）",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (preset in AiProviderPresets.entries) {
+                    key(preset.id) {
+                        FilterChip(
+                            selected = preset.matchesForm(aiBaseUrl, aiModel),
+                            onClick = { viewModel.applyAiProviderPreset(preset) },
+                            label = { Text(preset.displayLabel) }
+                        )
+                    }
+                }
+            }
             OutlinedTextField(
                 value = aiBaseUrl,
                 onValueChange = viewModel::setAiBaseUrl,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("API 根地址") },
-                placeholder = { Text("例如 https://api.deepseek.com") },
+                placeholder = { Text("例如 https://api.deepseek.com/v1") },
                 singleLine = true
             )
             OutlinedTextField(
@@ -212,7 +232,7 @@ fun SettingsScreen(
                 onValueChange = viewModel::setAiModel,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("模型名称") },
-                placeholder = { Text("例如 deepseek-v4-flash") },
+                placeholder = { Text("例如 deepseek-chat") },
                 singleLine = true
             )
             Button(
