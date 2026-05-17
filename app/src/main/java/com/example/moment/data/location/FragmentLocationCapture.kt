@@ -29,9 +29,8 @@ import kotlin.coroutines.resume
  * 使用 [LocationManager]（含 Android 12+ 的 [LocationManager.FUSED_PROVIDER]），不依赖 Play 定位 SDK。
  * 自动定位标签为简短经纬度摘要，不做链路程式逆地理。
  *
- * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：**GPS** 恒按 WGS→GCJ；**fused** 仅当
- * [GooglePlayServicesAvailability.isPlayServicesUsable] 为真时按 WGS→GCJ，否则假定 fused 已是 GCJ。
- * **网络**定位在国内多已为 GCJ，一般不转。
+ * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：**GPS** 恒按 WGS→GCJ；**fused** 按
+ * [DomesticLocationDatumPolicy] **不作为 WGS**（国内融合多为 GCJ，避免二次偏移）；**网络**一般不转。
  *
  * 各 provider **并行**单次拉取，按精度/时效合并；在中国大陆且 GPS 精度尚可时 **优先 GPS**，
  * 减轻融合坐标系与高德不一致造成的固定偏移。
@@ -48,7 +47,7 @@ class FragmentLocationCapture @Inject constructor(
             fetchBestLocation()
         } ?: return@withContext null
 
-        val fusedAssumedWgs84 = GooglePlayServicesAvailability.isPlayServicesUsable(context)
+        val fusedAssumedWgs84 = DomesticLocationDatumPolicy.fusedOutputAssumedWgs84()
         val (lat, lng) =
             if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
                     location.provider,
