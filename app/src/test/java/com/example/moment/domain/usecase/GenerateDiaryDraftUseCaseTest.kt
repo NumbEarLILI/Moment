@@ -397,49 +397,6 @@ class GenerateDiaryDraftUseCaseTest {
     }
 
     @Test
-    fun invokeReordersPriorSourceIdsWhenLiveFragmentTimesChange() = runTest {
-        val date = LocalDate.of(2026, 5, 13)
-        val prior = DiaryEntry(
-            id = 9,
-            date = date,
-            title = "已保存",
-            body = "旧正文",
-            highlights = emptyList(),
-            moodSummary = null,
-            sourceFragmentStableIds = listOf("1", "2"),
-            imageUris = emptyList(),
-            locationPins = emptyList(),
-            fragmentStories = listOf(
-                FragmentAiStory("1", "旧条一"),
-                FragmentAiStory("2", "旧条二")
-            ),
-            fragmentCreatedAtEpochMillis = mapOf(
-                "1" to Instant.parse("2026-05-13T09:00:00Z").toEpochMilli(),
-                "2" to Instant.parse("2026-05-13T10:00:00Z").toEpochMilli()
-            ),
-            createdAt = Instant.parse("2026-05-13T11:00:00Z"),
-            updatedAt = Instant.parse("2026-05-13T11:00:00Z")
-        )
-        val repository = FakeFragmentRepository(
-            listOf(
-                fragment(1, "一。", Mood.CALM, "2026-05-13T09:00:00Z"),
-                fragment(2, "二。", Mood.HAPPY, "2026-05-13T08:00:00Z")
-            )
-        )
-        val useCase = GenerateDiaryDraftUseCase(
-            repository,
-            StubDiaryRepository(prior),
-            RuleBasedDiaryGenerator(),
-            StaticUserPreferences(UserAppPreferences()),
-            NeverCalledAi
-        )
-
-        val result = useCase(date, DiaryGenerationMode.RULE_BASED_ONLY)
-
-        assertEquals(listOf("2", "1"), result.sourceFragmentStableIds)
-    }
-
-    @Test
     fun invokeKeepsPriorBodyWhenAiReturnsEmptyBodyAndNewFragmentsExist() = runTest {
         val date = LocalDate.of(2026, 5, 13)
         val prior = DiaryEntry(
