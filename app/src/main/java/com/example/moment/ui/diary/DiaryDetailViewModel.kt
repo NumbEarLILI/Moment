@@ -37,7 +37,11 @@ class DiaryDetailViewModel @Inject constructor(
                 .collect { entry ->
         val plog = if (entry != null && entry.sourceFragmentStableIds.isNotEmpty()) {
             val loaded = fragmentRepository.getFragmentsForStableIds(entry.sourceFragmentStableIds)
-            lifeFragmentsForPlogTimeline(entry.sourceFragmentStableIds, loaded)
+            lifeFragmentsForPlogTimeline(
+                        entry.sourceFragmentStableIds,
+                        loaded,
+                        fallbackDiaryDate = entry.date,
+                    )
         } else {
             emptyList()
         }

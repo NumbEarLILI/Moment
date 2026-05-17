@@ -38,6 +38,7 @@ import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.FullscreenImageViewer
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -271,7 +272,9 @@ private fun DiaryPlogMomentCard(
  */
 fun lifeFragmentsForPlogTimeline(
     orderedStableIds: List<String>,
-    loadedFragments: List<LifeFragment>
+    loadedFragments: List<LifeFragment>,
+    fallbackDiaryDate: LocalDate? = null,
+    fallbackZone: ZoneId = ZoneId.systemDefault(),
 ): List<LifeFragment> {
     if (orderedStableIds.isEmpty()) return emptyList()
     val byStable = loadedFragments.associateBy { it.stableId }
@@ -281,7 +284,13 @@ fun lifeFragmentsForPlogTimeline(
         val key = sid.trim()
         if (key.isEmpty() || !seen.add(key)) return@mapNotNull null
         byStable[key] ?: run {
-            val t = placeholderInstantForNasOnlyRow(placeholderSeq++)
+            val t =
+                if (fallbackDiaryDate != null) {
+                    val baseMs = fallbackDiaryDate.atStartOfDay(fallbackZone).toInstant().toEpochMilli()
+                    Instant.ofEpochMilli(baseMs + placeholderSeq++ * 60_000L)
+                } else {
+                    placeholderInstantForNasOnlyRow(placeholderSeq++)
+                }
             LifeFragment(
                 id = 0L,
                 stableId = key,

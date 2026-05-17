@@ -51,6 +51,8 @@ internal data class NasBackupDiaryFileDto(
     val fragmentImageIndices: Map<String, List<Int>> = emptyMap(),
     val locationPins: List<NasFileLocationPin> = emptyList(),
     val fragmentStories: List<NasFileFragmentStory> = emptyList(),
+    /** 各碎片 [LifeFragment.createdAt]（毫秒），key 为 trimmed stableId；NAS 恢复 plog 时刻用。 */
+    val fragmentCreatedAtEpochMillis: Map<String, Long> = emptyMap(),
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long
 )

@@ -4,11 +4,10 @@ import com.example.moment.data.local.FragmentDao
 import com.example.moment.data.local.entity.FragmentEntity
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
-import com.example.moment.domain.model.anchoredFragmentIds
+import com.example.moment.domain.model.orderedAnchoredFragmentIdsForDiary
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZoneOffset
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -61,11 +60,29 @@ class FragmentRepositoryImpl @Inject constructor(
         dao.deleteById(id)
     }
 
-    override suspend fun ensureGhostPlaceholderFragmentsForDiary(entry: DiaryEntry) {
-        val base = GHOST_PLACEHOLDER_EPOCH_MS
-        for (sid in entry.anchoredFragmentIds().sorted()) {
-            if (dao.getByStableId(sid) != null) continue
-            val ms = base + (sid.hashCode().toLong() and 0x7FFF_FFFF)
+    override suspend fun ensureGhostPlaceholderFragmentsForDiary(
+        entry: DiaryEntry,
+        preferredCreatedAtEpochMillisByStableId: Map<String, Long>,
+    ) {
+        val dayStart = entry.date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val ordered = orderedAnchoredFragmentIdsForDiary(entry)
+        for ((index, sid) in ordered.withIndex()) {
+            val preferred = preferredCreatedAtEpochMillisByStableId[sid]?.takeIf { it > 0L }
+            val fallbackMs = dayStart + index * 60_000L
+            val existing = dao.getByStableId(sid)
+            if (existing != null) {
+                val placeholderLike = existing.content.isBlank() && existing.imageUris.isEmpty()
+                if (placeholderLike && preferred != null && existing.createdAtEpochMillis != preferred) {
+                    dao.insert(
+                        existing.copy(
+                            createdAtEpochMillis = preferred,
+                            updatedAtEpochMillis = preferred,
+                        )
+                    )
+                }
+                continue
+            }
+            val ms = preferred ?: fallbackMs
             dao.insert(
                 FragmentEntity(
                     id = 0,
@@ -90,8 +107,4 @@ class FragmentRepositoryImpl @Inject constructor(
         return start to end
     }
 
-    private companion object {
-        val GHOST_PLACEHOLDER_EPOCH_MS: Long =
-            LocalDate.of(1970, 1, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-    }
 }
