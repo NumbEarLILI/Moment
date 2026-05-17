@@ -47,6 +47,9 @@ class DiaryEditViewModel @Inject constructor(
     }
 
     private suspend fun applyEntry(entry: DiaryEntry) {
+        if (entry.sourceFragmentStableIds.isNotEmpty()) {
+            fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(entry, emptyMap())
+        }
         val plog = if (entry.sourceFragmentStableIds.isNotEmpty()) {
             val loaded = fragmentRepository.getFragmentsForStableIds(entry.sourceFragmentStableIds)
             lifeFragmentsForPlogTimeline(

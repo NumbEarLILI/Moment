@@ -76,6 +76,8 @@ class FragmentRepositoryImpl @Inject constructor(
                     val targetMs = when {
                         preferred != null -> preferred
                         !createdAtMillisInDiaryLocalDay(existing.createdAtEpochMillis, entry) -> fallbackMs
+                        index > 0 && existing.createdAtEpochMillis < fallbackMs ->
+                            fallbackMs
                         else -> null
                     }
                     if (targetMs != null && existing.createdAtEpochMillis != targetMs) {
