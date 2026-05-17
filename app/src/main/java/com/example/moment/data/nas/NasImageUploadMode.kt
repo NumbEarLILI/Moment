@@ -2,7 +2,7 @@ package com.example.moment.data.nas
 
 import com.example.moment.domain.model.UserAppPreferences
 
-internal data class NasImageUploadMode(
+data class NasImageUploadMode(
     val uploadOriginal: Boolean
 ) {
     fun remoteFileName(index: Int): String =
