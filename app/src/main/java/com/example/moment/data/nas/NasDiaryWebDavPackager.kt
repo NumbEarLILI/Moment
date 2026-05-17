@@ -3,6 +3,8 @@ package com.example.moment.data.nas
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.example.moment.domain.model.DiaryEntry
@@ -525,6 +527,7 @@ class NasDiaryWebDavPackager @Inject constructor(
             } ?: return null
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
+            val orientation = readExifOrientation(uri)
             val decoded = context.contentResolver.openInputStream(uri)?.use {
                 BitmapFactory.decodeStream(
                     it,
@@ -538,21 +541,22 @@ class NasDiaryWebDavPackager @Inject constructor(
                     }
                 )
             } ?: return null
+            val oriented = applyExifOrientation(decoded, orientation)
 
             val output = File.createTempFile(
                 "nas_upload_",
                 ".jpg",
                 File(context.cacheDir, "nas_upload").apply { mkdirs() }
             )
-            var bitmapToWrite: Bitmap = decoded
+            var bitmapToWrite: Bitmap = oriented
             try {
-                val largestEdge = max(decoded.width, decoded.height)
+                val largestEdge = max(oriented.width, oriented.height)
                 if (largestEdge > MAX_COMPRESSED_IMAGE_EDGE_PX) {
                     val scale = MAX_COMPRESSED_IMAGE_EDGE_PX.toFloat() / largestEdge.toFloat()
                     bitmapToWrite = Bitmap.createScaledBitmap(
-                        decoded,
-                        (decoded.width * scale).roundToInt().coerceAtLeast(1),
-                        (decoded.height * scale).roundToInt().coerceAtLeast(1),
+                        oriented,
+                        (oriented.width * scale).roundToInt().coerceAtLeast(1),
+                        (oriented.height * scale).roundToInt().coerceAtLeast(1),
                         true
                     )
                 }
@@ -568,12 +572,46 @@ class NasDiaryWebDavPackager @Inject constructor(
                 output.delete()
                 return null
             } finally {
-                if (bitmapToWrite !== decoded) bitmapToWrite.recycle()
+                if (bitmapToWrite !== oriented) bitmapToWrite.recycle()
+                if (oriented !== decoded) oriented.recycle()
                 decoded.recycle()
             }
         } catch (_: Exception) {
             return null
         }
+    }
+
+    private fun readExifOrientation(uri: Uri): Int =
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                ExifInterface(input).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION,
+                    ExifInterface.ORIENTATION_NORMAL
+                )
+            } ?: ExifInterface.ORIENTATION_NORMAL
+        } catch (_: Exception) {
+            ExifInterface.ORIENTATION_NORMAL
+        }
+
+    private fun applyExifOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.setRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.setRotate(-90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
+            else -> return bitmap
+        }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     private fun calculateInSampleSize(width: Int, height: Int, maxEdge: Int): Int {
