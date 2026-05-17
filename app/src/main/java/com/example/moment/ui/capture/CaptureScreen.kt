@@ -250,6 +250,10 @@ fun CaptureScreen(
                     },
                     momentContent = state.content,
                     onMomentContentChange = viewModel::updateContent,
+                    recordedDate = state.recordedDate,
+                    onRecordedDateChange = viewModel::updateRecordedDate,
+                    recordedTime = state.recordedTime,
+                    onRecordedTimeChange = viewModel::updateRecordedTime,
                     tagList = tagList,
                     onRemoveTag = viewModel::removeTag,
                     newTagInput = newTagInput,
@@ -521,6 +525,10 @@ private fun CaptureHeader(
     onToggleMomentExpanded: () -> Unit,
     momentContent: String,
     onMomentContentChange: (String) -> Unit,
+    recordedDate: String,
+    onRecordedDateChange: (String) -> Unit,
+    recordedTime: String,
+    onRecordedTimeChange: (String) -> Unit,
     tagList: List<String>,
     onRemoveTag: (String) -> Unit,
     newTagInput: String,
@@ -583,6 +591,10 @@ private fun CaptureHeader(
                 onToggleExpanded = onToggleMomentExpanded,
                 content = momentContent,
                 onContentChange = onMomentContentChange,
+                recordedDate = recordedDate,
+                onRecordedDateChange = onRecordedDateChange,
+                recordedTime = recordedTime,
+                onRecordedTimeChange = onRecordedTimeChange,
                 tagList = tagList,
                 onRemoveTag = onRemoveTag,
                 newTagInput = newTagInput,
@@ -648,6 +660,10 @@ private fun CaptureMomentExpandable(
     onToggleExpanded: () -> Unit,
     content: String,
     onContentChange: (String) -> Unit,
+    recordedDate: String,
+    onRecordedDateChange: (String) -> Unit,
+    recordedTime: String,
+    onRecordedTimeChange: (String) -> Unit,
     tagList: List<String>,
     onRemoveTag: (String) -> Unit,
     newTagInput: String,
@@ -755,6 +771,49 @@ private fun CaptureMomentExpandable(
                             unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
                             cursorColor = MaterialTheme.colorScheme.primary
                         )
+                    )
+                    Text(
+                        "记录时间",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = recordedDate,
+                            onValueChange = onRecordedDateChange,
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            label = { Text("日期") },
+                            placeholder = { Text("2026-05-13") },
+                            shape = MaterialTheme.shapes.medium,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+                                cursorColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        OutlinedTextField(
+                            value = recordedTime,
+                            onValueChange = onRecordedTimeChange,
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            label = { Text("时间") },
+                            placeholder = { Text("22:30") },
+                            shape = MaterialTheme.shapes.medium,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
+                                cursorColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                    Text(
+                        "保存后会按这个时间进入当天碎片、手帐时间线和生成文案。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         "图片",
