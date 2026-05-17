@@ -46,6 +46,9 @@ class DiaryPreviewViewModel @Inject constructor(
         try {
             val anchor = if (diaryIdArg > 0L) diaryRepository.getDiaryById(diaryIdArg) else null
             val mergeDate = anchor?.date ?: dateArg
+            if (anchor != null && anchor.sourceFragmentStableIds.isNotEmpty()) {
+                fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(anchor, emptyMap())
+            }
             val draft = generateDiaryDraft(mergeDate, DiaryGenerationMode.AUTO, anchor)
             val plog = loadPlogFragments(draft, mergeDate)
             applyDraft(draft, plog, mergeDate)
