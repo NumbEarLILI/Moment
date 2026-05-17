@@ -9,6 +9,12 @@ import org.junit.Test
 class ChinaCoordinateTransformTest {
 
     @Test
+    fun appliesChinaOffsetMatchesWgsTransformBox() {
+        assertTrue(ChinaCoordinateTransform.appliesChinaOffset(39.9, 116.4))
+        assertFalse(ChinaCoordinateTransform.appliesChinaOffset(35.0, 71.0))
+    }
+
+    @Test
     fun gpsAlwaysConvertedRegardlessOfFusedAssumption() {
         assertTrue(
             ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(

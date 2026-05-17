@@ -17,6 +17,10 @@ import kotlin.math.sqrt
  */
 object ChinaCoordinateTransform {
 
+    /** 是否在中国纠偏范围内（与 [wgs84ToGcj02] 是否生效的地理判断一致）。 */
+    fun appliesChinaOffset(latitude: Double, longitude: Double): Boolean =
+        !outOfChina(latitude, longitude)
+
     /** 转成高德系坐标（国内地图、高德逆地理 Web 接口）。 */
     fun wgs84ToGcj02(wgsLat: Double, wgsLng: Double): Pair<Double, Double> {
         if (outOfChina(wgsLat, wgsLng)) return wgsLat to wgsLng
@@ -41,7 +45,7 @@ object ChinaCoordinateTransform {
      * - 带 **Google Play 服务** 时，系统融合栈通常仍按 **WGS-84** 输出，需转换才能与高德 Web 对齐；
      * - **无 GMS** 的国产 ROM 上，厂商融合结果常为 **GCJ-02**，若再转换会产生二次偏移。
      *
-     * 因此 [fusedOutputAssumedWgs84] 应由调用方根据是否安装 `com.google.android.gms` 等启发式传入。
+     * 因此 [fusedOutputAssumedWgs84] 应由调用方根据 **Play 服务是否可用**（如 [com.google.android.gms.common.GoogleApiAvailability]）等启发式传入；勿仅凭是否安装 `com.google.android.gms` 包名判断。
      *
      * **网络定位**在国内亦多为 GCJ 或地图系，不转换。
      */

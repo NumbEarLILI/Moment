@@ -99,6 +99,8 @@ dependencies {
     implementation("com.google.dagger:hilt-android:2.56.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // 用于 [GoogleApiAvailability]，比仅检测 com.google.android.gms 包名更可靠（国内机/不可用时少误判 WGS）。
+    implementation("com.google.android.gms:play-services-base:18.7.2")
 
     ksp("androidx.room:room-compiler:2.8.4")
     ksp("com.google.dagger:hilt-compiler:2.56.2")

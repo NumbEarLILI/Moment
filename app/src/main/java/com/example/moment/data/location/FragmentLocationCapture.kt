@@ -10,6 +10,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.core.os.CancellationSignal
 import com.example.moment.domain.model.FragmentLocation
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.Locale
 import java.util.concurrent.Executors
@@ -17,6 +19,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -26,7 +31,11 @@ import kotlin.coroutines.resume
  * 使用 [LocationManager]（含 Android 12+ 的 [LocationManager.FUSED_PROVIDER]），不依赖 Play 定位 SDK。
  * 自动定位标签为简短经纬度摘要，不做链路程式逆地理。
  *
- * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：GPS 恒按 WGS→GCJ；fused 在 **已安装 GMS** 时按 WGS→GCJ，**无 GMS** 的国内 ROM 上 fused 多已为 GCJ 则不再转换，避免二次偏移。
+ * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：**GPS** 恒按 WGS→GCJ；**fused** 仅在
+ * [GoogleApiAvailability] 判断 Play 服务 **可用** 时当作 WGS 再转（国产 ROM 上仅安装 GMS 壳但仍输出 GCJ 时少二次偏移）。
+ * **网络**定位在国内多已为 GCJ，一般不转。
+ *
+ * 在中国大陆且 GPS 精度尚可时 **优先采用 GPS** 结果再转 GCJ，避免 fused  datum 与高德不一致造成固定向偏移。
  */
 @Singleton
 class FragmentLocationCapture @Inject constructor(
@@ -40,7 +49,7 @@ class FragmentLocationCapture @Inject constructor(
             fetchBestLocation()
         } ?: return@withContext null
 
-        val fusedAssumedWgs84 = hasGooglePlayServicesPackage()
+        val fusedAssumedWgs84 = isGooglePlayServicesAvailableForLocation()
         val (lat, lng) =
             if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
                     location.provider,
@@ -71,59 +80,119 @@ class FragmentLocationCapture @Inject constructor(
         return coarse || fine
     }
 
+    /**
+     * 各 provider 并行单次拉取，再综合精度/时效（及国内 GPS 优先策略）取一点。
+     */
     private suspend fun fetchBestLocation(): Location? {
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
-        val providers = buildList {
+        val providers = kotlin.collections.buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(LocationManager.FUSED_PROVIDER)
             }
             add(LocationManager.GPS_PROVIDER)
             add(LocationManager.NETWORK_PROVIDER)
-        }
+        }.filter { lm.isProviderEnabled(it) }
+
+        if (providers.isEmpty()) return null
 
         val executor = Executors.newSingleThreadExecutor()
         return try {
-            for (provider in providers) {
-                if (!lm.isProviderEnabled(provider)) continue
-                val cancel = CancellationSignal()
-                val location = suspendCancellableCoroutine { cont ->
-                    val finished = AtomicBoolean(false)
-                    cont.invokeOnCancellation { cancel.cancel() }
-                    LocationManagerCompat.getCurrentLocation(
-                        lm,
-                        provider,
-                        cancel,
-                        executor
-                    ) { l ->
-                        if (finished.compareAndSet(false, true)) {
-                            cont.resume(l)
+            coroutineScope {
+                val candidates: List<Location> = providers.map { provider ->
+                    async {
+                        withTimeoutOrNull(PER_PROVIDER_TIMEOUT_MS) {
+                            fetchCurrentLocation(lm, provider, executor)
                         }
                     }
-                }
-                if (location != null) return location
+                }.awaitAll().filterNotNull()
+                chooseLocationForAmap(candidates)
             }
-            null
         } finally {
             executor.shutdownNow()
         }
     }
 
-    /**
-     * 有 GMS 时系统 [LocationManager.FUSED_PROVIDER] 多为 WGS-84；无 GMS 的国内 ROM 上 fused 常为 GCJ，不可再转。
-     */
-    private fun hasGooglePlayServicesPackage(): Boolean =
-        try {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo("com.google.android.gms", 0)
-            true
-        } catch (_: PackageManager.NameNotFoundException) {
-            false
+    private fun chooseLocationForAmap(candidates: List<Location>): Location? {
+        if (candidates.isEmpty()) return null
+        val anyMainland = candidates.any {
+            ChinaCoordinateTransform.appliesChinaOffset(it.latitude, it.longitude)
         }
+        if (anyMainland) {
+            val gpsReadings = candidates.filter { loc ->
+                loc.provider == LocationManager.GPS_PROVIDER || loc.provider.equals("gps", ignoreCase = true)
+            }
+            val bestGps = pickBestLocation(gpsReadings)
+            if (bestGps != null) {
+                val accuracyOk =
+                    !bestGps.hasAccuracy() || bestGps.accuracy <= MAINLAND_GPS_PREFER_WHEN_ACCURACY_LE_METERS
+                if (accuracyOk) return bestGps
+            }
+        }
+        return pickBestLocation(candidates)
+    }
+
+    private fun pickBestLocation(locations: List<Location>): Location? {
+        var best: Location? = null
+        for (loc in locations) {
+            if (isBetterLocation(loc, best)) best = loc
+        }
+        return best
+    }
+
+    private suspend fun fetchCurrentLocation(
+        lm: LocationManager,
+        provider: String,
+        executor: java.util.concurrent.Executor,
+    ): Location? = suspendCancellableCoroutine<Location?> { cont ->
+        val cancel = CancellationSignal()
+        cont.invokeOnCancellation { cancel.cancel() }
+        val finished = AtomicBoolean(false)
+        LocationManagerCompat.getCurrentLocation(lm, provider, cancel, executor) { l ->
+            if (finished.compareAndSet(false, true)) {
+                cont.resume(l)
+            }
+        }
+    }
+
+    /**
+     * 与 Android 位置策略一致：综合精度与时间戳。
+     * 无精度元数据时视为最差，避免错误地压过其它读数。
+     */
+    private fun isBetterLocation(location: Location, currentBest: Location?): Boolean {
+        if (currentBest == null) return true
+        val timeDelta = location.time - currentBest.time
+        val isSignificantlyNewer = timeDelta > TWO_MINUTES_MS
+        val isNewer = timeDelta > 0
+        val accuracyNew = effectiveAccuracyMeters(location)
+        val accuracyOld = effectiveAccuracyMeters(currentBest)
+        val isSignificantlyLessAccurate = accuracyNew > accuracyOld * ACCURACY_COMPARISON_RATIO
+        val isLessAccurate = accuracyNew > accuracyOld
+        val isMoreAccurate = accuracyNew < accuracyOld
+
+        if (isMoreAccurate && isNewer) return true
+        if (isMoreAccurate && !isNewer && !isSignificantlyLessAccurate) return true
+        if (isNewer && !isLessAccurate) return true
+        if (isNewer && !isMoreAccurate && !isSignificantlyLessAccurate) return true
+        if (isSignificantlyNewer && !isSignificantlyLessAccurate) return true
+        return false
+    }
+
+    private fun effectiveAccuracyMeters(location: Location): Float =
+        if (location.hasAccuracy()) location.accuracy else Float.MAX_VALUE
+
+    private fun isGooglePlayServicesAvailableForLocation(): Boolean =
+        GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) ==
+            ConnectionResult.SUCCESS
 
     private fun formatCoordinateLabel(lat: Double, lng: Double): String =
         String.format(Locale.CHINA, "约 %.4f，%.4f", lat, lng)
 
     private companion object {
-        private const val LOCATION_TIMEOUT_MS = 10_000L
+        private const val LOCATION_TIMEOUT_MS = 12_000L
+        private const val PER_PROVIDER_TIMEOUT_MS = 11_000L
+        private const val TWO_MINUTES_MS = 120_000L
+        private const val ACCURACY_COMPARISON_RATIO = 2f
+        /** 国内优先 GPS 的最大可接受精度；更差时退回 fused/网络以免室内飘移过大 */
+        private const val MAINLAND_GPS_PREFER_WHEN_ACCURACY_LE_METERS = 150f
     }
 }
