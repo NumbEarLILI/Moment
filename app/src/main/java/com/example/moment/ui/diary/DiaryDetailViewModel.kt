@@ -35,16 +35,19 @@ class DiaryDetailViewModel @Inject constructor(
                     _uiState.update { it.copy(isLoading = false, errorMessage = "读取日记失败") }
                 }
                 .collect { entry ->
-        val plog = if (entry != null && entry.sourceFragmentStableIds.isNotEmpty()) {
-            val loaded = fragmentRepository.getFragmentsForStableIds(entry.sourceFragmentStableIds)
-            lifeFragmentsForPlogTimeline(
-                        entry.sourceFragmentStableIds,
-                        loaded,
-                        fallbackDiaryDate = entry.date,
-                    )
-        } else {
-            emptyList()
-        }
+                    if (entry != null && entry.sourceFragmentStableIds.isNotEmpty()) {
+                        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(entry, emptyMap())
+                    }
+                    val plog = if (entry != null && entry.sourceFragmentStableIds.isNotEmpty()) {
+                        val loaded = fragmentRepository.getFragmentsForStableIds(entry.sourceFragmentStableIds)
+                        lifeFragmentsForPlogTimeline(
+                            entry.sourceFragmentStableIds,
+                            loaded,
+                            fallbackDiaryDate = entry.date,
+                        )
+                    } else {
+                        emptyList()
+                    }
                     _uiState.update { prev ->
                         prev.copy(
                             entry = entry,

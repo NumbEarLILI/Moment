@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.domain.model.DiaryDraft
+import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
@@ -11,6 +12,7 @@ import com.example.moment.domain.usecase.DiaryGenerationMode
 import com.example.moment.domain.usecase.GenerateDiaryDraftUseCase
 import com.example.moment.domain.usecase.SaveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +60,22 @@ class DiaryPreviewViewModel @Inject constructor(
 
     private suspend fun loadPlogFragments(draft: DiaryDraft, diaryDate: LocalDate): List<LifeFragment> {
         if (draft.sourceFragmentStableIds.isEmpty()) return emptyList()
+        val ghostEntry = DiaryEntry(
+            id = 0L,
+            date = diaryDate,
+            title = draft.title,
+            body = draft.body,
+            highlights = draft.highlights,
+            moodSummary = draft.moodSummary,
+            sourceFragmentStableIds = draft.sourceFragmentStableIds,
+            imageUris = draft.imageUris,
+            fragmentImageUris = draft.fragmentImageUris,
+            locationPins = draft.locationPins,
+            fragmentStories = draft.fragmentStories,
+            createdAt = Instant.EPOCH,
+            updatedAt = Instant.EPOCH,
+        )
+        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(ghostEntry, emptyMap())
         val loaded = fragmentRepository.getFragmentsForStableIds(draft.sourceFragmentStableIds)
         return lifeFragmentsForPlogTimeline(
             draft.sourceFragmentStableIds,
