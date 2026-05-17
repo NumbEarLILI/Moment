@@ -35,3 +35,15 @@ fun parseFragmentRecordedAtText(
     } catch (_: DateTimeParseException) {
         null
     }
+
+fun resolveFragmentRecordedAtForSave(
+    parsedRecordedAt: Instant,
+    currentText: FragmentRecordedAtText,
+    baselineRecordedAt: Instant?,
+    baselineText: FragmentRecordedAtText?
+): Instant =
+    if (baselineRecordedAt != null && baselineText == currentText) {
+        baselineRecordedAt
+    } else {
+        parsedRecordedAt
+    }
