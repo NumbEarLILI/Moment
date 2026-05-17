@@ -6,6 +6,7 @@ import androidx.core.content.FileProvider
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
+import com.example.moment.domain.model.orderedAnchoredFragmentIdsForDiary
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -96,6 +97,7 @@ class NasDiaryWebDavPackager @Inject constructor(
                     text = it.text
                 )
             },
+            fragmentCreatedAtEpochMillis = fragmentCreatedAtMapForNasBackup(entry),
             createdAtEpochMillis = entry.createdAt.toEpochMilli(),
             updatedAtEpochMillis = entry.updatedAt.toEpochMilli()
         )
@@ -121,6 +123,19 @@ class NasDiaryWebDavPackager @Inject constructor(
             null
         }
     }
+
+    private suspend fun fragmentCreatedAtMapForNasBackup(entry: DiaryEntry): Map<String, Long> {
+        val ids = orderedAnchoredFragmentIdsForDiary(entry)
+        if (ids.isEmpty()) return emptyMap()
+        val frags = fragmentRepository.getFragmentsForStableIds(ids)
+        return frags.associate { it.stableId.trim() to it.createdAt.toEpochMilli() }
+    }
+
+    private fun normalizeNasDtoFragmentTimes(dto: NasBackupDiaryFileDto): Map<String, Long> =
+        dto.fragmentCreatedAtEpochMillis.mapNotNull { (k, v) ->
+            val t = k.trim()
+            if (t.isEmpty() || v <= 0L) null else t to v
+        }.toMap()
 
     /**
      * 判断本地手帐与 NAS `diary.json` 是否语义一致（无需再次 restore / 拉图）。
@@ -285,7 +300,10 @@ class NasDiaryWebDavPackager @Inject constructor(
             updatedAt = Instant.ofEpochMilli(dto.updatedAtEpochMillis)
         )
         diaryRepository.saveDiary(entry)
-        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(entry)
+        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(
+            entry,
+            normalizeNasDtoFragmentTimes(dto),
+        )
         return true to localImages.size
     }
 
@@ -325,7 +343,10 @@ class NasDiaryWebDavPackager @Inject constructor(
             fragmentImageUris = fragmentImageUris
         )
         diaryRepository.saveDiary(merged)
-        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(merged)
+        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(
+            merged,
+            normalizeNasDtoFragmentTimes(dto),
+        )
         return true to localImages.size
     }
 

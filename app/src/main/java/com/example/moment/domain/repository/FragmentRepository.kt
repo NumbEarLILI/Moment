@@ -17,7 +17,11 @@ interface FragmentRepository {
     suspend fun deleteFragment(id: Long)
 
     /**
-     * NAS 恢复等：手帐已含 stableId，本地尚无对应行时插入占位（时间戳远离真实日历日）。
+     * NAS 恢复等：手帐已含 stableId，本地尚无对应行时插入占位碎片。
+     * [preferredCreatedAtEpochMillisByStableId] 来自 `diary.json` 时写入真实创建时刻；否则用手帐当日顺序递推的分钟插值。
      */
-    suspend fun ensureGhostPlaceholderFragmentsForDiary(entry: DiaryEntry)
+    suspend fun ensureGhostPlaceholderFragmentsForDiary(
+        entry: DiaryEntry,
+        preferredCreatedAtEpochMillisByStableId: Map<String, Long> = emptyMap(),
+    )
 }

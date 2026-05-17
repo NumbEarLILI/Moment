@@ -133,6 +133,9 @@ class UpdateFragmentUseCaseTest {
 
         override suspend fun deleteFragment(id: Long) = Unit
 
-        override suspend fun ensureGhostPlaceholderFragmentsForDiary(entry: DiaryEntry) = Unit
+        override suspend fun ensureGhostPlaceholderFragmentsForDiary(
+            entry: DiaryEntry,
+            preferredCreatedAtEpochMillisByStableId: Map<String, Long>,
+        ) = Unit
     }
 }

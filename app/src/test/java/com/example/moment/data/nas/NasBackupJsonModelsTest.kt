@@ -1,6 +1,5 @@
 package com.example.moment.data.nas
 
-import com.example.moment.domain.model.DiaryLocationPin
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.serialization.json.Json
@@ -25,6 +24,9 @@ class NasBackupJsonModelsTest {
             imageRelativePaths = listOf("images/0.bin", null),
             locationPins = listOf(
                 NasFileLocationPin(fragmentStableId = "1", placeName = "家", latitude = 30.0, longitude = 120.0)
+            ),
+            fragmentCreatedAtEpochMillis = mapOf(
+                "1" to Instant.parse("2026-05-01T08:30:00Z").toEpochMilli(),
             ),
             createdAtEpochMillis = Instant.parse("2026-05-01T10:00:00Z").toEpochMilli(),
             updatedAtEpochMillis = Instant.parse("2026-05-01T11:00:00Z").toEpochMilli()

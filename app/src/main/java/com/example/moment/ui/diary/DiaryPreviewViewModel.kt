@@ -47,7 +47,7 @@ class DiaryPreviewViewModel @Inject constructor(
             val anchor = if (diaryIdArg > 0L) diaryRepository.getDiaryById(diaryIdArg) else null
             val mergeDate = anchor?.date ?: dateArg
             val draft = generateDiaryDraft(mergeDate, DiaryGenerationMode.AUTO, anchor)
-            val plog = loadPlogFragments(draft)
+            val plog = loadPlogFragments(draft, mergeDate)
             applyDraft(draft, plog, mergeDate)
         } catch (e: Throwable) {
             val detail = e.message?.takeIf { it.isNotBlank() }
@@ -56,10 +56,14 @@ class DiaryPreviewViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadPlogFragments(draft: DiaryDraft): List<LifeFragment> {
+    private suspend fun loadPlogFragments(draft: DiaryDraft, diaryDate: LocalDate): List<LifeFragment> {
         if (draft.sourceFragmentStableIds.isEmpty()) return emptyList()
         val loaded = fragmentRepository.getFragmentsForStableIds(draft.sourceFragmentStableIds)
-        return lifeFragmentsForPlogTimeline(draft.sourceFragmentStableIds, loaded)
+        return lifeFragmentsForPlogTimeline(
+            draft.sourceFragmentStableIds,
+            loaded,
+            fallbackDiaryDate = diaryDate,
+        )
     }
 
     private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>, mergeDate: LocalDate) {
