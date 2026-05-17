@@ -262,20 +262,30 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         prior: DiaryEntry?,
         sortedDayFragments: List<LifeFragment>
     ): List<String> {
-        val seen = linkedSetOf<String>()
-        val ordered = mutableListOf<String>()
-        fun add(sid: String) {
+        val candidateOrder = linkedMapOf<String, Int>()
+        fun addCandidate(sid: String) {
             val t = sid.trim()
             if (t.isEmpty()) return
-            if (seen.add(t)) ordered.add(t)
+            candidateOrder.putIfAbsent(t, candidateOrder.size)
         }
         if (prior != null) {
-            for (id in prior.sourceFragmentStableIds) add(id)
-            for (s in prior.fragmentStories) add(s.fragmentStableId)
-            for (id in prior.fragmentImageUris.keys.sorted()) add(id)
+            for (id in prior.sourceFragmentStableIds) addCandidate(id)
+            for (s in prior.fragmentStories) addCandidate(s.fragmentStableId)
+            for (id in prior.fragmentImageUris.keys.sorted()) addCandidate(id)
         }
-        for (f in sortedDayFragments.sortedBy { it.createdAt }) add(f.stableId)
-        return ordered
+        val liveTimes = sortedDayFragments.associate { it.stableId.trim() to it.createdAt.toEpochMilli() }
+        for (f in sortedDayFragments.sortedBy { it.createdAt }) addCandidate(f.stableId)
+        val priorTimes = prior?.fragmentCreatedAtEpochMillis.orEmpty().mapKeys { it.key.trim() }
+        return candidateOrder.keys.sortedWith { a, b ->
+            val ta = liveTimes[a] ?: priorTimes[a]
+            val tb = liveTimes[b] ?: priorTimes[b]
+            when {
+                ta != null && tb != null && ta != tb -> ta.compareTo(tb)
+                ta == null && tb != null -> -1
+                ta != null && tb == null -> 1
+                else -> candidateOrder.getValue(a).compareTo(candidateOrder.getValue(b))
+            }
+        }
     }
 
     private suspend fun buildFragmentByStableIdMap(
