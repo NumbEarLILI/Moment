@@ -240,6 +240,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                     val remoteMs = dto.updatedAtEpochMillis
                     val pullRelative = "nas_archive_pull/${folder}_${remoteMs}"
                     if (local != null && packager.localDiaryContentMatchesNasDto(local, dto)) {
+                        packager.reconcileFragmentTimelineFromArchiveDto(local, dto)
                         skipped++
                         continue
                     }

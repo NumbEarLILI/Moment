@@ -258,6 +258,17 @@ class NasDiaryWebDavPackager @Inject constructor(
         return restoreDiaryWithDto(client, root, diaryFolderSegments, localCacheRelative, dto)
     }
 
+    /**
+     * 存档拉取时若 [localDiaryContentMatchesNasDto] 为 true 会跳过重写手帐，但仍应把
+     * [NasBackupDiaryFileDto.fragmentCreatedAtEpochMillis] 同步到本地占位碎片，否则 plog 时间不会更新。
+     */
+    internal suspend fun reconcileFragmentTimelineFromArchiveDto(localEntry: DiaryEntry, dto: NasBackupDiaryFileDto) {
+        fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(
+            localEntry,
+            normalizeNasDtoFragmentTimes(dto),
+        )
+    }
+
     internal suspend fun restoreDiaryWithDto(
         client: OkHttpClient,
         root: HttpUrl,

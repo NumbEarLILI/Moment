@@ -72,13 +72,20 @@ class FragmentRepositoryImpl @Inject constructor(
             val existing = dao.getByStableId(sid)
             if (existing != null) {
                 val placeholderLike = existing.content.isBlank() && existing.imageUris.isEmpty()
-                if (placeholderLike && preferred != null && existing.createdAtEpochMillis != preferred) {
-                    dao.insert(
-                        existing.copy(
-                            createdAtEpochMillis = preferred,
-                            updatedAtEpochMillis = preferred,
+                if (placeholderLike) {
+                    val targetMs = when {
+                        preferred != null -> preferred
+                        !createdAtMillisInDiaryLocalDay(existing.createdAtEpochMillis, entry) -> fallbackMs
+                        else -> null
+                    }
+                    if (targetMs != null && existing.createdAtEpochMillis != targetMs) {
+                        dao.insert(
+                            existing.copy(
+                                createdAtEpochMillis = targetMs,
+                                updatedAtEpochMillis = targetMs,
+                            )
                         )
-                    )
+                    }
                 }
                 continue
             }
@@ -105,6 +112,12 @@ class FragmentRepositoryImpl @Inject constructor(
         val start = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val end = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
         return start to end
+    }
+
+    private fun createdAtMillisInDiaryLocalDay(createdAtEpochMillis: Long, entry: DiaryEntry): Boolean {
+        val start = entry.date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val end = entry.date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        return createdAtEpochMillis >= start && createdAtEpochMillis < end
     }
 
 }
