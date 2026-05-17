@@ -7,6 +7,7 @@ import com.example.moment.domain.model.AppThemeMode
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.domain.model.NasArchiveConflictInfo
 import com.example.moment.domain.model.NasWebdavConfig
+import com.example.moment.domain.model.AiProviderPreset
 import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.domain.model.toNasWebdavConfig
 import com.example.moment.domain.repository.NasArchiveRepository
@@ -200,6 +201,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setAiModel(value: String) {
         _aiModel.value = value
+    }
+
+    fun applyAiProviderPreset(preset: AiProviderPreset) {
+        _aiBaseUrl.value = preset.baseUrl
+        _aiModel.value = preset.defaultModel
     }
 
     fun saveAiSettings() {
