@@ -17,6 +17,8 @@ data class DiaryEntry(
     val fragmentImageUris: Map<String, List<String>> = emptyMap(),
     val locationPins: List<DiaryLocationPin> = emptyList(),
     val fragmentStories: List<FragmentAiStory> = emptyList(),
+    /** 手帐快照中每条 plog 碎片的真实记录时间；NAS 仅恢复手帐时用于显示正确时间。 */
+    val fragmentCreatedAtEpochMillis: Map<String, Long> = emptyMap(),
     val createdAt: Instant,
     val updatedAt: Instant
 )

@@ -14,7 +14,7 @@ class NasBackupJsonModelsTest {
     @Test
     fun diaryFileDto_roundTrips() {
         val original = NasBackupDiaryFileDto(
-            schemaVersion = 2,
+            schemaVersion = 3,
             id = 3L,
             dateEpochDay = LocalDate.of(2026, 5, 1).toEpochDay(),
             title = "标题",
@@ -23,6 +23,10 @@ class NasBackupJsonModelsTest {
             moodSummary = "还行",
             sourceFragmentStableIds = listOf("1", "2"),
             imageRelativePaths = listOf("images/0.bin", null),
+            fragmentCreatedAtEpochMillis = mapOf(
+                "1" to Instant.parse("2026-05-01T08:30:00Z").toEpochMilli(),
+                "2" to Instant.parse("2026-05-01T09:45:00Z").toEpochMilli()
+            ),
             locationPins = listOf(
                 NasFileLocationPin(fragmentStableId = "1", placeName = "家", latitude = 30.0, longitude = 120.0)
             ),

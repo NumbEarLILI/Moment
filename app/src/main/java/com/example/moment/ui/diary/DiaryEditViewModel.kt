@@ -49,7 +49,11 @@ class DiaryEditViewModel @Inject constructor(
     private suspend fun applyEntry(entry: DiaryEntry) {
         val plog = if (entry.sourceFragmentStableIds.isNotEmpty()) {
             val loaded = fragmentRepository.getFragmentsForStableIds(entry.sourceFragmentStableIds)
-            lifeFragmentsForPlogTimeline(entry.sourceFragmentStableIds, loaded)
+            lifeFragmentsForPlogTimeline(
+                entry.sourceFragmentStableIds,
+                loaded,
+                entry.fragmentCreatedAtEpochMillis
+            )
         } else {
             emptyList()
         }
