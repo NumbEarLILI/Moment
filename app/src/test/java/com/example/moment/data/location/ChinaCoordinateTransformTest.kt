@@ -1,5 +1,6 @@
 package com.example.moment.data.location
 
+import android.location.LocationManager
 import kotlin.math.abs
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,5 +32,13 @@ class ChinaCoordinateTransformTest {
         val (backLat, backLng) = ChinaCoordinateTransform.gcj02ToWgs84(gcjLat, gcjLng)
         assertTrue(abs(backLat - wgsLat) < 0.0002)
         assertTrue(abs(backLng - wgsLng) < 0.0002)
+    }
+
+    @Test
+    fun capturedNetworkProviderShouldConvertToGcj02ForAmap() {
+        assertTrue(
+            "Android network provider coordinates must be normalized before showing on AMap",
+            ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(LocationManager.NETWORK_PROVIDER)
+        )
     }
 }

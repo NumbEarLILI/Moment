@@ -37,11 +37,13 @@ object ChinaCoordinateTransform {
 
     /**
      * GPS、融合定位（provider [LocationManager.GPS_PROVIDER] / `"fused"` / [LocationManager.FUSED_PROVIDER]）通常为 WGS-84。
-     * 网络定位在国内 ROM 上有时已是 GCJ-02，此处 **不转换** 以降低二次偏移风险。
+     * Android framework 的网络定位同样按 WGS-84 语义返回；写入库前统一转为 GCJ-02，避免高德地图上出现
+     * 数十到上百米的系统性偏移。
      */
     fun shouldConvertCapturedLocationToGcj02(provider: String?): Boolean {
         if (provider.isNullOrEmpty()) return false
         if (provider == LocationManager.GPS_PROVIDER) return true
+        if (provider == LocationManager.NETWORK_PROVIDER) return true
         if (provider == "fused") return true
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             provider == LocationManager.FUSED_PROVIDER

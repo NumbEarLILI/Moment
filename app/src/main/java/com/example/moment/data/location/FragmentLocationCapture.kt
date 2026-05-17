@@ -27,8 +27,8 @@ import kotlin.coroutines.resume
  * Suitable for devices without GMS (common in mainland China). Address text is a short
  * coordinate summary instead of reverse-geocoding (which often depends on Google backends).
  *
- * **Coordinates:** GPS / 融合定位得到的是 WGS-84，会在写入前转为 **GCJ-02**，与高德 Web 地图及逆地理接口一致；
- * 网络定位在国内机型上可能已是 GCJ-02，则不再二次转换。
+ * **Coordinates:** Android framework 定位得到的是 WGS-84，会在写入前转为 **GCJ-02**，
+ * 与高德 Web 地图及逆地理接口一致。
  */
 @Singleton
 class FragmentLocationCapture @Inject constructor(
@@ -80,35 +80,67 @@ class FragmentLocationCapture @Inject constructor(
 
         val executor = Executors.newSingleThreadExecutor()
         return try {
+            var best: Location? = null
             for (provider in providers) {
-                if (!lm.isProviderEnabled(provider)) continue
-                val cancel = CancellationSignal()
-                val location = suspendCancellableCoroutine { cont ->
-                    val finished = AtomicBoolean(false)
-                    cont.invokeOnCancellation { cancel.cancel() }
-                    LocationManagerCompat.getCurrentLocation(
-                        lm,
-                        provider,
-                        cancel,
-                        executor
-                    ) { l ->
-                        if (finished.compareAndSet(false, true)) {
-                            cont.resume(l)
-                        }
-                    }
+                if (!lm.isProviderSafelyEnabled(provider)) continue
+                val location = fetchCurrentLocation(lm, provider, executor) ?: continue
+                if (CapturedLocationQuality.isBetter(location.toCandidate(), best?.toCandidate())) {
+                    best = location
                 }
-                if (location != null) return location
+                if (CapturedLocationQuality.isGoodEnough(location.accuracyMetersOrNull())) {
+                    return best
+                }
             }
-            null
+            best
         } finally {
             executor.shutdownNow()
         }
     }
 
+    private fun LocationManager.isProviderSafelyEnabled(provider: String): Boolean =
+        try {
+            isProviderEnabled(provider)
+        } catch (_: SecurityException) {
+            false
+        }
+
+    private suspend fun fetchCurrentLocation(
+        lm: LocationManager,
+        provider: String,
+        executor: java.util.concurrent.Executor
+    ): Location? = try {
+        withTimeoutOrNull(PROVIDER_TIMEOUT_MS) {
+            val cancel = CancellationSignal()
+            suspendCancellableCoroutine { cont ->
+                val finished = AtomicBoolean(false)
+                cont.invokeOnCancellation { cancel.cancel() }
+                LocationManagerCompat.getCurrentLocation(
+                    lm,
+                    provider,
+                    cancel,
+                    executor
+                ) { l ->
+                    if (finished.compareAndSet(false, true)) {
+                        cont.resume(l)
+                    }
+                }
+            }
+        }
+    } catch (_: SecurityException) {
+        null
+    }
+
+    private fun Location.accuracyMetersOrNull(): Float? =
+        if (hasAccuracy()) accuracy else null
+
+    private fun Location.toCandidate(): CapturedLocationCandidate =
+        CapturedLocationCandidate(provider = provider, accuracyMeters = accuracyMetersOrNull())
+
     private fun formatCoordinateLabel(lat: Double, lng: Double): String =
         String.format(Locale.CHINA, "约 %.4f，%.4f", lat, lng)
 
     private companion object {
-        private const val LOCATION_TIMEOUT_MS = 10_000L
+        private const val LOCATION_TIMEOUT_MS = 12_000L
+        private const val PROVIDER_TIMEOUT_MS = 3_500L
     }
 }
