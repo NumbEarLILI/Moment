@@ -17,6 +17,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -71,42 +74,85 @@ class FragmentLocationCapture @Inject constructor(
         return coarse || fine
     }
 
+    /**
+     * 并行向各 provider 要一次当前位置，再按精度/时效挑出最优。
+     *
+     * 原先顺序「融合 → GPS → 网络」会在融合先返回时直接采用，而融合常为 Wi‑Fi/基站粗定位或旧点，
+     * 更准的 GPS 根本不会被用到，在高德上会表现成明显偏移。
+     */
     private suspend fun fetchBestLocation(): Location? {
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
-        val providers = buildList {
+        val providers = kotlin.collections.buildList {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(LocationManager.FUSED_PROVIDER)
             }
             add(LocationManager.GPS_PROVIDER)
             add(LocationManager.NETWORK_PROVIDER)
-        }
+        }.filter { lm.isProviderEnabled(it) }
+
+        if (providers.isEmpty()) return null
 
         val executor = Executors.newSingleThreadExecutor()
         return try {
-            for (provider in providers) {
-                if (!lm.isProviderEnabled(provider)) continue
-                val cancel = CancellationSignal()
-                val location = suspendCancellableCoroutine { cont ->
-                    val finished = AtomicBoolean(false)
-                    cont.invokeOnCancellation { cancel.cancel() }
-                    LocationManagerCompat.getCurrentLocation(
-                        lm,
-                        provider,
-                        cancel,
-                        executor
-                    ) { l ->
-                        if (finished.compareAndSet(false, true)) {
-                            cont.resume(l)
+            coroutineScope {
+                val candidates: List<Location> = providers.map { provider ->
+                    async {
+                        withTimeoutOrNull(PER_PROVIDER_TIMEOUT_MS) {
+                            fetchCurrentLocation(lm, provider, executor)
                         }
                     }
+                }.awaitAll().filterNotNull()
+                var best: Location? = null
+                for (loc in candidates) {
+                    if (isBetterLocation(loc, best)) best = loc
                 }
-                if (location != null) return location
+                best
             }
-            null
         } finally {
             executor.shutdownNow()
         }
     }
+
+    private suspend fun fetchCurrentLocation(
+        lm: LocationManager,
+        provider: String,
+        executor: java.util.concurrent.Executor,
+    ): Location? = suspendCancellableCoroutine<Location?> { cont ->
+        val cancel = CancellationSignal()
+        cont.invokeOnCancellation { cancel.cancel() }
+        val finished = AtomicBoolean(false)
+        LocationManagerCompat.getCurrentLocation(lm, provider, cancel, executor) { l ->
+            if (finished.compareAndSet(false, true)) {
+                cont.resume(l)
+            }
+        }
+    }
+
+    /**
+     * 与 Android 官方「Best Practices」一致：综合精度与时间戳挑选更可靠的读数。
+     * 无精度元数据时视为最差，避免错误地压过其它读数。
+     */
+    private fun isBetterLocation(location: Location, currentBest: Location?): Boolean {
+        if (currentBest == null) return true
+        val timeDelta = location.time - currentBest.time
+        val isSignificantlyNewer = timeDelta > TWO_MINUTES_MS
+        val isNewer = timeDelta > 0
+        val accuracyNew = effectiveAccuracyMeters(location)
+        val accuracyOld = effectiveAccuracyMeters(currentBest)
+        val isSignificantlyLessAccurate = accuracyNew > accuracyOld * ACCURACY_COMPARISON_RATIO
+        val isLessAccurate = accuracyNew > accuracyOld
+        val isMoreAccurate = accuracyNew < accuracyOld
+
+        if (isMoreAccurate && isNewer) return true
+        if (isMoreAccurate && !isNewer && !isSignificantlyLessAccurate) return true
+        if (isNewer && !isLessAccurate) return true
+        if (isNewer && !isMoreAccurate && !isSignificantlyLessAccurate) return true
+        if (isSignificantlyNewer && !isSignificantlyLessAccurate) return true
+        return false
+    }
+
+    private fun effectiveAccuracyMeters(location: Location): Float =
+        if (location.hasAccuracy()) location.accuracy else Float.MAX_VALUE
 
     /**
      * 有 GMS 时系统 [LocationManager.FUSED_PROVIDER] 多为 WGS-84；无 GMS 的国内 ROM 上 fused 常为 GCJ，不可再转。
@@ -124,6 +170,9 @@ class FragmentLocationCapture @Inject constructor(
         String.format(Locale.CHINA, "约 %.4f，%.4f", lat, lng)
 
     private companion object {
-        private const val LOCATION_TIMEOUT_MS = 10_000L
+        private const val LOCATION_TIMEOUT_MS = 12_000L
+        private const val PER_PROVIDER_TIMEOUT_MS = 11_000L
+        private const val TWO_MINUTES_MS = 120_000L
+        private const val ACCURACY_COMPARISON_RATIO = 2f
     }
 }
