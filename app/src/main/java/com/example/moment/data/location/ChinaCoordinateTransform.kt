@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 /**
  * WGS-84（国际 GPS）与 GCJ-02（国测局 —— 高德/国内地图）互转。
  *
- * 自动定位存库时：仅对 **卫星 GPS** 结果做 WGS→GCJ；融合/网络定位在国内常已是 GCJ，避免二次偏移。
+ * 自动定位存库时：**卫星 GPS** 做 WGS→GCJ；**fused** 是否转换取决于是否假定其为 WGS（见 [shouldConvertCapturedLocationToGcj02]）；**network** 在国内多已为 GCJ，一般不转。
  * 选点页高德地图与逆地理均使用 GCJ-02。
  *
  * 算法源自广泛使用的 Mars 坐标变换（如 [eviltransform](https://github.com/googollee/eviltransform)）。
@@ -37,14 +37,24 @@ object ChinaCoordinateTransform {
     /**
      * 仅对 **卫星 GPS** 结果做 WGS→GCJ：卫星轨位与接收机解算在标准里对应 WGS-84。
      *
-     * **融合定位**（`fused` / [LocationManager.FUSED_PROVIDER]）在国内机型上常已由系统/芯片输出 **GCJ-02**
-     *（或与高德路网对齐的坐标）；若再按 WGS 做一次火星偏移，会产生 **二次偏千米级** 的典型问题。
+     * **融合定位**（`fused`）：
+     * - 带 **Google Play 服务** 时，系统融合栈通常仍按 **WGS-84** 输出，需转换才能与高德 Web 对齐；
+     * - **无 GMS** 的国产 ROM 上，厂商融合结果常为 **GCJ-02**，若再转换会产生二次偏移。
      *
-     * **网络定位**在国内亦多为 GCJ 或地图系，同样不再转换。
+     * 因此 [fusedOutputAssumedWgs84] 应由调用方根据是否安装 `com.google.android.gms` 等启发式传入。
+     *
+     * **网络定位**在国内亦多为 GCJ 或地图系，不转换。
      */
-    fun shouldConvertCapturedLocationToGcj02(provider: String?): Boolean {
+    fun shouldConvertCapturedLocationToGcj02(
+        provider: String?,
+        fusedOutputAssumedWgs84: Boolean,
+    ): Boolean {
         if (provider.isNullOrEmpty()) return false
-        return provider == LocationManager.GPS_PROVIDER
+        if (provider == LocationManager.GPS_PROVIDER) return true
+        if (provider == LocationManager.FUSED_PROVIDER || provider.equals("fused", ignoreCase = true)) {
+            return fusedOutputAssumedWgs84
+        }
+        return false
     }
 
     private fun outOfChina(lat: Double, lng: Double): Boolean =
