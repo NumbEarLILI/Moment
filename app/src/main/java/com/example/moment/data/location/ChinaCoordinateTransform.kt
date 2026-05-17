@@ -41,7 +41,7 @@ object ChinaCoordinateTransform {
      * - 带 **Google Play 服务** 时，系统融合栈通常仍按 **WGS-84** 输出，需转换才能与高德 Web 对齐；
      * - **无 GMS** 的国产 ROM 上，厂商融合结果常为 **GCJ-02**，若再转换会产生二次偏移。
      *
-     * 因此 [fusedOutputAssumedWgs84] 应由调用方根据是否安装 `com.google.android.gms` 等启发式传入。
+     * 因此 [fusedOutputAssumedWgs84] 应由调用方根据 **Play 服务是否真正可用**（如 [GooglePlayServicesAvailability.isPlayServicesUsable]）传入，勿仅用包名判断。
      *
      * **网络定位**在国内亦多为 GCJ 或地图系，不转换。
      */

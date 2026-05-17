@@ -26,7 +26,9 @@ import kotlin.coroutines.resume
  * 使用 [LocationManager]（含 Android 12+ 的 [LocationManager.FUSED_PROVIDER]），不依赖 Play 定位 SDK。
  * 自动定位标签为简短经纬度摘要，不做链路程式逆地理。
  *
- * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：GPS 恒按 WGS→GCJ；fused 在 **已安装 GMS** 时按 WGS→GCJ，**无 GMS** 的国内 ROM 上 fused 多已为 GCJ 则不再转换，避免二次偏移。
+ * 写入前将坐标统一为 **GCJ-02**（与高德 Web 一致）：GPS 恒按 WGS→GCJ；fused 仅当
+ * [GooglePlayServicesAvailability.isPlayServicesUsable] 为真时才按 WGS→GCJ（勿仅以包名判断）；否则假定 fused 已是 GCJ。
+ * 提供方顺序 **GPS → fused → 网络**，优先卫星定位，减少融合坐标系误判。
  */
 @Singleton
 class FragmentLocationCapture @Inject constructor(
@@ -40,7 +42,7 @@ class FragmentLocationCapture @Inject constructor(
             fetchBestLocation()
         } ?: return@withContext null
 
-        val fusedAssumedWgs84 = hasGooglePlayServicesPackage()
+        val fusedAssumedWgs84 = GooglePlayServicesAvailability.isPlayServicesUsable(context)
         val (lat, lng) =
             if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(
                     location.provider,
@@ -74,10 +76,10 @@ class FragmentLocationCapture @Inject constructor(
     private suspend fun fetchBestLocation(): Location? {
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
         val providers = buildList {
+            add(LocationManager.GPS_PROVIDER)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 add(LocationManager.FUSED_PROVIDER)
             }
-            add(LocationManager.GPS_PROVIDER)
             add(LocationManager.NETWORK_PROVIDER)
         }
 
@@ -108,22 +110,10 @@ class FragmentLocationCapture @Inject constructor(
         }
     }
 
-    /**
-     * 有 GMS 时系统 [LocationManager.FUSED_PROVIDER] 多为 WGS-84；无 GMS 的国内 ROM 上 fused 常为 GCJ，不可再转。
-     */
-    private fun hasGooglePlayServicesPackage(): Boolean =
-        try {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo("com.google.android.gms", 0)
-            true
-        } catch (_: PackageManager.NameNotFoundException) {
-            false
-        }
-
     private fun formatCoordinateLabel(lat: Double, lng: Double): String =
         String.format(Locale.CHINA, "约 %.4f，%.4f", lat, lng)
 
     private companion object {
-        private const val LOCATION_TIMEOUT_MS = 10_000L
+        private const val LOCATION_TIMEOUT_MS = 15_000L
     }
 }
