@@ -40,7 +40,7 @@ class RefreshSavedDiaryFromFragmentsUseCase @Inject constructor(
         )
         val persisted = diaryRepository.getDiaryById(savedId)
         if (persisted != null) {
-            nasArchiveSync.onDiarySaved(persisted)
+            nasArchiveSync.onDiarySaved(persisted).getOrThrow()
         }
     }
 }

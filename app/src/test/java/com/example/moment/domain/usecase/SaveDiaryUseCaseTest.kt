@@ -136,7 +136,7 @@ class SaveDiaryUseCaseTest {
     }
 
     private object NoopNasArchiveSync : NasArchiveSyncCoordinator {
-        override suspend fun onDiarySaved(entry: DiaryEntry) = Unit
-        override suspend fun onDiaryDeleted(dateEpochDay: Long) = Unit
+        override suspend fun onDiarySaved(entry: DiaryEntry): Result<Unit> = Result.success(Unit)
+        override suspend fun onDiaryDeleted(dateEpochDay: Long): Result<Unit> = Result.success(Unit)
     }
 }

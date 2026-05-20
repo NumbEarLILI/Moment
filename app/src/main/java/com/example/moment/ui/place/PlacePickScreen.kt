@@ -53,7 +53,7 @@ class PlacePickerJsBridge(
         Handler(Looper.getMainLooper()).post {
             val lat = latitude.trim().toDoubleOrNull()
             val lng = longitude.trim().toDoubleOrNull()
-            if (lat != null && lng != null) {
+            if (lat != null && lng != null && lat in -90.0..90.0 && lng in -180.0..180.0) {
                 onPickFromWeb(lat, lng)
             } else {
                 onMapError("onPick 无法解析: lat=\"$latitude\" lng=\"$longitude\"")
@@ -154,6 +154,11 @@ fun PlacePickScreen(
                     Text("读取图钉位置")
                 }
             }
+            Text(
+                "地点建议会把图钉坐标发送给地图/逆地理服务；不想联网查询时可直接手动填写地点名称。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             AndroidView(
                 modifier = Modifier
                     .fillMaxWidth()

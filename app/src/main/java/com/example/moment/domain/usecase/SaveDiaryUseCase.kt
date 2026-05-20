@@ -55,7 +55,7 @@ class SaveDiaryUseCase @Inject constructor(
         val persisted = repository.getDiaryById(savedId)
             ?: repository.getDiaryForDate(date)
         if (persisted != null) {
-            nasArchiveSync.onDiarySaved(persisted)
+            nasArchiveSync.onDiarySaved(persisted).getOrThrow()
         }
         return savedId
     }

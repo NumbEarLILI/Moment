@@ -285,6 +285,10 @@ class NasDiaryWebDavPackager @Inject constructor(
     ): Pair<Boolean, Int> {
         val date = LocalDate.ofEpochDay(dto.dateEpochDay)
         val existing = diaryRepository.getDiaryForDate(date)
+        val contentMatches = existing?.let { localDiaryContentMatchesNasDto(it, dto) } ?: false
+        if (!shouldRestoreNasBackupDiary(existing, dto, contentMatches)) {
+            return false to 0
+        }
         val localDir = File(context.filesDir, localCacheRelative).apply { mkdirs() }
         val authority = "${context.packageName}.fileprovider"
         val resolvedByIndex = downloadDiaryImagesFromWebDav(

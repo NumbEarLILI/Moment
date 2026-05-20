@@ -21,7 +21,8 @@ private val Context.userPreferencesDataStore: DataStore<Preferences> by preferen
 
 @Singleton
 class UserPreferencesRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val securePreferenceCipher: SecurePreferenceCipher
 ) {
     private val dataStore = context.userPreferencesDataStore
 
@@ -34,11 +35,11 @@ class UserPreferencesRepository @Inject constructor(
             themeMode = themeMode,
             customBackgroundImageUri = prefs[Keys.CUSTOM_BACKGROUND_IMAGE_URI].orEmpty(),
             aiBaseUrl = prefs[Keys.AI_BASE_URL].orEmpty(),
-            aiApiKey = prefs[Keys.AI_API_KEY].orEmpty(),
+            aiApiKey = securePreferenceCipher.decrypt(prefs[Keys.AI_API_KEY].orEmpty()),
             aiModel = prefs[Keys.AI_MODEL].orEmpty(),
             nasWebdavBaseUrl = prefs[Keys.NAS_WEBDAV_BASE_URL].orEmpty(),
             nasWebdavUsername = prefs[Keys.NAS_WEBDAV_USERNAME].orEmpty(),
-            nasWebdavPassword = prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty(),
+            nasWebdavPassword = securePreferenceCipher.decrypt(prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty()),
             nasWebdavTrustSelfSignedCertificates = prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] ?: false,
             nasMomentStorageUserId = prefs[Keys.NAS_MOMENT_STORAGE_USER_ID].orEmpty(),
             nasMomentAccountUsername = prefs[Keys.NAS_MOMENT_ACCOUNT_USERNAME].orEmpty(),
@@ -58,7 +59,7 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setAiSettings(baseUrl: String, apiKey: String, model: String) {
         dataStore.edit { prefs ->
             prefs[Keys.AI_BASE_URL] = baseUrl.trim()
-            prefs[Keys.AI_API_KEY] = apiKey.trim()
+            prefs[Keys.AI_API_KEY] = securePreferenceCipher.encrypt(apiKey.trim())
             prefs[Keys.AI_MODEL] = model.trim()
         }
     }
@@ -72,7 +73,7 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs[Keys.NAS_WEBDAV_BASE_URL] = baseUrl.trim()
             prefs[Keys.NAS_WEBDAV_USERNAME] = username.trim()
-            prefs[Keys.NAS_WEBDAV_PASSWORD] = password
+            prefs[Keys.NAS_WEBDAV_PASSWORD] = securePreferenceCipher.encrypt(password)
             prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] = trustSelfSignedCertificates
         }
     }

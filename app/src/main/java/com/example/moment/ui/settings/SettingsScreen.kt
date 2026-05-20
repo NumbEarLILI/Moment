@@ -186,7 +186,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "OpenAI 兼容接口（如 DeepSeek）。留空则用手写规则生成手帐。",
+                "OpenAI 兼容接口（如 DeepSeek）。开启后会把碎片文本、心情、标签和地点发送到你配置的接口；留空则用手写规则生成手帐。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
