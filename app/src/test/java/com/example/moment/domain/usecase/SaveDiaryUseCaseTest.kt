@@ -68,6 +68,53 @@ class SaveDiaryUseCaseTest {
         )
     }
 
+    @Test
+    fun invokeUsesEditedFragmentCreatedAtWhenProvided() = runTest {
+        val date = LocalDate.of(2026, 5, 13)
+        val liveTime = Instant.parse("2026-05-13T14:30:00Z")
+        val editedTime = Instant.parse("2026-05-13T09:15:00Z")
+        val diaryRepository = FakeDiaryRepository(diary(date, emptyMap()))
+        val fragmentRepository = FakeFragmentRepository(
+            listOf(
+                LifeFragment(
+                    id = 1,
+                    stableId = "s1",
+                    content = "今天的 plog",
+                    imageUris = emptyList(),
+                    mood = Mood.CALM,
+                    tags = emptyList(),
+                    createdAt = liveTime,
+                    updatedAt = liveTime
+                )
+            )
+        )
+        val useCase = SaveDiaryUseCase(
+            repository = diaryRepository,
+            fragmentRepository = fragmentRepository,
+            nasArchiveSync = NoopNasArchiveSync,
+            clock = Clock.fixed(Instant.parse("2026-05-14T00:00:00Z"), ZoneOffset.UTC)
+        )
+
+        useCase(
+            date = date,
+            title = "标题",
+            body = "正文",
+            highlights = emptyList(),
+            moodSummary = null,
+            sourceFragmentStableIds = listOf("s1"),
+            imageUris = emptyList(),
+            locationPins = emptyList(),
+            fragmentStories = emptyList(),
+            fragmentImageUris = emptyMap(),
+            fragmentCreatedAtEpochMillis = mapOf("s1" to editedTime.toEpochMilli())
+        )
+
+        assertEquals(
+            mapOf("s1" to editedTime.toEpochMilli()),
+            diaryRepository.saved.value.single().fragmentCreatedAtEpochMillis
+        )
+    }
+
     private fun diary(
         date: LocalDate,
         fragmentCreatedAtEpochMillis: Map<String, Long>

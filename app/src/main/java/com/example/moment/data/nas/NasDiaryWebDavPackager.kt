@@ -371,6 +371,21 @@ class NasDiaryWebDavPackager @Inject constructor(
         return true to localImages.size
     }
 
+    internal fun shouldRefreshDiaryImagesFromNas(existing: DiaryEntry, dto: NasBackupDiaryFileDto): Boolean {
+        val localRefs = flatOrderedUniqueImageUris(existing)
+        val remoteCount = dto.imageRelativePaths.count { !it.isNullOrBlank() }
+        return shouldRefreshNasDiaryImages(
+            localImageReferenceCount = localRefs.size,
+            remoteImageCount = remoteCount,
+            hasUnreadableLocalImage = localRefs.any { !canReadLocalImageUri(it) }
+        )
+    }
+
+    private fun canReadLocalImageUri(uriString: String): Boolean =
+        runCatching {
+            context.contentResolver.openInputStream(Uri.parse(uriString))?.use { true } ?: false
+        }.getOrDefault(false)
+
     private data class NasRestoreNormalized(
         val sourceStableIds: List<String>,
         val fragmentImageIndices: Map<String, List<Int>>,
@@ -472,16 +487,20 @@ class NasDiaryWebDavPackager @Inject constructor(
         uriString: String,
         imageUploadMode: NasImageUploadMode
     ): Pair<String?, Boolean> {
-        val name = imageUploadMode.remoteFileName(index)
-        val relative = imageUploadMode.relativeImagePath(index)
-        val putUrl = childUrl(root, diaryBase + listOf("images", name))
         val uri = Uri.parse(uriString)
         if (!imageUploadMode.uploadOriginal) {
+            val name = imageUploadMode.remoteFileName(index)
+            val relative = imageUploadMode.relativeImagePath(index)
+            val putUrl = childUrl(root, diaryBase + listOf("images", name))
             return backupCompressedImage(client, putUrl, relative, uri)
         }
         val length = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
         if (length == 0L) return null to false
         val mime = context.contentResolver.getType(uri)
+        val extension = nasOriginalImageExtension(mime, uriString)
+        val name = imageUploadMode.remoteFileName(index, extension)
+        val relative = imageUploadMode.relativeImagePath(index, extension)
+        val putUrl = childUrl(root, diaryBase + listOf("images", name))
         return try {
             webDavHttp.putStream(
                 client,

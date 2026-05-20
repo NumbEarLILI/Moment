@@ -26,6 +26,7 @@ fun DiaryEditorForm(
     navController: NavHostController,
     onTitleChange: (String) -> Unit,
     onBodyChange: (String) -> Unit,
+    onPlogTimeChange: (String, String) -> Unit,
     onSave: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -71,6 +72,8 @@ fun DiaryEditorForm(
                             )
                         )
                     },
+                    plogTimeTexts = state.plogTimeTexts,
+                    onPlogTimeChange = onPlogTimeChange,
                     modifier = Modifier.fillMaxWidth()
                 )
             } else if (state.fragmentStories.isNotEmpty()) {
