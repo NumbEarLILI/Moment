@@ -32,11 +32,15 @@ data class NasImageUploadMode(
 
 internal fun nasOriginalImageExtension(mimeType: String?, uriString: String): String {
     extensionFromImageMimeType(mimeType)?.let { return it }
-    val lower = uriString.substringBefore('?').lowercase()
+    return nasImageExtensionFromPath(uriString)
+        ?: ".jpg"
+}
+
+internal fun nasImageExtensionFromPath(path: String): String? {
+    val lower = path.substringBefore('?').lowercase()
     return listOf(".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif")
         .firstOrNull { lower.endsWith(it) }
         ?.let { normalizedImageExtension(it) }
-        ?: ".jpg"
 }
 
 private fun extensionFromImageMimeType(mimeType: String?): String? =

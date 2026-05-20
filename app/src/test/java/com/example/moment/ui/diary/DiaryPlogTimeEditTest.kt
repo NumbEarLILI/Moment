@@ -54,6 +54,23 @@ class DiaryPlogTimeEditTest {
         assertNotNull(updated.errorMessage)
     }
 
+    @Test
+    fun updatePlogTime_rejectsTwentyFourHundred() {
+        val original = Instant.parse("2026-05-20T08:00:00Z")
+        val state = DiaryEditorUiState(
+            date = LocalDate.of(2026, 5, 20),
+            sourceFragmentStableIds = listOf("s1"),
+            plogFragments = listOf(fragment("s1", original)),
+            fragmentCreatedAtEpochMillis = mapOf("s1" to original.toEpochMilli()),
+            plogTimeTexts = mapOf("s1" to "08:00")
+        )
+
+        val updated = updatePlogTimeText(state, "s1", "24:00", ZoneOffset.UTC)
+
+        assertEquals(original.toEpochMilli(), updated.fragmentCreatedAtEpochMillis["s1"])
+        assertNotNull(updated.errorMessage)
+    }
+
     private fun fragment(stableId: String, createdAt: Instant) = LifeFragment(
         id = 1L,
         stableId = stableId,

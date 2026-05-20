@@ -40,5 +40,7 @@ class NasImageUploadModeTest {
         assertEquals(".webp", nasOriginalImageExtension("image/webp", "content://x/no-name"))
         assertEquals(".heic", nasOriginalImageExtension(null, "content://x/photo.HEIC"))
         assertEquals(".jpg", nasOriginalImageExtension(null, "content://x/no-name"))
+        assertEquals(".heif", nasImageExtensionFromPath("images/0.heif"))
+        assertEquals(".webp", nasImageExtensionFromPath("images/0.webp"))
     }
 }

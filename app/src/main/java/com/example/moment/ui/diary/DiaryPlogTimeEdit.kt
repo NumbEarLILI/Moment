@@ -8,6 +8,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
 private val PlogTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val PlogTimePattern = Regex("""(?:[01]\d|2[0-3]):[0-5]\d""")
 
 internal fun plogTimeText(instant: Instant, zoneId: ZoneId): String =
     instant.atZone(zoneId).toLocalTime().format(PlogTimeFormatter)
@@ -57,7 +58,9 @@ internal fun invalidPlogTimeMessage(state: DiaryEditorUiState, zoneId: ZoneId): 
 
 private fun parsePlogTimeOnDiaryDate(date: LocalDate, timeText: String, zoneId: ZoneId): Instant? =
     try {
-        val time = LocalTime.parse(timeText.trim(), PlogTimeFormatter)
+        val trimmed = timeText.trim()
+        if (!PlogTimePattern.matches(trimmed)) return null
+        val time = LocalTime.parse(trimmed, PlogTimeFormatter)
         date.atTime(time).atZone(zoneId).toInstant()
     } catch (_: DateTimeParseException) {
         null

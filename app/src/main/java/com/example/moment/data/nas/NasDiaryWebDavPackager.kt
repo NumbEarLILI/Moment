@@ -299,12 +299,14 @@ class NasDiaryWebDavPackager @Inject constructor(
             authority,
             dto.imageRelativePaths
         )
-        val localImages = resolvedByIndex.mapNotNull { it }
+        val mergedByIndex = mergeDownloadedImagesWithExisting(dto, existing, resolvedByIndex)
+            ?: return false to 0
+        val localImages = mergedByIndex.mapNotNull { it }
         val normalized = normalizeNasDiaryRestore(dto)
         val fragmentImageUris = restoreFragmentImageUris(
             normalized.sourceStableIds,
             normalized.fragmentImageIndices,
-            resolvedByIndex
+            mergedByIndex
         )
         val entry = DiaryEntry(
             id = existing?.id ?: 0L,
@@ -351,12 +353,14 @@ class NasDiaryWebDavPackager @Inject constructor(
             authority,
             dto.imageRelativePaths
         )
-        val localImages = resolvedByIndex.mapNotNull { it }
+        val mergedByIndex = mergeDownloadedImagesWithExisting(dto, existing, resolvedByIndex)
+            ?: return false to 0
+        val localImages = mergedByIndex.mapNotNull { it }
         val normalized = normalizeNasDiaryRestore(dto)
         val fragmentImageUris = restoreFragmentImageUris(
             normalized.sourceStableIds,
             normalized.fragmentImageIndices,
-            resolvedByIndex
+            mergedByIndex
         )
         val merged = existing.copy(
             imageUris = localImages,
@@ -385,6 +389,26 @@ class NasDiaryWebDavPackager @Inject constructor(
         runCatching {
             context.contentResolver.openInputStream(Uri.parse(uriString))?.use { true } ?: false
         }.getOrDefault(false)
+
+    private fun mergeDownloadedImagesWithExisting(
+        dto: NasBackupDiaryFileDto,
+        existing: DiaryEntry?,
+        resolvedByIndex: Array<String?>
+    ): Array<String?>? {
+        val merged = resolvedByIndex.copyOf()
+        val existingFlat = existing?.let { flatOrderedUniqueImageUris(it) }.orEmpty()
+        for (idx in dto.imageRelativePaths.indices) {
+            if (dto.imageRelativePaths[idx].isNullOrBlank() || merged[idx] != null) continue
+            val existingUri = existingFlat.getOrNull(idx)
+            if (existingUri != null && canReadLocalImageUri(existingUri)) {
+                merged[idx] = existingUri
+            }
+        }
+        val missingExpectedRemoteImage = dto.imageRelativePaths.indices.any { idx ->
+            !dto.imageRelativePaths[idx].isNullOrBlank() && merged[idx] == null
+        }
+        return if (missingExpectedRemoteImage) null else merged
+    }
 
     private data class NasRestoreNormalized(
         val sourceStableIds: List<String>,
@@ -450,7 +474,7 @@ class NasDiaryWebDavPackager @Inject constructor(
         )
     }
 
-    private fun guessImageExtension(bytes: ByteArray): String {
+    private fun guessImageExtension(bytes: ByteArray, fallback: String = ".bin"): String {
         if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) {
             return ".jpg"
         }
@@ -469,14 +493,35 @@ class NasDiaryWebDavPackager @Inject constructor(
         ) {
             return ".gif"
         }
-        return ".bin"
+        if (bytes.size >= 12 &&
+            bytes[0] == 0x52.toByte() &&
+            bytes[1] == 0x49.toByte() &&
+            bytes[2] == 0x46.toByte() &&
+            bytes[3] == 0x46.toByte() &&
+            bytes[8] == 0x57.toByte() &&
+            bytes[9] == 0x45.toByte() &&
+            bytes[10] == 0x42.toByte() &&
+            bytes[11] == 0x50.toByte()
+        ) {
+            return ".webp"
+        }
+        if (bytes.size >= 12 &&
+            bytes[4] == 0x66.toByte() &&
+            bytes[5] == 0x74.toByte() &&
+            bytes[6] == 0x79.toByte() &&
+            bytes[7] == 0x70.toByte()
+        ) {
+            val brand = String(bytes.copyOfRange(8, 12), Charsets.ISO_8859_1)
+            if (brand in setOf("heic", "heix", "hevc", "hevx", "mif1", "heif")) return ".heic"
+        }
+        return fallback
     }
 
-    private fun guessImageExtensionFromFileHead(file: File): String {
+    private fun guessImageExtensionFromFileHead(file: File, fallback: String = ".bin"): String {
         val buf = ByteArray(32)
         val n = FileInputStream(file).use { it.read(buf) }
-        if (n <= 0) return ".bin"
-        return guessImageExtension(buf.copyOf(n))
+        if (n <= 0) return fallback
+        return guessImageExtension(buf.copyOf(n), fallback)
     }
 
     private suspend fun backupOneImage(
@@ -745,7 +790,10 @@ class NasDiaryWebDavPackager @Inject constructor(
                     val tmp = File(localDir, "img_${idx}.part")
                     try {
                         webDavHttp.getToFile(client, imgUrl, tmp)
-                        val ext = guessImageExtensionFromFileHead(tmp)
+                        val ext = guessImageExtensionFromFileHead(
+                            tmp,
+                            nasImageExtensionFromPath(rel) ?: ".bin"
+                        )
                         val out = File(localDir, "img_$idx$ext")
                         if (out.exists()) out.delete()
                         if (!tmp.renameTo(out)) {
