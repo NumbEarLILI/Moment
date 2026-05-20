@@ -31,13 +31,17 @@ Moment 是一个安卓日常碎片记录 App。首版 MVP 支持记录生活片�
 ./gradlew :app:assembleDebug
 ```
 
-如果本机没有 Android SDK，需要先安装 Android SDK Command-line Tools，并确保 `local.properties` 包含：
+如果本机没有 Android SDK，可运行：
 
-```properties
-sdk.dir=/path/to/android-sdk
+```bash
+bash scripts/setup-android-sdk.sh
 ```
 
-`local.properties` 不应提交到版本库。
+脚本会安装 Command-line Tools、接受许可，并安装 `platform-tools`、`platforms;android-36`、`build-tools;36.0.0`（默认目录为项目下的 `.android-sdk/`）。
+
+Gradle 会在未存在 `local.properties` 时，根据 `ANDROID_SDK_ROOT` / `ANDROID_HOME` 或 `.android-sdk/` 自动生成 `sdk.dir`。也可手动在 `local.properties` 中设置 `sdk.dir`。该文件不应提交到版本库。
+
+Cursor Cloud Agent 会在启动时通过 `.cursor/environment.json` 执行上述安装脚本，详见 `AGENTS.md`。
 
 ## 文档
 

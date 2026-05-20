@@ -1,0 +1,7 @@
+{
+  "install": "bash scripts/setup-android-sdk.sh",
+  "env": {
+    "ANDROID_SDK_ROOT": "/workspace/.android-sdk",
+    "ANDROID_HOME": "/workspace/.android-sdk"
+  }
+}
