@@ -43,4 +43,28 @@ class NasImageUploadModeTest {
         assertEquals(".heif", nasImageExtensionFromPath("images/0.heif"))
         assertEquals(".webp", nasImageExtensionFromPath("images/0.webp"))
     }
+
+    @Test
+    fun originalImageExtension_usesFileHeaderWhenMimeAndUriAreUnknown() {
+        val pngHeader = byteArrayOf(
+            0x89.toByte(),
+            0x50,
+            0x4E,
+            0x47,
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A
+        )
+
+        assertEquals(
+            ".png",
+            nasOriginalImageExtension(
+                mimeType = null,
+                uriString = "content://media/external/images/media/42",
+                headerBytes = pngHeader
+            )
+        )
+        assertEquals("image/png", nasImageContentType(".png", null))
+    }
 }

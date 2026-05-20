@@ -475,46 +475,7 @@ class NasDiaryWebDavPackager @Inject constructor(
     }
 
     private fun guessImageExtension(bytes: ByteArray, fallback: String = ".bin"): String {
-        if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) {
-            return ".jpg"
-        }
-        if (bytes.size >= 4 &&
-            bytes[0] == 0x89.toByte() &&
-            bytes[1] == 0x50.toByte() &&
-            bytes[2] == 0x4E.toByte() &&
-            bytes[3] == 0x47.toByte()
-        ) {
-            return ".png"
-        }
-        if (bytes.size >= 6 &&
-            bytes[0] == 0x47.toByte() &&
-            bytes[1] == 0x49.toByte() &&
-            bytes[2] == 0x46.toByte()
-        ) {
-            return ".gif"
-        }
-        if (bytes.size >= 12 &&
-            bytes[0] == 0x52.toByte() &&
-            bytes[1] == 0x49.toByte() &&
-            bytes[2] == 0x46.toByte() &&
-            bytes[3] == 0x46.toByte() &&
-            bytes[8] == 0x57.toByte() &&
-            bytes[9] == 0x45.toByte() &&
-            bytes[10] == 0x42.toByte() &&
-            bytes[11] == 0x50.toByte()
-        ) {
-            return ".webp"
-        }
-        if (bytes.size >= 12 &&
-            bytes[4] == 0x66.toByte() &&
-            bytes[5] == 0x74.toByte() &&
-            bytes[6] == 0x79.toByte() &&
-            bytes[7] == 0x70.toByte()
-        ) {
-            val brand = String(bytes.copyOfRange(8, 12), Charsets.ISO_8859_1)
-            if (brand in setOf("heic", "heix", "hevc", "hevx", "mif1", "heif")) return ".heic"
-        }
-        return fallback
+        return nasImageExtensionFromBytes(bytes) ?: fallback
     }
 
     private fun guessImageExtensionFromFileHead(file: File, fallback: String = ".bin"): String {
@@ -539,26 +500,60 @@ class NasDiaryWebDavPackager @Inject constructor(
             val putUrl = childUrl(root, diaryBase + listOf("images", name))
             return backupCompressedImage(client, putUrl, relative, uri)
         }
-        val length = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
-        if (length == 0L) return null to false
-        val mime = context.contentResolver.getType(uri)
-        val extension = nasOriginalImageExtension(mime, uriString)
-        val name = imageUploadMode.remoteFileName(index, extension)
-        val relative = imageUploadMode.relativeImagePath(index, extension)
-        val putUrl = childUrl(root, diaryBase + listOf("images", name))
+        val uploadFile = copyOriginalImageToTempFile(uri) ?: return null to false
         return try {
+            val mime = context.contentResolver.getType(uri)
+            val header = readFileHeader(uploadFile)
+            val extension = nasOriginalImageExtension(mime, uriString, header)
+            val name = imageUploadMode.remoteFileName(index, extension)
+            val relative = imageUploadMode.relativeImagePath(index, extension)
+            val putUrl = childUrl(root, diaryBase + listOf("images", name))
             webDavHttp.putStream(
                 client,
                 putUrl,
-                length,
-                imageUploadMode.contentType(mime)
+                uploadFile.length(),
+                imageUploadMode.contentType(mime, extension)
             ) {
-                context.contentResolver.openInputStream(uri)
-                    ?: throw IOException("无法读取图片")
+                FileInputStream(uploadFile)
             }
             relative to true
         } catch (_: Exception) {
             null to false
+        } finally {
+            if (uploadFile.exists()) uploadFile.delete()
+        }
+    }
+
+    private fun readFileHeader(file: File): ByteArray {
+        val buffer = ByteArray(32)
+        val read = FileInputStream(file).use { it.read(buffer) }
+        return when {
+            read <= 0 -> ByteArray(0)
+            read < buffer.size -> buffer.copyOf(read)
+            else -> buffer
+        }
+    }
+
+    private fun copyOriginalImageToTempFile(uri: Uri): File? {
+        return try {
+            val output = File.createTempFile(
+                "nas_original_upload_",
+                ".img",
+                File(context.cacheDir, "nas_upload").apply { mkdirs() }
+            )
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(output).use { out -> input.copyTo(out) }
+            } ?: run {
+                output.delete()
+                return null
+            }
+            if (output.length() == 0L) {
+                output.delete()
+                return null
+            }
+            output
+        } catch (_: Exception) {
+            null
         }
     }
 
