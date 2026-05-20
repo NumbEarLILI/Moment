@@ -420,7 +420,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "从 MomentBackup/runs/ 选一次备份合并到本机（同日覆盖本地该日手帐）。",
+                "从 MomentBackup/runs/ 选一次备份合并到本机；如果本机同日手帐更新且内容不同，会跳过旧备份以避免覆盖。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

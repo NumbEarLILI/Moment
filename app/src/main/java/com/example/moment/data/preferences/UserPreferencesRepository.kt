@@ -14,6 +14,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 
 private val Context.userPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "user_preferences"
@@ -26,7 +27,9 @@ class UserPreferencesRepository @Inject constructor(
 ) {
     private val dataStore = context.userPreferencesDataStore
 
-    val preferences: Flow<UserAppPreferences> = dataStore.data.map { prefs ->
+    val preferences: Flow<UserAppPreferences> = dataStore.data.onEach { prefs ->
+        migratePlaintextSensitivePreferences(prefs)
+    }.map { prefs ->
         val themeMode = when (val raw = prefs[Keys.THEME_MODE].orEmpty()) {
             "ORIGINAL" -> AppThemeMode.LIGHT
             else -> AppThemeMode.entries.find { it.name == raw } ?: AppThemeMode.SYSTEM
@@ -97,6 +100,24 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs.remove(Keys.NAS_MOMENT_STORAGE_USER_ID)
             prefs.remove(Keys.NAS_MOMENT_ACCOUNT_USERNAME)
+        }
+    }
+
+    private suspend fun migratePlaintextSensitivePreferences(prefs: Preferences) {
+        val aiApiKey = prefs[Keys.AI_API_KEY].orEmpty()
+        val nasPassword = prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty()
+        val shouldMigrateAiKey = aiApiKey.isNotEmpty() && !securePreferenceCipher.isEncrypted(aiApiKey)
+        val shouldMigrateNasPassword =
+            nasPassword.isNotEmpty() && !securePreferenceCipher.isEncrypted(nasPassword)
+        if (!shouldMigrateAiKey && !shouldMigrateNasPassword) return
+
+        dataStore.edit { current ->
+            if (shouldMigrateAiKey && current[Keys.AI_API_KEY] == aiApiKey) {
+                current[Keys.AI_API_KEY] = securePreferenceCipher.encrypt(aiApiKey)
+            }
+            if (shouldMigrateNasPassword && current[Keys.NAS_WEBDAV_PASSWORD] == nasPassword) {
+                current[Keys.NAS_WEBDAV_PASSWORD] = securePreferenceCipher.encrypt(nasPassword)
+            }
         }
     }
 

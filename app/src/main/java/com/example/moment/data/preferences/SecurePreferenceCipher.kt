@@ -14,6 +14,7 @@ import javax.inject.Singleton
 interface SecurePreferenceCipher {
     fun encrypt(plainText: String): String
     fun decrypt(storedText: String): String
+    fun isEncrypted(storedText: String): Boolean
 }
 
 @Singleton
@@ -31,7 +32,7 @@ class AndroidKeystoreSecurePreferenceCipher @Inject constructor() : SecurePrefer
 
     override fun decrypt(storedText: String): String {
         if (storedText.isEmpty()) return ""
-        if (!storedText.startsWith(PREFIX)) return storedText
+        if (!isEncrypted(storedText)) return storedText
         return runCatching {
             val payload = Base64.decode(storedText.removePrefix(PREFIX), Base64.NO_WRAP)
             if (payload.size <= IV_LENGTH_BYTES) return@runCatching ""
@@ -42,6 +43,8 @@ class AndroidKeystoreSecurePreferenceCipher @Inject constructor() : SecurePrefer
             String(cipher.doFinal(encrypted), Charsets.UTF_8)
         }.getOrDefault("")
     }
+
+    override fun isEncrypted(storedText: String): Boolean = storedText.startsWith(PREFIX)
 
     private fun secretKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
