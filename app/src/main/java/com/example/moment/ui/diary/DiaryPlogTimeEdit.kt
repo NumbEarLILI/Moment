@@ -56,8 +56,8 @@ internal fun invalidPlogTimeMessage(state: DiaryEditorUiState, zoneId: ZoneId): 
     return null
 }
 
-private fun parsePlogTimeOnDiaryDate(date: LocalDate, timeText: String, zoneId: ZoneId): Instant? =
-    try {
+private fun parsePlogTimeOnDiaryDate(date: LocalDate, timeText: String, zoneId: ZoneId): Instant? {
+    return try {
         val trimmed = timeText.trim()
         if (!PlogTimePattern.matches(trimmed)) return null
         val time = LocalTime.parse(trimmed, PlogTimeFormatter)
@@ -65,3 +65,4 @@ private fun parsePlogTimeOnDiaryDate(date: LocalDate, timeText: String, zoneId: 
     } catch (_: DateTimeParseException) {
         null
     }
+}
