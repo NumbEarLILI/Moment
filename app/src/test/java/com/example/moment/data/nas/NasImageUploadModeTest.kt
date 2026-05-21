@@ -22,15 +22,49 @@ class NasImageUploadModeTest {
     }
 
     @Test
-    fun originalUploadPreference_keepsOriginalRemoteSlotNameAndMime() {
+    fun originalUploadPreference_usesImageFileExtensionAndMime() {
         val prefs = UserAppPreferences(uploadOriginalImagesToNas = true)
 
         val mode = NasImageUploadMode.fromPreferences(prefs)
 
         assertTrue(mode.uploadOriginal)
-        assertEquals("7.bin", mode.remoteFileName(7))
-        assertEquals("images/7.bin", mode.relativeImagePath(7))
+        assertEquals("7.png", mode.remoteFileName(7, ".png"))
+        assertEquals("images/7.png", mode.relativeImagePath(7, ".png"))
         assertEquals("image/png", mode.contentType("image/png"))
         assertEquals("application/octet-stream", mode.contentType(null))
+    }
+
+    @Test
+    fun originalImageExtension_prefersMimeTypeThenUriExtension() {
+        assertEquals(".jpg", nasOriginalImageExtension("image/jpeg", "content://x/no-name"))
+        assertEquals(".webp", nasOriginalImageExtension("image/webp", "content://x/no-name"))
+        assertEquals(".heic", nasOriginalImageExtension(null, "content://x/photo.HEIC"))
+        assertEquals(".jpg", nasOriginalImageExtension(null, "content://x/no-name"))
+        assertEquals(".heif", nasImageExtensionFromPath("images/0.heif"))
+        assertEquals(".webp", nasImageExtensionFromPath("images/0.webp"))
+    }
+
+    @Test
+    fun originalImageExtension_usesFileHeaderWhenMimeAndUriAreUnknown() {
+        val pngHeader = byteArrayOf(
+            0x89.toByte(),
+            0x50,
+            0x4E,
+            0x47,
+            0x0D,
+            0x0A,
+            0x1A,
+            0x0A
+        )
+
+        assertEquals(
+            ".png",
+            nasOriginalImageExtension(
+                mimeType = null,
+                uriString = "content://media/external/images/media/42",
+                headerBytes = pngHeader
+            )
+        )
+        assertEquals("image/png", nasImageContentType(".png", null))
     }
 }

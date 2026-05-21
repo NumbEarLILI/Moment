@@ -186,7 +186,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "OpenAI 兼容接口（如 DeepSeek）。留空则用手写规则生成手帐。",
+                "OpenAI 兼容接口（如 DeepSeek）。开启后会把碎片文本、心情、标签和地点发送到你配置的接口；留空则用手写规则生成手帐。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -229,7 +229,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "备份与手帐存档走 WebDAV。登录 Moment 后数据在 MomentApp/users/… 下，与未登录路径互相独立。",
+                "备份与手帐存档走 WebDAV。建议使用 HTTPS；如果家庭 NAS 只能用 HTTP，应用也会允许连接。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -420,7 +420,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "从 MomentBackup/runs/ 选一次备份合并到本机（同日覆盖本地该日手帐）。",
+                "从 MomentBackup/runs/ 选一次备份合并到本机；如果本机同日手帐更新且内容不同，会跳过旧备份以避免覆盖。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

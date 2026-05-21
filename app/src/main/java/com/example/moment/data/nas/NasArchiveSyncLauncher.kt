@@ -14,19 +14,19 @@ class NasArchiveSyncLauncher @Inject constructor(
     private val userPreferencesAccessor: UserPreferencesAccessor,
     private val nasArchiveRepository: NasArchiveRepository
 ) : NasArchiveSyncCoordinator {
-    override suspend fun onDiarySaved(entry: DiaryEntry) {
+    override suspend fun onDiarySaved(entry: DiaryEntry): Result<Unit> {
         val p = userPreferencesAccessor.current()
-        if (!p.nasArchiveSyncEnabled) return
+        if (!p.nasArchiveSyncEnabled) return Result.success(Unit)
         val cfg = p.toNasWebdavConfig()
-        if (!cfg.isConfigured()) return
-        nasArchiveRepository.pushDiaryToArchive(cfg, entry)
+        if (!cfg.isConfigured()) return Result.success(Unit)
+        return nasArchiveRepository.pushDiaryToArchive(cfg, entry)
     }
 
-    override suspend fun onDiaryDeleted(dateEpochDay: Long) {
+    override suspend fun onDiaryDeleted(dateEpochDay: Long): Result<Unit> {
         val p = userPreferencesAccessor.current()
-        if (!p.nasArchiveSyncEnabled) return
+        if (!p.nasArchiveSyncEnabled) return Result.success(Unit)
         val cfg = p.toNasWebdavConfig()
-        if (!cfg.isConfigured()) return
-        nasArchiveRepository.deleteArchiveDay(cfg, dateEpochDay)
+        if (!cfg.isConfigured()) return Result.success(Unit)
+        return nasArchiveRepository.deleteArchiveDay(cfg, dateEpochDay)
     }
 }

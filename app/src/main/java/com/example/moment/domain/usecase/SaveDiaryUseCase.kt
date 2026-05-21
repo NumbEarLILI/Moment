@@ -27,13 +27,15 @@ class SaveDiaryUseCase @Inject constructor(
         imageUris: List<String>,
         locationPins: List<DiaryLocationPin>,
         fragmentStories: List<FragmentAiStory>,
-        fragmentImageUris: Map<String, List<String>>
+        fragmentImageUris: Map<String, List<String>>,
+        fragmentCreatedAtEpochMillis: Map<String, Long> = emptyMap()
     ): Long {
         val now = clock.instant()
         val existing = repository.getDiaryForDate(date)
-        val fragmentCreatedAtEpochMillis = fragmentCreatedAtEpochMillisForSave(
+        val savedFragmentCreatedAtEpochMillis = fragmentCreatedAtEpochMillisForSave(
             sourceFragmentStableIds,
-            existing
+            existing,
+            fragmentCreatedAtEpochMillis
         )
         val entry = DiaryEntry(
             id = existing?.id ?: 0,
@@ -47,7 +49,7 @@ class SaveDiaryUseCase @Inject constructor(
             locationPins = locationPins,
             fragmentStories = fragmentStories,
             fragmentImageUris = fragmentImageUris,
-            fragmentCreatedAtEpochMillis = fragmentCreatedAtEpochMillis,
+            fragmentCreatedAtEpochMillis = savedFragmentCreatedAtEpochMillis,
             createdAt = existing?.createdAt ?: now,
             updatedAt = now
         )
@@ -55,14 +57,15 @@ class SaveDiaryUseCase @Inject constructor(
         val persisted = repository.getDiaryById(savedId)
             ?: repository.getDiaryForDate(date)
         if (persisted != null) {
-            nasArchiveSync.onDiarySaved(persisted)
+            nasArchiveSync.onDiarySaved(persisted).getOrThrow()
         }
         return savedId
     }
 
     private suspend fun fragmentCreatedAtEpochMillisForSave(
         sourceFragmentStableIds: List<String>,
-        existing: DiaryEntry?
+        existing: DiaryEntry?,
+        editedTimes: Map<String, Long>
     ): Map<String, Long> {
         val orderedStableIds = sourceFragmentStableIds
             .map { it.trim() }
@@ -72,11 +75,14 @@ class SaveDiaryUseCase @Inject constructor(
         val existingTimes = existing?.fragmentCreatedAtEpochMillis.orEmpty()
             .mapKeys { it.key.trim() }
             .filterKeys { it.isNotEmpty() }
+        val editedClean = editedTimes
+            .mapKeys { it.key.trim() }
+            .filterKeys { it.isNotEmpty() }
         val liveTimes = fragmentRepository.getFragmentsForStableIds(orderedStableIds)
             .filterNot { it.isNasGhostPlaceholder() }
             .associate { it.stableId.trim() to it.createdAt.toEpochMilli() }
         return orderedStableIds.mapNotNull { sid ->
-            val epochMillis = liveTimes[sid] ?: existingTimes[sid] ?: return@mapNotNull null
+            val epochMillis = editedClean[sid] ?: liveTimes[sid] ?: existingTimes[sid] ?: return@mapNotNull null
             sid to epochMillis
         }.toMap()
     }

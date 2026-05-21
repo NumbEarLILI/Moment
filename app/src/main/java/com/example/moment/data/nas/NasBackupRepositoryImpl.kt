@@ -183,7 +183,10 @@ class NasBackupRepositoryImpl @Inject constructor(
                 webDavHttp.ensureCollectionPath(client, root, config.dataSegments("MomentArchive", "diaries"))
                 val day = entry.date.toEpochDay().toString()
                 val base = config.dataSegments("MomentArchive", "diaries", day)
-                packager.uploadDiary(client, root, base, entry, currentImageUploadMode())
+                val (_, skipped) = packager.uploadDiary(client, root, base, entry, currentImageUploadMode())
+                if (shouldFailSingleDiaryUploadForSkippedImages(skipped)) {
+                    throw IOException("有 $skipped 张图片上传失败")
+                }
                 Unit
             }
         }
@@ -245,7 +248,24 @@ class NasBackupRepositoryImpl @Inject constructor(
                     val remoteMs = dto.updatedAtEpochMillis
                     val pullRelative = "nas_archive_pull/${folder}_${remoteMs}"
                     if (local != null && packager.localDiaryContentMatchesNasDto(local, dto)) {
-                        skipped++
+                        val (refreshed, imgCount) = if (packager.shouldRefreshDiaryImagesFromNas(local, dto)) {
+                            packager.refreshDiaryImagesFromNas(
+                                client,
+                                root,
+                                base,
+                                pullRelative,
+                                dto,
+                                local
+                            )
+                        } else {
+                            false to 0
+                        }
+                        if (refreshed) {
+                            applied++
+                            images += imgCount
+                        } else {
+                            skipped++
+                        }
                         continue
                     }
                     if (local == null) {
@@ -363,9 +383,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                     root,
                     config.dataSegments("MomentArchive", "diaries", dateEpochDay.toString())
                 )
-                runCatching {
-                    webDavHttp.deleteCollectionRecursive(client, folderUrl)
-                }
+                webDavHttp.deleteCollectionRecursive(client, folderUrl)
                 Unit
             }
         }

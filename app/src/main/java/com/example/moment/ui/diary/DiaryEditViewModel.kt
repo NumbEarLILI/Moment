@@ -9,6 +9,7 @@ import com.example.moment.domain.repository.FragmentRepository
 import com.example.moment.domain.usecase.SaveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +21,8 @@ class DiaryEditViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val diaryRepository: DiaryRepository,
     private val fragmentRepository: FragmentRepository,
-    private val saveDiary: SaveDiaryUseCase
+    private val saveDiary: SaveDiaryUseCase,
+    private val zoneId: ZoneId = ZoneId.systemDefault()
 ) : ViewModel() {
     private val diaryId: Long = checkNotNull(savedStateHandle.get<Long>("id"))
     private val _uiState = MutableStateFlow(DiaryEditorUiState(date = LocalDate.EPOCH))
@@ -67,6 +69,8 @@ class DiaryEditViewModel @Inject constructor(
                 moodSummary = entry.moodSummary,
                 sourceFragmentStableIds = entry.sourceFragmentStableIds,
                 plogFragments = plog,
+                fragmentCreatedAtEpochMillis = entry.fragmentCreatedAtEpochMillis,
+                plogTimeTexts = plogTimeTextsForFragments(plog, zoneId),
                 fragmentStories = entry.fragmentStories,
                 fragmentImageUris = entry.fragmentImageUris,
                 imageUris = entry.imageUris,
@@ -77,11 +81,17 @@ class DiaryEditViewModel @Inject constructor(
 
     fun updateTitle(value: String) = _uiState.update { it.copy(title = value) }
     fun updateBody(value: String) = _uiState.update { it.copy(body = value) }
+    fun updatePlogTime(stableId: String, value: String) =
+        _uiState.update { updatePlogTimeText(it, stableId, value, zoneId) }
 
     fun save() {
         val state = _uiState.value
         if (state.sourceFragmentStableIds.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "缺少关联碎片记录，无法保存。请从日历重新生成手帐。") }
+            return
+        }
+        invalidPlogTimeMessage(state, zoneId)?.let { message ->
+            _uiState.update { it.copy(errorMessage = message) }
             return
         }
         viewModelScope.launch {
@@ -97,7 +107,8 @@ class DiaryEditViewModel @Inject constructor(
                     imageUris = state.imageUris,
                     locationPins = state.locationPins,
                     fragmentStories = state.fragmentStories,
-                    fragmentImageUris = state.fragmentImageUris
+                    fragmentImageUris = state.fragmentImageUris,
+                    fragmentCreatedAtEpochMillis = state.fragmentCreatedAtEpochMillis
                 )
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false, saved = true) }

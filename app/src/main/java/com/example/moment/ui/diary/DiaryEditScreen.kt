@@ -67,6 +67,7 @@ fun DiaryEditScreen(
                 navController = navController,
                 onTitleChange = viewModel::updateTitle,
                 onBodyChange = viewModel::updateBody,
+                onPlogTimeChange = viewModel::updatePlogTime,
                 onSave = viewModel::save
             )
         }

@@ -14,6 +14,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 
 private val Context.userPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "user_preferences"
@@ -21,11 +22,14 @@ private val Context.userPreferencesDataStore: DataStore<Preferences> by preferen
 
 @Singleton
 class UserPreferencesRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val securePreferenceCipher: SecurePreferenceCipher
 ) {
     private val dataStore = context.userPreferencesDataStore
 
-    val preferences: Flow<UserAppPreferences> = dataStore.data.map { prefs ->
+    val preferences: Flow<UserAppPreferences> = dataStore.data.onEach { prefs ->
+        migratePlaintextSensitivePreferences(prefs)
+    }.map { prefs ->
         val themeMode = when (val raw = prefs[Keys.THEME_MODE].orEmpty()) {
             "ORIGINAL" -> AppThemeMode.LIGHT
             else -> AppThemeMode.entries.find { it.name == raw } ?: AppThemeMode.SYSTEM
@@ -34,11 +38,11 @@ class UserPreferencesRepository @Inject constructor(
             themeMode = themeMode,
             customBackgroundImageUri = prefs[Keys.CUSTOM_BACKGROUND_IMAGE_URI].orEmpty(),
             aiBaseUrl = prefs[Keys.AI_BASE_URL].orEmpty(),
-            aiApiKey = prefs[Keys.AI_API_KEY].orEmpty(),
+            aiApiKey = securePreferenceCipher.decrypt(prefs[Keys.AI_API_KEY].orEmpty()),
             aiModel = prefs[Keys.AI_MODEL].orEmpty(),
             nasWebdavBaseUrl = prefs[Keys.NAS_WEBDAV_BASE_URL].orEmpty(),
             nasWebdavUsername = prefs[Keys.NAS_WEBDAV_USERNAME].orEmpty(),
-            nasWebdavPassword = prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty(),
+            nasWebdavPassword = securePreferenceCipher.decrypt(prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty()),
             nasWebdavTrustSelfSignedCertificates = prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] ?: false,
             nasMomentStorageUserId = prefs[Keys.NAS_MOMENT_STORAGE_USER_ID].orEmpty(),
             nasMomentAccountUsername = prefs[Keys.NAS_MOMENT_ACCOUNT_USERNAME].orEmpty(),
@@ -58,7 +62,7 @@ class UserPreferencesRepository @Inject constructor(
     suspend fun setAiSettings(baseUrl: String, apiKey: String, model: String) {
         dataStore.edit { prefs ->
             prefs[Keys.AI_BASE_URL] = baseUrl.trim()
-            prefs[Keys.AI_API_KEY] = apiKey.trim()
+            prefs[Keys.AI_API_KEY] = securePreferenceCipher.encrypt(apiKey.trim())
             prefs[Keys.AI_MODEL] = model.trim()
         }
     }
@@ -72,7 +76,7 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs[Keys.NAS_WEBDAV_BASE_URL] = baseUrl.trim()
             prefs[Keys.NAS_WEBDAV_USERNAME] = username.trim()
-            prefs[Keys.NAS_WEBDAV_PASSWORD] = password
+            prefs[Keys.NAS_WEBDAV_PASSWORD] = securePreferenceCipher.encrypt(password)
             prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] = trustSelfSignedCertificates
         }
     }
@@ -96,6 +100,24 @@ class UserPreferencesRepository @Inject constructor(
         dataStore.edit { prefs ->
             prefs.remove(Keys.NAS_MOMENT_STORAGE_USER_ID)
             prefs.remove(Keys.NAS_MOMENT_ACCOUNT_USERNAME)
+        }
+    }
+
+    private suspend fun migratePlaintextSensitivePreferences(prefs: Preferences) {
+        val aiApiKey = prefs[Keys.AI_API_KEY].orEmpty()
+        val nasPassword = prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty()
+        val shouldMigrateAiKey = aiApiKey.isNotEmpty() && !securePreferenceCipher.isEncrypted(aiApiKey)
+        val shouldMigrateNasPassword =
+            nasPassword.isNotEmpty() && !securePreferenceCipher.isEncrypted(nasPassword)
+        if (!shouldMigrateAiKey && !shouldMigrateNasPassword) return
+
+        dataStore.edit { current ->
+            if (shouldMigrateAiKey && current[Keys.AI_API_KEY] == aiApiKey) {
+                current[Keys.AI_API_KEY] = securePreferenceCipher.encrypt(aiApiKey)
+            }
+            if (shouldMigrateNasPassword && current[Keys.NAS_WEBDAV_PASSWORD] == nasPassword) {
+                current[Keys.NAS_WEBDAV_PASSWORD] = securePreferenceCipher.encrypt(nasPassword)
+            }
         }
     }
 

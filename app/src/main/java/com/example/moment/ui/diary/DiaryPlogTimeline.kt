@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +18,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -65,6 +69,8 @@ fun DiaryPlogTimeline(
     fragmentImageUris: Map<String, List<String>> = emptyMap(),
     locationPins: List<DiaryLocationPin> = emptyList(),
     onLocationPinClick: ((DiaryLocationPin) -> Unit)? = null,
+    plogTimeTexts: Map<String, String> = emptyMap(),
+    onPlogTimeChange: ((String, String) -> Unit)? = null,
     zoneId: ZoneId = ZoneId.systemDefault()
 ) {
     if (fragments.isEmpty()) return
@@ -97,6 +103,8 @@ fun DiaryPlogTimeline(
                 storyText = storyByStableId[fragment.stableId]?.text?.trim().orEmpty(),
                 locationPin = pin,
                 onLocationPinClick = onLocationPinClick,
+                editableTimeText = plogTimeTexts[fragment.stableId],
+                onPlogTimeChange = onPlogTimeChange,
                 onImageClick = { uris, index -> fullscreen = uris to index }
             )
         }
@@ -113,6 +121,8 @@ private fun DiaryPlogMomentCard(
     storyText: String,
     locationPin: DiaryLocationPin?,
     onLocationPinClick: ((DiaryLocationPin) -> Unit)?,
+    editableTimeText: String?,
+    onPlogTimeChange: ((String, String) -> Unit)?,
     onImageClick: (List<String>, Int) -> Unit
 ) {
     val time = remember(fragment.stableId, fragment.createdAt, zoneId) {
@@ -137,11 +147,23 @@ private fun DiaryPlogMomentCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    time,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
-                )
+                if (onPlogTimeChange != null) {
+                    OutlinedTextField(
+                        value = editableTimeText ?: time,
+                        onValueChange = { onPlogTimeChange(fragment.stableId, it) },
+                        modifier = Modifier.width(92.dp),
+                        label = { Text("时间") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        textStyle = MaterialTheme.typography.labelLarge
+                    )
+                } else {
+                    Text(
+                        time,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
                 fragment.mood?.let { mood ->
                     Surface(
                         shape = RoundedCornerShape(8.dp),

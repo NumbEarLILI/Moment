@@ -285,6 +285,10 @@ class NasDiaryWebDavPackager @Inject constructor(
     ): Pair<Boolean, Int> {
         val date = LocalDate.ofEpochDay(dto.dateEpochDay)
         val existing = diaryRepository.getDiaryForDate(date)
+        val contentMatches = existing?.let { localDiaryContentMatchesNasDto(it, dto) } ?: false
+        if (!shouldRestoreNasBackupDiary(existing, dto, contentMatches)) {
+            return false to 0
+        }
         val localDir = File(context.filesDir, localCacheRelative).apply { mkdirs() }
         val authority = "${context.packageName}.fileprovider"
         val resolvedByIndex = downloadDiaryImagesFromWebDav(
@@ -295,12 +299,14 @@ class NasDiaryWebDavPackager @Inject constructor(
             authority,
             dto.imageRelativePaths
         )
-        val localImages = resolvedByIndex.mapNotNull { it }
+        val mergedByIndex = mergeDownloadedImagesWithExisting(dto, existing, resolvedByIndex)
+            ?: return false to 0
+        val localImages = mergedByIndex.mapNotNull { it }
         val normalized = normalizeNasDiaryRestore(dto)
         val fragmentImageUris = restoreFragmentImageUris(
             normalized.sourceStableIds,
             normalized.fragmentImageIndices,
-            resolvedByIndex
+            mergedByIndex
         )
         val entry = DiaryEntry(
             id = existing?.id ?: 0L,
@@ -347,12 +353,14 @@ class NasDiaryWebDavPackager @Inject constructor(
             authority,
             dto.imageRelativePaths
         )
-        val localImages = resolvedByIndex.mapNotNull { it }
+        val mergedByIndex = mergeDownloadedImagesWithExisting(dto, existing, resolvedByIndex)
+            ?: return false to 0
+        val localImages = mergedByIndex.mapNotNull { it }
         val normalized = normalizeNasDiaryRestore(dto)
         val fragmentImageUris = restoreFragmentImageUris(
             normalized.sourceStableIds,
             normalized.fragmentImageIndices,
-            resolvedByIndex
+            mergedByIndex
         )
         val merged = existing.copy(
             imageUris = localImages,
@@ -365,6 +373,41 @@ class NasDiaryWebDavPackager @Inject constructor(
         diaryRepository.saveDiary(merged)
         fragmentRepository.ensureGhostPlaceholderFragmentsForDiary(merged)
         return true to localImages.size
+    }
+
+    internal fun shouldRefreshDiaryImagesFromNas(existing: DiaryEntry, dto: NasBackupDiaryFileDto): Boolean {
+        val localRefs = flatOrderedUniqueImageUris(existing)
+        val remoteCount = dto.imageRelativePaths.count { !it.isNullOrBlank() }
+        return shouldRefreshNasDiaryImages(
+            localImageReferenceCount = localRefs.size,
+            remoteImageCount = remoteCount,
+            hasUnreadableLocalImage = localRefs.any { !canReadLocalImageUri(it) }
+        )
+    }
+
+    private fun canReadLocalImageUri(uriString: String): Boolean =
+        runCatching {
+            context.contentResolver.openInputStream(Uri.parse(uriString))?.use { true } ?: false
+        }.getOrDefault(false)
+
+    private fun mergeDownloadedImagesWithExisting(
+        dto: NasBackupDiaryFileDto,
+        existing: DiaryEntry?,
+        resolvedByIndex: Array<String?>
+    ): Array<String?>? {
+        val merged = resolvedByIndex.copyOf()
+        val existingFlat = existing?.let { flatOrderedUniqueImageUris(it) }.orEmpty()
+        for (idx in dto.imageRelativePaths.indices) {
+            if (dto.imageRelativePaths[idx].isNullOrBlank() || merged[idx] != null) continue
+            val existingUri = existingFlat.getOrNull(idx)
+            if (existingUri != null && canReadLocalImageUri(existingUri)) {
+                merged[idx] = existingUri
+            }
+        }
+        val missingExpectedRemoteImage = dto.imageRelativePaths.indices.any { idx ->
+            !dto.imageRelativePaths[idx].isNullOrBlank() && merged[idx] == null
+        }
+        return if (missingExpectedRemoteImage) null else merged
     }
 
     private data class NasRestoreNormalized(
@@ -431,33 +474,15 @@ class NasDiaryWebDavPackager @Inject constructor(
         )
     }
 
-    private fun guessImageExtension(bytes: ByteArray): String {
-        if (bytes.size >= 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte()) {
-            return ".jpg"
-        }
-        if (bytes.size >= 4 &&
-            bytes[0] == 0x89.toByte() &&
-            bytes[1] == 0x50.toByte() &&
-            bytes[2] == 0x4E.toByte() &&
-            bytes[3] == 0x47.toByte()
-        ) {
-            return ".png"
-        }
-        if (bytes.size >= 6 &&
-            bytes[0] == 0x47.toByte() &&
-            bytes[1] == 0x49.toByte() &&
-            bytes[2] == 0x46.toByte()
-        ) {
-            return ".gif"
-        }
-        return ".bin"
+    private fun guessImageExtension(bytes: ByteArray, fallback: String = ".bin"): String {
+        return nasImageExtensionFromBytes(bytes) ?: fallback
     }
 
-    private fun guessImageExtensionFromFileHead(file: File): String {
+    private fun guessImageExtensionFromFileHead(file: File, fallback: String = ".bin"): String {
         val buf = ByteArray(32)
         val n = FileInputStream(file).use { it.read(buf) }
-        if (n <= 0) return ".bin"
-        return guessImageExtension(buf.copyOf(n))
+        if (n <= 0) return fallback
+        return guessImageExtension(buf.copyOf(n), fallback)
     }
 
     private suspend fun backupOneImage(
@@ -468,29 +493,91 @@ class NasDiaryWebDavPackager @Inject constructor(
         uriString: String,
         imageUploadMode: NasImageUploadMode
     ): Pair<String?, Boolean> {
-        val name = imageUploadMode.remoteFileName(index)
-        val relative = imageUploadMode.relativeImagePath(index)
-        val putUrl = childUrl(root, diaryBase + listOf("images", name))
         val uri = Uri.parse(uriString)
         if (!imageUploadMode.uploadOriginal) {
-            return backupCompressedImage(client, putUrl, relative, uri)
+            val name = imageUploadMode.remoteFileName(index)
+            val relative = imageUploadMode.relativeImagePath(index)
+            val putUrl = childUrl(root, diaryBase + listOf("images", name))
+            val compressed = backupCompressedImage(client, putUrl, relative, uri)
+            if (compressed.second) return compressed
+            // Some provider/format combinations cannot be decoded as a Bitmap. In compressed mode,
+            // fall back to uploading the original image file rather than silently losing the photo.
+            return backupOriginalImage(
+                client,
+                root,
+                diaryBase,
+                index,
+                uriString,
+                NasImageUploadMode(uploadOriginal = true),
+                uri
+            )
         }
-        val length = context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: -1L
-        if (length == 0L) return null to false
-        val mime = context.contentResolver.getType(uri)
+        return backupOriginalImage(client, root, diaryBase, index, uriString, imageUploadMode, uri)
+    }
+
+    private suspend fun backupOriginalImage(
+        client: OkHttpClient,
+        root: HttpUrl,
+        diaryBase: List<String>,
+        index: Int,
+        uriString: String,
+        imageUploadMode: NasImageUploadMode,
+        uri: Uri
+    ): Pair<String?, Boolean> {
+        val uploadFile = copyOriginalImageToTempFile(uri) ?: return null to false
         return try {
+            val mime = context.contentResolver.getType(uri)
+            val header = readFileHeader(uploadFile)
+            val extension = nasOriginalImageExtension(mime, uriString, header)
+            val name = imageUploadMode.remoteFileName(index, extension)
+            val relative = imageUploadMode.relativeImagePath(index, extension)
+            val putUrl = childUrl(root, diaryBase + listOf("images", name))
             webDavHttp.putStream(
                 client,
                 putUrl,
-                length,
-                imageUploadMode.contentType(mime)
+                uploadFile.length(),
+                imageUploadMode.contentType(mime, extension)
             ) {
-                context.contentResolver.openInputStream(uri)
-                    ?: throw IOException("无法读取图片")
+                FileInputStream(uploadFile)
             }
             relative to true
         } catch (_: Exception) {
             null to false
+        } finally {
+            if (uploadFile.exists()) uploadFile.delete()
+        }
+    }
+
+    private fun readFileHeader(file: File): ByteArray {
+        val buffer = ByteArray(32)
+        val read = FileInputStream(file).use { it.read(buffer) }
+        return when {
+            read <= 0 -> ByteArray(0)
+            read < buffer.size -> buffer.copyOf(read)
+            else -> buffer
+        }
+    }
+
+    private fun copyOriginalImageToTempFile(uri: Uri): File? {
+        return try {
+            val output = File.createTempFile(
+                "nas_original_upload_",
+                ".img",
+                File(context.cacheDir, "nas_upload").apply { mkdirs() }
+            )
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(output).use { out -> input.copyTo(out) }
+            } ?: run {
+                output.delete()
+                return null
+            }
+            if (output.length() == 0L) {
+                output.delete()
+                return null
+            }
+            output
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -722,7 +809,10 @@ class NasDiaryWebDavPackager @Inject constructor(
                     val tmp = File(localDir, "img_${idx}.part")
                     try {
                         webDavHttp.getToFile(client, imgUrl, tmp)
-                        val ext = guessImageExtensionFromFileHead(tmp)
+                        val ext = guessImageExtensionFromFileHead(
+                            tmp,
+                            nasImageExtensionFromPath(rel) ?: ".bin"
+                        )
                         val out = File(localDir, "img_$idx$ext")
                         if (out.exists()) out.delete()
                         if (!tmp.renameTo(out)) {

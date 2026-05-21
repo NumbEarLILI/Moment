@@ -13,6 +13,7 @@ import com.example.moment.domain.usecase.GenerateDiaryDraftUseCase
 import com.example.moment.domain.usecase.SaveDiaryUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +26,8 @@ class DiaryPreviewViewModel @Inject constructor(
     private val diaryRepository: DiaryRepository,
     private val generateDiaryDraft: GenerateDiaryDraftUseCase,
     private val saveDiary: SaveDiaryUseCase,
-    private val fragmentRepository: FragmentRepository
+    private val fragmentRepository: FragmentRepository,
+    private val zoneId: ZoneId = ZoneId.systemDefault()
 ) : ViewModel() {
     private val diaryIdArg: Long = savedStateHandle.navArgLong("diaryId")
     private val dateArg: LocalDate = LocalDate.parse(checkNotNull(savedStateHandle["date"]))
@@ -50,7 +52,7 @@ class DiaryPreviewViewModel @Inject constructor(
             val anchor = explicitAnchor ?: diaryRepository.getDiaryForDate(mergeDate)
             val draft = generateDiaryDraft(mergeDate, DiaryGenerationMode.AUTO, anchor)
             val plog = loadPlogFragments(draft, anchor)
-            applyDraft(draft, plog, mergeDate)
+            applyDraft(draft, plog, mergeDate, anchor)
         } catch (e: Throwable) {
             val detail = e.message?.takeIf { it.isNotBlank() }
             val msg = detail?.let { "生成日记失败：$it" } ?: "生成日记失败，请稍后重试"
@@ -68,7 +70,12 @@ class DiaryPreviewViewModel @Inject constructor(
         )
     }
 
-    private fun applyDraft(draft: DiaryDraft, plogFragments: List<LifeFragment>, mergeDate: LocalDate) {
+    private fun applyDraft(
+        draft: DiaryDraft,
+        plogFragments: List<LifeFragment>,
+        mergeDate: LocalDate,
+        anchor: DiaryEntry?
+    ) {
         _uiState.update {
             it.copy(
                 isLoading = false,
@@ -79,6 +86,8 @@ class DiaryPreviewViewModel @Inject constructor(
                 moodSummary = draft.moodSummary,
                 sourceFragmentStableIds = draft.sourceFragmentStableIds,
                 plogFragments = plogFragments,
+                fragmentCreatedAtEpochMillis = plogFragmentCreatedAtEpochMillis(plogFragments, anchor),
+                plogTimeTexts = plogTimeTextsForFragments(plogFragments, zoneId),
                 fragmentStories = draft.fragmentStories,
                 fragmentImageUris = draft.fragmentImageUris,
                 imageUris = draft.imageUris,
@@ -89,11 +98,17 @@ class DiaryPreviewViewModel @Inject constructor(
 
     fun updateTitle(value: String) = _uiState.update { it.copy(title = value) }
     fun updateBody(value: String) = _uiState.update { it.copy(body = value) }
+    fun updatePlogTime(stableId: String, value: String) =
+        _uiState.update { updatePlogTimeText(it, stableId, value, zoneId) }
 
     fun save() {
         val state = _uiState.value
         if (state.sourceFragmentStableIds.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "今天还没有碎片，不能保存空手帐") }
+            return
+        }
+        invalidPlogTimeMessage(state, zoneId)?.let { message ->
+            _uiState.update { it.copy(errorMessage = message) }
             return
         }
         viewModelScope.launch {
@@ -109,13 +124,24 @@ class DiaryPreviewViewModel @Inject constructor(
                     imageUris = state.imageUris,
                     locationPins = state.locationPins,
                     fragmentStories = state.fragmentStories,
-                    fragmentImageUris = state.fragmentImageUris
+                    fragmentImageUris = state.fragmentImageUris,
+                    fragmentCreatedAtEpochMillis = state.fragmentCreatedAtEpochMillis
                 )
             }.onSuccess {
                 _uiState.update { it.copy(isSaving = false, saved = true) }
             }.onFailure {
                 _uiState.update { it.copy(isSaving = false, errorMessage = "保存日记失败，请稍后重试") }
             }
+        }
+    }
+
+    private fun plogFragmentCreatedAtEpochMillis(
+        plogFragments: List<LifeFragment>,
+        anchor: DiaryEntry?
+    ): Map<String, Long> {
+        val anchorTimes = anchor?.fragmentCreatedAtEpochMillis.orEmpty()
+        return plogFragments.associate { fragment ->
+            fragment.stableId to (anchorTimes[fragment.stableId] ?: fragment.createdAt.toEpochMilli())
         }
     }
 }

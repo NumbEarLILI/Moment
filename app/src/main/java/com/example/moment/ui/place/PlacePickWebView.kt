@@ -88,9 +88,10 @@ internal fun WebView.configureForPlacePick(onLoadingDiagnostic: ((String) -> Uni
     settings.apply {
         javaScriptEnabled = true
         domStorageEnabled = true
-        allowFileAccess = true
+        allowFileAccess = false
+        allowContentAccess = false
         cacheMode = WebSettings.LOAD_DEFAULT
-        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
         useWideViewPort = true
         loadWithOverviewMode = true
         val defaultUa = userAgentString

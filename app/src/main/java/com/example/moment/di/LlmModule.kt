@@ -1,6 +1,8 @@
 package com.example.moment.di
 
 import com.example.moment.data.llm.AiDiaryDraftGeneratorImpl
+import com.example.moment.data.preferences.AndroidKeystoreSecurePreferenceCipher
+import com.example.moment.data.preferences.SecurePreferenceCipher
 import com.example.moment.data.preferences.UserPreferencesAccessorImpl
 import com.example.moment.domain.llm.AiDiaryDraftGenerator
 import com.example.moment.domain.preferences.UserPreferencesAccessor
@@ -20,4 +22,10 @@ abstract class LlmModule {
     @Binds
     @Singleton
     abstract fun bindUserPreferencesAccessor(impl: UserPreferencesAccessorImpl): UserPreferencesAccessor
+
+    @Binds
+    @Singleton
+    abstract fun bindSecurePreferenceCipher(
+        impl: AndroidKeystoreSecurePreferenceCipher
+    ): SecurePreferenceCipher
 }

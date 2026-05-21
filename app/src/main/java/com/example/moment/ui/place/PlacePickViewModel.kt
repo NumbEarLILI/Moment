@@ -28,12 +28,13 @@ class PlacePickViewModel @Inject constructor(
     private val refreshSavedDiaryFromFragments: RefreshSavedDiaryFromFragmentsUseCase
 ) : ViewModel() {
 
-    private val initialLat: Double = savedStateHandle.get<String>(ARG_LAT)!!.toDouble()
-    private val initialLng: Double = savedStateHandle.get<String>(ARG_LNG)!!.toDouble()
+    private val initialLat: Double = savedStateHandle.get<String>(ARG_LAT)?.toDoubleOrNull() ?: 0.0
+    private val initialLng: Double = savedStateHandle.get<String>(ARG_LNG)?.toDoubleOrNull() ?: 0.0
     private val initialHint: String = savedStateHandle.get<String>(ARG_HINT).orEmpty()
     private val fragmentStableId: String =
         savedStateHandle.get<String>(ARG_FRAGMENT_ID).orEmpty().trim()
     private val diaryId: Long = savedStateHandle.get<String>(ARG_DIARY_ID)?.toLongOrNull() ?: 0L
+    private val geocodeRequests = PlaceGeocodeRequestTracker()
 
     private val _uiState = MutableStateFlow(
         PlacePickUiState(
@@ -91,9 +92,11 @@ class PlacePickViewModel @Inject constructor(
     fun onMapPosition(latitude: Double, longitude: Double) {
         if (BuildConfig.DEBUG) Log.d(TAG, "【图钉】Kotlin 收到 lat=$latitude lng=$longitude")
         _uiState.update { it.copy(mapLat = latitude, mapLng = longitude, errorMessage = null) }
+        val request = geocodeRequests.startRequest()
         viewModelScope.launch {
-            val locked = _uiState.value.placeNameUserLocked
-            if (BuildConfig.DEBUG) Log.d(TAG, "【逆地理】请求 lat=$latitude lng=$longitude 名称锁=$locked")
+            if (BuildConfig.DEBUG) {
+                Log.d(TAG, "【逆地理】请求 lat=$latitude lng=$longitude request=$request")
+            }
             val amap = amapReverseGeocoder.reverseGeocode(latitude, longitude)
             if (BuildConfig.DEBUG) {
                 if (amap.label != null) Log.d(TAG, "【逆地理】高德成功")
@@ -108,8 +111,14 @@ class PlacePickViewModel @Inject constructor(
             }
             val suggested = amap.label ?: nomin
             when {
-                !suggested.isNullOrBlank() && !locked -> {
-                    _uiState.update { s -> s.copy(placeName = suggested) }
+                !suggested.isNullOrBlank() -> {
+                    _uiState.update { s ->
+                        if (geocodeRequests.canApply(request, latitude, longitude, s)) {
+                            s.copy(placeName = suggested)
+                        } else {
+                            s
+                        }
+                    }
                 }
                 else -> Unit
             }

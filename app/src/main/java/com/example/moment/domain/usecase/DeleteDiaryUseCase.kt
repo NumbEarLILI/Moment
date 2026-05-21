@@ -13,7 +13,7 @@ class DeleteDiaryUseCase @Inject constructor(
         val epoch = entry?.date?.toEpochDay()
         repository.deleteDiaryById(id)
         if (epoch != null) {
-            nasArchiveSync.onDiaryDeleted(epoch)
+            nasArchiveSync.onDiaryDeleted(epoch).getOrThrow()
         }
     }
 }
