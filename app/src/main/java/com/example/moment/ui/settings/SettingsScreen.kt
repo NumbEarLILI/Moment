@@ -229,7 +229,7 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "备份与手帐存档走 WebDAV。登录 Moment 后数据在 MomentApp/users/… 下，与未登录路径互相独立。",
+                "备份与手帐存档走 WebDAV。建议使用 HTTPS；如果家庭 NAS 只能用 HTTP，应用也会允许连接。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
