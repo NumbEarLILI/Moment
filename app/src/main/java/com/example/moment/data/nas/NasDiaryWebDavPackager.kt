@@ -624,9 +624,10 @@ class NasDiaryWebDavPackager @Inject constructor(
     private fun createCompressedUploadImage(uri: Uri): File? {
         try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use {
+            val boundsStream = context.contentResolver.openInputStream(uri) ?: return null
+            boundsStream.use {
                 BitmapFactory.decodeStream(it, null, bounds)
-            } ?: return null
+            }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
             val orientation = readExifOrientation(uri)
