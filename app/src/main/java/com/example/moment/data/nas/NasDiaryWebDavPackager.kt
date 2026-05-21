@@ -498,8 +498,32 @@ class NasDiaryWebDavPackager @Inject constructor(
             val name = imageUploadMode.remoteFileName(index)
             val relative = imageUploadMode.relativeImagePath(index)
             val putUrl = childUrl(root, diaryBase + listOf("images", name))
-            return backupCompressedImage(client, putUrl, relative, uri)
+            val compressed = backupCompressedImage(client, putUrl, relative, uri)
+            if (compressed.second) return compressed
+            // Some provider/format combinations cannot be decoded as a Bitmap. In compressed mode,
+            // fall back to uploading the original image file rather than silently losing the photo.
+            return backupOriginalImage(
+                client,
+                root,
+                diaryBase,
+                index,
+                uriString,
+                NasImageUploadMode(uploadOriginal = true),
+                uri
+            )
         }
+        return backupOriginalImage(client, root, diaryBase, index, uriString, imageUploadMode, uri)
+    }
+
+    private suspend fun backupOriginalImage(
+        client: OkHttpClient,
+        root: HttpUrl,
+        diaryBase: List<String>,
+        index: Int,
+        uriString: String,
+        imageUploadMode: NasImageUploadMode,
+        uri: Uri
+    ): Pair<String?, Boolean> {
         val uploadFile = copyOriginalImageToTempFile(uri) ?: return null to false
         return try {
             val mime = context.contentResolver.getType(uri)
