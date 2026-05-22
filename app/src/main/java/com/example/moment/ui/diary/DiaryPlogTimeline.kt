@@ -167,7 +167,8 @@ private fun DiaryPlogMomentCard(
                 fragment.mood?.let { mood ->
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     ) {
                         Text(
                             mood.displayName,

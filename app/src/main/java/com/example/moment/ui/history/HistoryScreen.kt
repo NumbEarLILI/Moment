@@ -68,6 +68,7 @@ fun HistoryScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     tonalElevation = 1.dp
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -190,7 +191,8 @@ private fun EmptyDayHint(selected: LocalDate, today: LocalDate) {
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f),
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -253,6 +255,7 @@ private fun FragmentCard(
                         Surface(
                             shape = MaterialTheme.shapes.small,
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                             tonalElevation = 0.dp,
                             shadowElevation = 0.dp
                         ) {

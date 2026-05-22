@@ -499,18 +499,25 @@ class NasDiaryWebDavPackager @Inject constructor(
             val relative = imageUploadMode.relativeImagePath(index)
             val putUrl = childUrl(root, diaryBase + listOf("images", name))
             val compressed = backupCompressedImage(client, putUrl, relative, uri)
-            if (compressed.second) return compressed
-            // Some provider/format combinations cannot be decoded as a Bitmap. In compressed mode,
-            // fall back to uploading the original image file rather than silently losing the photo.
-            return backupOriginalImage(
-                client,
-                root,
-                diaryBase,
-                index,
-                uriString,
-                NasImageUploadMode(uploadOriginal = true),
-                uri
-            )
+            return when (compressed) {
+                is CompressedImageUploadResult.Success -> compressed.relativePath to true
+                is CompressedImageUploadResult.Failure -> {
+                    if (!shouldFallbackToOriginalAfterCompressedFailure(compressed.reason)) {
+                        return null to false
+                    }
+                    // Some provider/format combinations cannot be decoded as a Bitmap. In compressed mode,
+                    // fall back to uploading the original image file rather than silently losing the photo.
+                    backupOriginalImage(
+                        client,
+                        root,
+                        diaryBase,
+                        index,
+                        uriString,
+                        NasImageUploadMode(uploadOriginal = true),
+                        uri
+                    )
+                }
+            }
         }
         return backupOriginalImage(client, root, diaryBase, index, uriString, imageUploadMode, uri)
     }
@@ -586,10 +593,13 @@ class NasDiaryWebDavPackager @Inject constructor(
         putUrl: HttpUrl,
         relative: String,
         uri: Uri
-    ): Pair<String?, Boolean> {
-        val file = createCompressedUploadImage(uri) ?: return null to false
+    ): CompressedImageUploadResult {
+        val file = createCompressedUploadImage(uri)
+            ?: return CompressedImageUploadResult.Failure(NasCompressedUploadFailure.GENERATION_FAILED)
         return try {
-            if (file.length() == 0L) return null to false
+            if (file.length() == 0L) {
+                return CompressedImageUploadResult.Failure(NasCompressedUploadFailure.GENERATION_FAILED)
+            }
             webDavHttp.putStream(
                 client,
                 putUrl,
@@ -598,20 +608,26 @@ class NasDiaryWebDavPackager @Inject constructor(
             ) {
                 FileInputStream(file)
             }
-            relative to true
+            CompressedImageUploadResult.Success(relative)
         } catch (_: Exception) {
-            null to false
+            CompressedImageUploadResult.Failure(NasCompressedUploadFailure.PUT_FAILED)
         } finally {
             if (file.exists()) file.delete()
         }
     }
 
+    private sealed interface CompressedImageUploadResult {
+        data class Success(val relativePath: String) : CompressedImageUploadResult
+        data class Failure(val reason: NasCompressedUploadFailure) : CompressedImageUploadResult
+    }
+
     private fun createCompressedUploadImage(uri: Uri): File? {
         try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri)?.use {
+            val boundsStream = context.contentResolver.openInputStream(uri) ?: return null
+            boundsStream.use {
                 BitmapFactory.decodeStream(it, null, bounds)
-            } ?: return null
+            }
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
 
             val orientation = readExifOrientation(uri)
