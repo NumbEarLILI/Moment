@@ -24,6 +24,7 @@ fun MoodBadge(
         modifier = modifier,
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.78f),
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -61,6 +62,7 @@ fun MoodSummaryBadge(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {

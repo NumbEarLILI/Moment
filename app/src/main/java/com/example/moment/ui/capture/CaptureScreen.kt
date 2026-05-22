@@ -349,6 +349,7 @@ fun CaptureScreen(
                                     ),
                                 shape = MaterialTheme.shapes.medium,
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f),
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 tonalElevation = 0.dp,
                                 shadowElevation = 0.dp
                             ) {
@@ -559,6 +560,7 @@ private fun CaptureHeader(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
+        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -696,6 +698,7 @@ private fun CaptureMomentExpandable(
             ),
         shape = corner,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
