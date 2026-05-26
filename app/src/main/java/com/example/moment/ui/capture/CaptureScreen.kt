@@ -56,7 +56,9 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -689,6 +691,14 @@ private fun CaptureMomentExpandable(
     onRequestDelete: () -> Unit,
 ) {
     val corner = RoundedCornerShape(14.dp)
+    var contentFieldValue by remember {
+        mutableStateOf(TextFieldValue(content, selection = TextRange(content.length)))
+    }
+    LaunchedEffect(content) {
+        if (content != contentFieldValue.text) {
+            contentFieldValue = TextFieldValue(content, selection = TextRange(content.length))
+        }
+    }
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -763,8 +773,11 @@ private fun CaptureMomentExpandable(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     OutlinedTextField(
-                        value = content,
-                        onValueChange = onContentChange,
+                        value = contentFieldValue,
+                        onValueChange = { value ->
+                            contentFieldValue = value
+                            if (value.text != content) onContentChange(value.text)
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(132.dp),
