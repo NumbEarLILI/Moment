@@ -182,6 +182,9 @@ class WebDavHttp @Inject constructor(
                 .header("Depth", "1")
                 .build()
             client.newCall(req).execute().use { resp ->
+                if (resp.code == 404) {
+                    return@withContext emptyList()
+                }
                 if (resp.code !in 200..299 && resp.code != 207) {
                     throw IOException("PROPFIND 失败（HTTP ${resp.code}）")
                 }
@@ -203,6 +206,9 @@ class WebDavHttp @Inject constructor(
                 .header("Depth", "1")
                 .build()
             client.newCall(req).execute().use { resp ->
+                if (resp.code == 404) {
+                    return@withContext emptyList()
+                }
                 if (resp.code !in 200..299 && resp.code != 207) {
                     throw IOException("PROPFIND 失败（HTTP ${resp.code}）")
                 }
