@@ -54,7 +54,8 @@ fun HistoryScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Scaffold(
-        containerColor = appScaffoldContainerColor()
+        containerColor = appScaffoldContainerColor(),
+        contentColor = MaterialTheme.colorScheme.onBackground
     ) { padding ->
         LazyColumn(
             modifier = Modifier
