@@ -219,7 +219,8 @@ fun CaptureScreen(
             .pullRefresh(pullRefreshState)
     ) {
             Scaffold(
-                containerColor = appScaffoldContainerColor()
+                containerColor = appScaffoldContainerColor(),
+                contentColor = MaterialTheme.colorScheme.onBackground
             ) { padding ->
                 Column(
                     modifier = Modifier

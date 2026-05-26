@@ -2,7 +2,6 @@ package com.example.moment.ui
 
 import android.net.Uri
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -14,7 +13,6 @@ import com.example.moment.ui.capture.CaptureScreen
 import com.example.moment.ui.diary.DiaryDetailScreen
 import com.example.moment.ui.diary.DiaryEditScreen
 import com.example.moment.ui.diary.DiaryPreviewScreen
-import com.example.moment.ui.history.HistoryEvent
 import com.example.moment.ui.history.HistoryScreen
 import com.example.moment.ui.history.HistoryViewModel
 import com.example.moment.ui.place.PlacePickScreen
@@ -65,14 +63,6 @@ fun MomentApp() {
         }
         composable(Routes.History) {
             val historyViewModel: HistoryViewModel = hiltViewModel()
-            LaunchedEffect(historyViewModel) {
-                historyViewModel.events.collect { event ->
-                    when (event) {
-                        is HistoryEvent.OpenSavedDiary -> navController.navigate("detail/${event.id}")
-                        is HistoryEvent.OpenDiaryPreview -> navController.navigate(Routes.preview(event.date, 0L))
-                    }
-                }
-            }
             HistoryScreen(
                 onBack = { navController.popBackStack() },
                 onOpenSettings = { navController.navigate(Routes.Settings) },
