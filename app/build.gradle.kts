@@ -13,6 +13,15 @@ android {
     namespace = "com.example.moment"
     compileSdk = 36
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "moment_debug"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.example.moment"
         minSdk = 26
