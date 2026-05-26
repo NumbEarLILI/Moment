@@ -182,9 +182,6 @@ class WebDavHttp @Inject constructor(
                 .header("Depth", "1")
                 .build()
             client.newCall(req).execute().use { resp ->
-                if (resp.code == 404) {
-                    return@withContext emptyList()
-                }
                 if (resp.code !in 200..299 && resp.code != 207) {
                     throw IOException("PROPFIND 失败（HTTP ${resp.code}）")
                 }
@@ -206,9 +203,6 @@ class WebDavHttp @Inject constructor(
                 .header("Depth", "1")
                 .build()
             client.newCall(req).execute().use { resp ->
-                if (resp.code == 404) {
-                    return@withContext emptyList()
-                }
                 if (resp.code !in 200..299 && resp.code != 207) {
                     throw IOException("PROPFIND 失败（HTTP ${resp.code}）")
                 }
@@ -230,6 +224,11 @@ class WebDavHttp @Inject constructor(
                 }
             }
         }
+    }
+
+    /** 删除一个 collection 本身；不先删除子项，避免失败时造成远端部分内容被清空。 */
+    suspend fun deleteCollection(client: OkHttpClient, collectionUrl: HttpUrl) {
+        deleteResource(client, collectionUrlForPropfind(collectionUrl))
     }
 
     /** 删除 WebDAV collection 及其全部内容（先删子级，再删本目录）。 */
