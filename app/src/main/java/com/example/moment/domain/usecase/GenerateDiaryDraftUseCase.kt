@@ -109,10 +109,9 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         }
 
         val aiDraft = aiDiaryDraftGenerator.generateDraft(date, sorted, config, priorSaved).getOrElse { throw it }
-        val filledStories = normalizeAiFragmentStories(
+        val filledStories = buildFragmentStoriesFromUserInput(
             mergedStableIds,
             fragmentByStableId,
-            aiDraft.fragmentStories,
             priorSaved
         )
         val mergedDraft = mergeAiDraftWithPriorIfNeeded(priorSaved, sorted, aiDraft)
@@ -191,40 +190,19 @@ class GenerateDiaryDraftUseCase @Inject constructor(
         }
     }
 
-    private fun normalizeAiFragmentStories(
+    private fun buildFragmentStoriesFromUserInput(
         mergedStableIds: List<String>,
         fragmentByStableId: Map<String, LifeFragment>,
-        fromAi: List<FragmentAiStory>,
         prior: DiaryEntry?
     ): List<FragmentAiStory> {
-        val byStable =
-            fromAi.filter { it.text.isNotBlank() }.associateBy { it.fragmentStableId }.toMutableMap()
         val priorByStable = prior?.fragmentStories.orEmpty().associateBy { it.fragmentStableId }
-        val priorSourceStable = prior?.sourceFragmentStableIds?.toSet().orEmpty()
-        val priorAnchored = prior?.let { priorAnchoredFragmentIds(it) }.orEmpty()
-        for (sid in mergedStableIds) {
-            val f = fragmentByStableId[sid]
-            val priorStory = priorByStable[sid]?.text?.trim().orEmpty()
-            val tiesToPrior = priorSourceStable.isEmpty() || sid in priorAnchored
-            if (prior != null && priorStory.isNotEmpty() && tiesToPrior) {
-                byStable[sid] = FragmentAiStory(sid, priorStory)
-                continue
+        val stories = mergedStableIds.map { sid ->
+            val fragment = fragmentByStableId[sid]
+            val text = when {
+                fragment != null -> storyFallback(fragment)
+                else -> priorByStable[sid]?.text?.trim().orEmpty()
             }
-            if (f != null) {
-                if (byStable[sid]?.text.isNullOrBlank()) {
-                    val p = priorStory.takeIf { it.isNotEmpty() }
-                    val c = f.content.trim().takeIf { it.isNotEmpty() }
-                    val img = if (f.imageUris.isNotEmpty()) "${f.imageUris.size} 张图片记录" else ""
-                    val fb = p ?: c ?: img.takeIf { it.isNotEmpty() }
-                    if (fb != null) byStable[sid] = FragmentAiStory(sid, fb)
-                }
-            } else if (byStable[sid]?.text.isNullOrBlank() && priorStory.isNotEmpty()) {
-                byStable[sid] = FragmentAiStory(sid, priorStory)
-            }
-        }
-        val stories = mergedStableIds.map { frId ->
-            val fr = fragmentByStableId[frId]
-            byStable[frId] ?: FragmentAiStory(frId, fr?.let { storyFallback(it) }.orEmpty())
+            FragmentAiStory(sid, text)
         }.toMutableList()
         applyNarrativeFallbackForGhostPriorFragments(stories, prior)
         return stories

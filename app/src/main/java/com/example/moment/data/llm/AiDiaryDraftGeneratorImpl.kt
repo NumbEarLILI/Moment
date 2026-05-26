@@ -3,7 +3,6 @@ package com.example.moment.data.llm
 import com.example.moment.domain.llm.AiDiaryDraftGenerator
 import com.example.moment.domain.model.DiaryDraft
 import com.example.moment.domain.model.DiaryEntry
-import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.LlmConnectionConfig
@@ -37,12 +36,6 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
             val userPrompt = userPrompt(date, sorted, priorSavedDiary)
             val raw = chatClient.chatCompletion(config, systemPrompt, userPrompt)
             val parsed = AiDiaryResponseParser.parse(raw).getOrElse { throw it }
-            val stories = parsed.fragmentStories.mapNotNull { j ->
-                val sid = j.fragmentStableId?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: j.fragmentId?.let { lid -> sorted.find { f -> f.id == lid }?.stableId }
-                if (sid.isNullOrBlank()) return@mapNotNull null
-                FragmentAiStory(fragmentStableId = sid, text = j.story.trim())
-            }.filter { it.text.isNotEmpty() }
             DiaryDraft(
                 title = parsed.title.trim().ifBlank { "${date} 的手帐" },
                 body = parsed.body.trim(),
@@ -52,7 +45,7 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
                     .take(8),
                 moodSummary = parsed.moodSummary?.trim()?.takeIf { it.isNotEmpty() },
                 sourceFragmentStableIds = sorted.map { it.stableId },
-                fragmentStories = stories
+                fragmentStories = emptyList()
             )
         }
     }
@@ -63,8 +56,8 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
         输出必须是**仅含一个 JSON 对象**的纯文本，不要 Markdown 代码块以外的说明文字。
         JSON 字段与要求：
         - title：短标题，适合手帐封面，不超过 20 字为宜。
-        - body：可选的全天总述或收束，0～2 段、段间用 \\n；宜简短，不要把每条碎片的细节都写进 body。
-        - fragmentStories：数组，**每个当天碎片一条**，对象含 fragmentStableId（与输入中的碎片稳定 id 字符串一致）与 story（1～3 句，写该时刻的小故事或感受，温暖自然）。
+        - body：可选的全天总述或收束，0～3 段、段间用 \\n；这是 AI 生成的整篇文字，可综合当天体验，但不要改写碎片原文。
+        - fragmentStories：保留为空数组 []；逐条 plog 文案由 App 使用用户输入的碎片原文生成。
         - highlights：字符串数组，0～5 条，每条一句当天值得记住的亮点（可从碎片提炼）。
         - moodSummary：一句话概括当天情绪氛围；若没有明显情绪可写 null 或空字符串。
     """.trimIndent()
@@ -87,7 +80,7 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
             }
         }
         appendLine()
-        appendLine("以下按时间顺序列出当天全部碎片，请输出手帐 JSON（务必为每条碎片写 fragmentStories，fragmentStableId 与下表一致）：")
+        appendLine("以下按时间顺序列出当天全部碎片，请输出手帐 JSON；碎片文字只供理解事实，逐条 plog 会保留用户原文，不需要你改写 fragmentStories：")
         fragments.forEachIndexed { index, f ->
             appendLine()
             appendLine("--- 碎片 ${index + 1} ---")
@@ -103,10 +96,7 @@ class AiDiaryDraftGeneratorImpl @Inject constructor(
             appendLine("地点：${formatLocation(f.location)}")
         }
         appendLine()
-        appendLine(
-            "fragmentStories 中须覆盖的 fragmentStableId 列表（缺一不可）：" +
-                fragments.joinToString(", ") { it.stableId }
-        )
+        appendLine("请将 fragmentStories 输出为空数组 []。")
     }
 
     private fun formatLocation(loc: FragmentLocation?): String {

@@ -105,7 +105,7 @@ class GenerateDiaryDraftUseCaseTest {
         assertEquals("AI 标题", result.title)
         assertEquals("AI 总述", result.body)
         assertEquals(listOf("1"), result.sourceFragmentStableIds)
-        assertEquals(listOf(FragmentAiStory("1", "AI 为这一则写的短文。")), result.fragmentStories)
+        assertEquals(listOf(FragmentAiStory("1", "只言片语。")), result.fragmentStories)
     }
 
     @Test
@@ -390,8 +390,8 @@ class GenerateDiaryDraftUseCaseTest {
         assertTrue(result.body.contains("条2 旧逐条。"))
         // 无新增碎片时不叠模型段落，避免重复打开预览导致正文雪球
         assertTrue(!result.body.contains("模型只写了这一段。"))
-        assertEquals("条1 旧逐条。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
-        assertEquals("条2 旧逐条。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
+        assertEquals("一。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("二。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
         assertTrue(result.highlights.contains("旧亮"))
         assertTrue(result.highlights.contains("新亮"))
     }
@@ -509,7 +509,7 @@ class GenerateDiaryDraftUseCaseTest {
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
         assertTrue(result.body.contains("时间线上的旧稿长文。"))
-        assertEquals("时间线上的旧稿长文。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("短。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
         assertEquals("新碎片。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
@@ -570,8 +570,8 @@ class GenerateDiaryDraftUseCaseTest {
         assertTrue(result.body.contains("短总述。"))
         assertTrue(result.body.contains("时间线上的旧稿长文。"))
         assertTrue(result.body.contains("模型补充段落。"))
-        assertEquals("时间线上的旧稿长文。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
-        assertEquals("新碎片的 AI。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
+        assertEquals("短。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
     @Test
@@ -631,8 +631,8 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
-        assertEquals("必须保留的旧逐条全文。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
-        assertEquals("新条。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
+        assertEquals("短。", result.fragmentStories.find { it.fragmentStableId == "1" }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
     }
 
     @Test
@@ -697,9 +697,9 @@ class GenerateDiaryDraftUseCaseTest {
 
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
-        assertEquals("旧条十。", result.fragmentStories.find { it.fragmentStableId == "10" }?.text)
-        assertEquals("旧条十一必须在，即使 id 列表漏了 11。", result.fragmentStories.find { it.fragmentStableId == "11" }?.text)
-        assertEquals("新条。", result.fragmentStories.find { it.fragmentStableId == "99" }?.text)
+        assertEquals("短。", result.fragmentStories.find { it.fragmentStableId == "10" }?.text)
+        assertEquals("另一旧碎片。", result.fragmentStories.find { it.fragmentStableId == "11" }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentStableId == "99" }?.text)
     }
 
     @Test
@@ -760,10 +760,10 @@ class GenerateDiaryDraftUseCaseTest {
         val result = useCase(date, DiaryGenerationMode.AUTO)
 
         assertEquals(
-            "未随 sourceFragmentIds 持久化的旧长文。",
+            "短。",
             result.fragmentStories.find { it.fragmentStableId == "1" }?.text
         )
-        assertEquals("新碎片的 AI。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
+        assertEquals("新碎片。", result.fragmentStories.find { it.fragmentStableId == "2" }?.text)
         assertTrue(result.body.contains("短总述。"))
         assertTrue(result.body.contains("未随 sourceFragmentIds 持久化的旧长文。"))
         assertTrue(result.body.contains("AI 追加"))
@@ -1158,7 +1158,7 @@ class GenerateDiaryDraftUseCaseTest {
         assertEquals(listOf("10", "11", "99"), result.sourceFragmentStableIds)
         assertEquals("旧稿条一", result.fragmentStories.find { it.fragmentStableId == "10" }?.text)
         assertEquals("旧稿条二", result.fragmentStories.find { it.fragmentStableId == "11" }?.text)
-        assertEquals("AI 写新条", result.fragmentStories.find { it.fragmentStableId == "99" }?.text)
+        assertEquals("新碎片", result.fragmentStories.find { it.fragmentStableId == "99" }?.text)
     }
 
     @Test
