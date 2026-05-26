@@ -383,7 +383,7 @@ class NasBackupRepositoryImpl @Inject constructor(
                     root,
                     config.dataSegments("MomentArchive", "diaries", dateEpochDay.toString())
                 )
-                webDavHttp.deleteCollectionRecursive(client, folderUrl)
+                webDavHttp.deleteCollection(client, folderUrl)
                 Unit
             }
         }

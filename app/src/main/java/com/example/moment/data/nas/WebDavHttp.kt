@@ -226,6 +226,11 @@ class WebDavHttp @Inject constructor(
         }
     }
 
+    /** 删除一个 collection 本身；不先删除子项，避免失败时造成远端部分内容被清空。 */
+    suspend fun deleteCollection(client: OkHttpClient, collectionUrl: HttpUrl) {
+        deleteResource(client, collectionUrlForPropfind(collectionUrl))
+    }
+
     /** 删除 WebDAV collection 及其全部内容（先删子级，再删本目录）。 */
     suspend fun deleteCollectionRecursive(client: OkHttpClient, collectionUrl: HttpUrl) {
         val base = collectionUrlForPropfind(collectionUrl)
