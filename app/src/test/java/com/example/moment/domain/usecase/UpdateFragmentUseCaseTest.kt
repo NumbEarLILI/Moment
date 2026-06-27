@@ -143,6 +143,8 @@ class UpdateFragmentUseCaseTest {
 
         override fun observeFragmentsForDate(date: LocalDate): Flow<List<LifeFragment>> = fragments
 
+        override fun observeAllFragments(): Flow<List<LifeFragment>> = fragments
+
         override suspend fun getFragmentsForDate(date: LocalDate): List<LifeFragment> = fragments.value
 
         override suspend fun getFragmentsForStableIds(stableIds: List<String>): List<LifeFragment> {

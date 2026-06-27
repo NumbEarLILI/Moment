@@ -100,6 +100,7 @@ fun CaptureScreen(
     onClose: () -> Unit,
     onGenerateDiary: (LocalDate) -> Unit,
     onOpenDiary: (Long) -> Unit,
+    onOpenTimeline: () -> Unit,
     onOpenSettings: () -> Unit,
     viewModel: CaptureViewModel = hiltViewModel()
 ) {
@@ -245,6 +246,7 @@ fun CaptureScreen(
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
                     onOpenHistory = { navController.navigate(Routes.History) },
+                    onOpenTimeline = onOpenTimeline,
                     onOpenSettings = onOpenSettings,
                     momentExpanded = momentExpanded,
                     onToggleMomentExpanded = {
@@ -524,6 +526,7 @@ private fun CaptureHeader(
     canGenerateDiary: Boolean,
     onGenerateDiary: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenTimeline: () -> Unit,
     onOpenSettings: () -> Unit,
     momentExpanded: Boolean,
     onToggleMomentExpanded: () -> Unit,
@@ -644,6 +647,13 @@ private fun CaptureHeader(
                         shape = MaterialTheme.shapes.large
                     ) {
                         Text("历史")
+                    }
+                    OutlinedButton(
+                        onClick = onOpenTimeline,
+                        modifier = Modifier.weight(1f),
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Text("时间线")
                     }
                     OutlinedButton(
                         onClick = onOpenSettings,

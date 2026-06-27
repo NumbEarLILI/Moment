@@ -163,6 +163,9 @@ class SaveDiaryUseCaseTest {
         override fun observeFragmentsForDate(date: LocalDate): Flow<List<LifeFragment>> =
             MutableStateFlow(fragments)
 
+        override fun observeAllFragments(): Flow<List<LifeFragment>> =
+            MutableStateFlow(fragments)
+
         override suspend fun getFragmentsForDate(date: LocalDate): List<LifeFragment> = fragments
 
         override suspend fun getFragmentsForStableIds(stableIds: List<String>): List<LifeFragment> {
