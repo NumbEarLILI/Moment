@@ -84,7 +84,8 @@ fun MomentApp() {
                         launchSingleTop = true
                     }
                 },
-                onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) }
+                onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
+                onOpenDiary = { id -> navController.navigate("detail/$id") }
             )
         }
         composable(Routes.Settings) {
