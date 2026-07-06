@@ -1,18 +1,25 @@
 package com.example.moment.ui.mine
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,6 +31,7 @@ import com.example.moment.ui.theme.appScaffoldContainerColor
 
 @Composable
 fun MineScreen(
+    onOpenAccountSettings: () -> Unit,
     onOpenSettings: () -> Unit,
     viewModel: MineViewModel = hiltViewModel()
 ) {
@@ -46,7 +54,10 @@ fun MineScreen(
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground
             )
-            AccountInfoCard(preferences = preferences)
+            AccountInfoCard(
+                preferences = preferences,
+                onClick = onOpenAccountSettings
+            )
             Button(
                 onClick = onOpenSettings,
                 modifier = Modifier.fillMaxWidth(),
@@ -59,14 +70,20 @@ fun MineScreen(
 }
 
 @Composable
-private fun AccountInfoCard(preferences: UserAppPreferences) {
+private fun AccountInfoCard(
+    preferences: UserAppPreferences,
+    onClick: () -> Unit
+) {
     val isLoggedIn = preferences.nasMomentStorageUserId.isNotBlank()
     val accountName = preferences.nasMomentAccountUsername
         .ifBlank { preferences.nasMomentStorageUserId }
         .ifBlank { "未登录" }
+    val avatarText = accountName.take(1).ifBlank { "M" }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
@@ -74,42 +91,61 @@ private fun AccountInfoCard(preferences: UserAppPreferences) {
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = accountName,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = if (isLoggedIn) {
-                    "Moment 账号已登录"
-                } else {
-                    "尚未登录 Moment 账号"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
-            )
-            if (isLoggedIn) {
+            Avatar(text = avatarText)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Text(
-                    text = "存储身份：${preferences.nasMomentStorageUserId}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f),
+                    text = accountName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-            } else {
                 Text(
-                    text = "可在设置中登录或注册，登录后备份与存档会使用当前账号目录。",
+                    text = if (isLoggedIn) {
+                        "Moment 账号已登录"
+                    } else {
+                        "尚未登录 Moment 账号"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
+                )
+                Text(
+                    text = if (isLoggedIn) {
+                        "点此管理 NAS 或切换账号"
+                    } else {
+                        "点此设置 NAS 并登录账号"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.68f)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun Avatar(text: String) {
+    Surface(
+        modifier = Modifier.size(56.dp),
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }

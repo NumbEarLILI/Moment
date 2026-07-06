@@ -3,7 +3,9 @@ package com.example.moment.ui
 import android.net.Uri
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -12,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -21,12 +24,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.moment.R
 import com.example.moment.ui.capture.CaptureScreen
 import com.example.moment.ui.diary.DiaryDetailScreen
 import com.example.moment.ui.diary.DiaryEditScreen
 import com.example.moment.ui.diary.DiaryPreviewScreen
 import com.example.moment.ui.history.HistoryScreen
 import com.example.moment.ui.history.HistoryViewModel
+import com.example.moment.ui.mine.AccountSettingsScreen
 import com.example.moment.ui.mine.MineScreen
 import com.example.moment.ui.place.PlacePickScreen
 import com.example.moment.ui.settings.SettingsScreen
@@ -39,9 +44,9 @@ fun MomentApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val mainTabs = listOf(
-        MainTab(label = "首页", iconText = "首", route = Routes.RootCapture, selectedRoute = Routes.Capture),
-        MainTab(label = "历史", iconText = "历", route = Routes.History, selectedRoute = Routes.History),
-        MainTab(label = "我的", iconText = "我", route = Routes.Mine, selectedRoute = Routes.Mine)
+        MainTab(label = "首页", iconRes = R.drawable.ic_nav_home, route = Routes.RootCapture, selectedRoute = Routes.Capture),
+        MainTab(label = "历史", iconRes = R.drawable.ic_nav_history, route = Routes.History, selectedRoute = Routes.History),
+        MainTab(label = "我的", iconRes = R.drawable.ic_nav_mine, route = Routes.Mine, selectedRoute = Routes.Mine)
     )
     val isRootCapture = currentRoute == Routes.Capture &&
         (backStackEntry?.arguments?.getLong("fragmentId") ?: 0L) == 0L &&
@@ -123,7 +128,13 @@ fun MomentApp() {
                 )
             }
             composable(Routes.Mine) {
-                MineScreen(onOpenSettings = { navController.navigate(Routes.Settings) })
+                MineScreen(
+                    onOpenAccountSettings = { navController.navigate(Routes.AccountSettings) },
+                    onOpenSettings = { navController.navigate(Routes.Settings) }
+                )
+            }
+            composable(Routes.AccountSettings) {
+                AccountSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.Settings) {
                 SettingsScreen(onBack = { navController.popBackStack() })
@@ -175,12 +186,17 @@ private fun MomentBottomNavigation(
     currentRoute: String?,
     onTabClick: (MainTab) -> Unit
 ) {
-    NavigationBar {
+    NavigationBar(modifier = Modifier.height(64.dp)) {
         tabs.forEach { tab ->
             NavigationBarItem(
                 selected = currentRoute == tab.selectedRoute,
                 onClick = { onTabClick(tab) },
-                icon = { Text(tab.iconText) },
+                icon = {
+                    Icon(
+                        painter = painterResource(tab.iconRes),
+                        contentDescription = tab.label
+                    )
+                },
                 label = { Text(tab.label) }
             )
         }
@@ -189,7 +205,7 @@ private fun MomentBottomNavigation(
 
 private data class MainTab(
     val label: String,
-    val iconText: String,
+    val iconRes: Int,
     val route: String,
     val selectedRoute: String
 )
@@ -203,6 +219,7 @@ object Routes {
     fun preview(date: LocalDate, diaryId: Long): String = "preview/$date/$diaryId"
     const val History = "history"
     const val Mine = "mine"
+    const val AccountSettings = "accountSettings"
     const val Settings = "settings"
     const val Detail = "detail/{id}"
     const val DiaryEdit = "edit/{id}"
