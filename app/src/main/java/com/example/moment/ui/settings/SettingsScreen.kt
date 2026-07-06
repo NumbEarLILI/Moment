@@ -21,6 +21,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
@@ -168,6 +169,25 @@ fun SettingsScreen(
             if (prefs.customBackgroundImageUri.isNotBlank()) {
                 Text(
                     "已启用自定义背景",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val overlayAlpha = prefs.wallpaperOverlayAlpha.coerceIn(0f, 1f)
+                val transparency = 1f - overlayAlpha
+                val transparencyPercent = (transparency * 100f).toInt()
+                Text(
+                    "背景透明度 $transparencyPercent%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Slider(
+                    value = transparency,
+                    onValueChange = { viewModel.setWallpaperOverlayAlpha(1f - it) },
+                    valueRange = 0f..1f,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "向右更透明，背景图会更清晰透出。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

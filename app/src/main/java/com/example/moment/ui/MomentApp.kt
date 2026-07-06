@@ -218,7 +218,7 @@ private fun MomentBottomNavigation(
                             onClick = { onTabClick(tab) },
                             role = Role.Tab
                         )
-                        .padding(vertical = 2.dp),
+                        .padding(top = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {

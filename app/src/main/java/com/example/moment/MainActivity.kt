@@ -17,6 +17,7 @@ import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.ui.MomentApp
 import com.example.moment.ui.theme.LocalAppWallpaperUri
+import com.example.moment.ui.theme.LocalWallpaperOverlayAlpha
 import com.example.moment.ui.theme.MomentTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -47,7 +48,10 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-                CompositionLocalProvider(LocalAppWallpaperUri provides wallpaperUri) {
+                CompositionLocalProvider(
+                    LocalAppWallpaperUri provides wallpaperUri,
+                    LocalWallpaperOverlayAlpha provides prefs.wallpaperOverlayAlpha
+                ) {
                     MomentTheme(themeMode = prefs.themeMode) {
                         MomentApp()
                     }

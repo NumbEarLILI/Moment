@@ -7,6 +7,11 @@ data class UserAppPreferences(
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     /** 相册等来源的 content URI 字符串；空表示使用主题默认背景。 */
     val customBackgroundImageUri: String = "",
+    /**
+     * 自定义背景图上方内容区遮罩不透明度（0 全透明、1 完全不透明）。
+     * 仅在 [customBackgroundImageUri] 非空时生效。
+     */
+    val wallpaperOverlayAlpha: Float = DEFAULT_WALLPAPER_OVERLAY_ALPHA,
     val aiBaseUrl: String = "",
     val aiApiKey: String = "",
     val aiModel: String = "",
@@ -47,5 +52,6 @@ data class UserAppPreferences(
     companion object {
         const val DEFAULT_AI_BASE_URL = "https://api.deepseek.com"
         const val DEFAULT_AI_MODEL = "deepseek-v4-flash"
+        const val DEFAULT_WALLPAPER_OVERLAY_ALPHA = 0.88f
     }
 }
