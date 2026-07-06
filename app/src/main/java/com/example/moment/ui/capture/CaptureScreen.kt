@@ -37,7 +37,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material.ExperimentalMaterialApi
@@ -99,7 +98,6 @@ fun CaptureScreen(
     onClose: () -> Unit,
     onGenerateDiary: (LocalDate) -> Unit,
     onOpenDiary: (Long) -> Unit,
-    onOpenSettings: () -> Unit,
     viewModel: CaptureViewModel = hiltViewModel(),
     timelineViewModel: FragmentTimelineViewModel = hiltViewModel()
 ) {
@@ -245,8 +243,6 @@ fun CaptureScreen(
                     selectedDate = state.summaryCalendarDay,
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
-                    onOpenHistory = { navController.navigate(Routes.History) },
-                    onOpenSettings = onOpenSettings,
                     momentExpanded = momentExpanded,
                     onToggleMomentExpanded = {
                         val cur = backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] ?: false
@@ -470,8 +466,6 @@ private fun CaptureHeader(
     selectedDate: LocalDate?,
     canGenerateDiary: Boolean,
     onGenerateDiary: () -> Unit,
-    onOpenHistory: () -> Unit,
-    onOpenSettings: () -> Unit,
     momentExpanded: Boolean,
     onToggleMomentExpanded: () -> Unit,
     momentContent: String,
@@ -568,38 +562,13 @@ private fun CaptureHeader(
                 isDeleting = isDeleting,
                 onRequestDelete = onRequestDelete
             )
-            Column(
+            Button(
+                onClick = onGenerateDiary,
+                enabled = canGenerateDiary,
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                shape = MaterialTheme.shapes.large
             ) {
-                Button(
-                    onClick = onGenerateDiary,
-                    enabled = canGenerateDiary,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text("生成手帐")
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onOpenHistory,
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Text("历史")
-                    }
-                    OutlinedButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Text("设置")
-                    }
-                }
+                Text("生成手帐")
             }
         }
     }

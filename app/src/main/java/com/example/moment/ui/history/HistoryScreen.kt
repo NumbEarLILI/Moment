@@ -44,8 +44,6 @@ import java.util.Locale
 
 @Composable
 fun HistoryScreen(
-    onBack: () -> Unit,
-    onOpenSettings: () -> Unit,
     onAddFragmentForPastDay: (LocalDate) -> Unit,
     onContinueEditFragment: (Long) -> Unit,
     onOpenDiary: (Long) -> Unit,
@@ -75,32 +73,15 @@ fun HistoryScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TextButton(
-                                onClick = onBack,
-                                shape = MaterialTheme.shapes.small
-                            ) {
-                                Text("返回", color = MaterialTheme.colorScheme.primary)
-                            }
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                TextButton(
-                                    onClick = onOpenSettings,
-                                    shape = MaterialTheme.shapes.small
+                            if (state.selectedDate != viewModel.today) {
+                                OutlinedButton(
+                                    onClick = { onAddFragmentForPastDay(state.selectedDate) },
+                                    shape = MaterialTheme.shapes.medium
                                 ) {
-                                    Text("设置", color = MaterialTheme.colorScheme.primary)
-                                }
-                                if (state.selectedDate != viewModel.today) {
-                                    OutlinedButton(
-                                        onClick = { onAddFragmentForPastDay(state.selectedDate) },
-                                        shape = MaterialTheme.shapes.medium
-                                    ) {
-                                        Text("为该日新增碎片")
-                                    }
+                                    Text("为该日新增碎片")
                                 }
                             }
                         }
