@@ -1,20 +1,28 @@
 package com.example.moment.ui
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -35,7 +43,7 @@ import com.example.moment.ui.mine.AccountSettingsScreen
 import com.example.moment.ui.mine.MineScreen
 import com.example.moment.ui.place.PlacePickScreen
 import com.example.moment.ui.settings.SettingsScreen
-import com.example.moment.ui.theme.appScaffoldContainerColor
+import com.example.moment.ui.theme.appRootContainerColor
 import java.time.LocalDate
 
 @Composable
@@ -54,7 +62,7 @@ fun MomentApp() {
     val showBottomBar = isRootCapture || currentRoute == Routes.History || currentRoute == Routes.Mine
 
     Scaffold(
-        containerColor = appScaffoldContainerColor(),
+        containerColor = appRootContainerColor(),
         contentColor = MaterialTheme.colorScheme.onBackground,
         contentWindowInsets = WindowInsets(0.dp),
         bottomBar = {
@@ -186,19 +194,55 @@ private fun MomentBottomNavigation(
     currentRoute: String?,
     onTabClick: (MainTab) -> Unit
 ) {
-    NavigationBar(modifier = Modifier.height(64.dp)) {
-        tabs.forEach { tab ->
-            NavigationBarItem(
-                selected = currentRoute == tab.selectedRoute,
-                onClick = { onTabClick(tab) },
-                icon = {
+    Surface(
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+        tonalElevation = 3.dp
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .height(48.dp)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEach { tab ->
+                val selected = currentRoute == tab.selectedRoute
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp)
+                        .selectable(
+                            selected = selected,
+                            onClick = { onTabClick(tab) },
+                            role = Role.Tab
+                        )
+                        .padding(vertical = 2.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
                     Icon(
                         painter = painterResource(tab.iconRes),
-                        contentDescription = tab.label
+                        contentDescription = null,
+                        modifier = Modifier.height(20.dp),
+                        tint = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
-                },
-                label = { Text(tab.label) }
-            )
+                    Text(
+                        text = tab.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
+                }
+            }
         }
     }
 }

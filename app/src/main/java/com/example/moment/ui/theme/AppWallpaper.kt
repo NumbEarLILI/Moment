@@ -17,3 +17,20 @@ fun appScaffoldContainerColor(): Color {
         MaterialTheme.colorScheme.background.copy(alpha = 0.88f)
     }
 }
+
+@Composable
+fun appRootContainerColor(): Color =
+    appRootContainerColorForWallpaper(
+        background = MaterialTheme.colorScheme.background,
+        wallpaperUri = LocalAppWallpaperUri.current
+    )
+
+fun appRootContainerColorForWallpaper(
+    background: Color,
+    wallpaperUri: String?
+): Color =
+    if (wallpaperUri.isNullOrBlank()) {
+        background
+    } else {
+        Color.Transparent
+    }
