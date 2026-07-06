@@ -57,14 +57,8 @@ fun SettingsScreen(
     val aiBaseUrl by viewModel.aiBaseUrl.collectAsStateWithLifecycle()
     val aiApiKey by viewModel.aiApiKey.collectAsStateWithLifecycle()
     val aiModel by viewModel.aiModel.collectAsStateWithLifecycle()
-    val nasBaseUrl by viewModel.nasBaseUrl.collectAsStateWithLifecycle()
-    val nasUsername by viewModel.nasUsername.collectAsStateWithLifecycle()
-    val nasPassword by viewModel.nasPassword.collectAsStateWithLifecycle()
-    val nasTrustSelfSigned by viewModel.nasTrustSelfSigned.collectAsStateWithLifecycle()
     val nasBusy by viewModel.nasBusy.collectAsStateWithLifecycle()
     val nasStatusMessage by viewModel.nasStatusMessage.collectAsStateWithLifecycle()
-    val nasMomentAccountUsernameDraft by viewModel.nasMomentAccountUsernameDraft.collectAsStateWithLifecycle()
-    val nasMomentAccountPasswordDraft by viewModel.nasMomentAccountPasswordDraft.collectAsStateWithLifecycle()
     val nasBackupRunIds by viewModel.nasBackupRunIds.collectAsStateWithLifecycle()
     val selectedNasRunId by viewModel.selectedNasRunId.collectAsStateWithLifecycle()
     val nasArchiveConflictInfo by viewModel.nasArchiveConflictInfo.collectAsStateWithLifecycle()
@@ -225,135 +219,8 @@ fun SettingsScreen(
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Text(
-                "家庭 NAS（WebDAV）",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "备份与手帐存档走 WebDAV。建议使用 HTTPS；如果家庭 NAS 只能用 HTTP，应用也会允许连接。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = nasBaseUrl,
-                onValueChange = viewModel::setNasBaseUrl,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("WebDAV 根地址") },
-                placeholder = { Text("例如 https://192.168.1.10:5006/backup") },
-                singleLine = true
-            )
-            OutlinedTextField(
-                value = nasUsername,
-                onValueChange = viewModel::setNasUsername,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("用户名（可留空）") },
-                singleLine = true
-            )
-            OutlinedTextField(
-                value = nasPassword,
-                onValueChange = viewModel::setNasPassword,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("密码（可留空）") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "信任自签名证书",
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Switch(
-                    checked = nasTrustSelfSigned,
-                    onCheckedChange = viewModel::setNasTrustSelfSigned
-                )
-            }
-            Text(
-                "仅在 NAS 用自签名 HTTPS 时需要；会降低安全性。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Button(
-                onClick = { viewModel.saveNasWebdavSettings() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !nasBusy
-            ) {
-                Text("保存 NAS 配置")
-            }
-            Text(
-                "Moment 账号（可选）",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "多人共用同一 WebDAV 时可注册/登录；备份与存档只读当前账号目录。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            if (prefs.nasMomentStorageUserId.isNotBlank()) {
-                Text(
-                    "当前已登录：${prefs.nasMomentAccountUsername.ifBlank { prefs.nasMomentStorageUserId }}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            } else {
-                Text(
-                    "未登录：读写根目录下 MomentBackup / MomentArchive。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            OutlinedTextField(
-                value = nasMomentAccountUsernameDraft,
-                onValueChange = viewModel::setNasMomentAccountUsernameDraft,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Moment 账户名") },
-                placeholder = { Text("字母数字中文等，最多 32 字符") },
-                singleLine = true,
-                enabled = !nasBusy
-            )
-            OutlinedTextField(
-                value = nasMomentAccountPasswordDraft,
-                onValueChange = viewModel::setNasMomentAccountPasswordDraft,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Moment 密码") },
-                placeholder = { Text("至少 8 位") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                enabled = !nasBusy
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = { viewModel.registerNasMomentAccount() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !nasBusy
-                ) {
-                    Text("注册并登录")
-                }
-                Button(
-                    onClick = { viewModel.loginNasMomentAccount() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !nasBusy
-                ) {
-                    Text("登录")
-                }
-            }
-            OutlinedButton(
-                onClick = { viewModel.logoutNasMomentAccount() },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !nasBusy && prefs.nasMomentStorageUserId.isNotBlank()
-            ) {
-                Text("退出 Moment 账号")
-            }
-            Text(
                 "手帐存档（双向同步）",
-                style = MaterialTheme.typography.titleSmall,
+                style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
@@ -396,24 +263,12 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row(
+            Button(
+                onClick = { viewModel.backupDiariesToNas() },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                enabled = !nasBusy
             ) {
-                Button(
-                    onClick = { viewModel.testNasWebdavConnection() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !nasBusy
-                ) {
-                    Text("测试连接")
-                }
-                Button(
-                    onClick = { viewModel.backupDiariesToNas() },
-                    modifier = Modifier.weight(1f),
-                    enabled = !nasBusy
-                ) {
-                    Text("备份日记")
-                }
+                Text("备份日记")
             }
             Text(
                 "从 NAS 读回备份",

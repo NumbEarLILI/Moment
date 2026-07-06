@@ -5,6 +5,7 @@ import com.example.moment.data.local.entity.FragmentEntity
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.anchoredFragmentIds
+import com.example.moment.domain.model.isNasGhostPlaceholder
 import com.example.moment.domain.repository.FragmentRepository
 import java.time.LocalDate
 import java.time.ZoneId
@@ -17,6 +18,13 @@ class FragmentRepositoryImpl @Inject constructor(
     private val dao: FragmentDao,
     private val zoneId: ZoneId
 ) : FragmentRepository {
+    override fun observeAllFragments(): Flow<List<LifeFragment>> =
+        dao.observeAll().map { entities ->
+            entities
+                .map { it.toDomain() }
+                .filterNot { it.isNasGhostPlaceholder() }
+        }
+
     override fun observeFragmentsForDate(date: LocalDate): Flow<List<LifeFragment>> {
         val (start, end) = dateRange(date)
         return dao.observeForRange(start, end).map { entities -> entities.map { it.toDomain() } }

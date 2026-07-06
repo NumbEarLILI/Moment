@@ -13,6 +13,14 @@ interface FragmentDao {
     @Query(
         """
         SELECT * FROM fragments
+        ORDER BY createdAtEpochMillis DESC
+        """
+    )
+    fun observeAll(): Flow<List<FragmentEntity>>
+
+    @Query(
+        """
+        SELECT * FROM fragments
         WHERE createdAtEpochMillis >= :startInclusive
           AND createdAtEpochMillis < :endExclusive
         ORDER BY createdAtEpochMillis DESC

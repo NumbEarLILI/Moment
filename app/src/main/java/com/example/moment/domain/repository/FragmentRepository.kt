@@ -6,6 +6,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
 interface FragmentRepository {
+    fun observeAllFragments(): Flow<List<LifeFragment>>
     fun observeFragmentsForDate(date: LocalDate): Flow<List<LifeFragment>>
     suspend fun getFragmentsForDate(date: LocalDate): List<LifeFragment>
     /** Plog UI：按手帐保存的 stableId 顺序加载（不按日历日过滤）。 */

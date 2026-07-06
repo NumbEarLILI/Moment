@@ -36,9 +36,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material.ExperimentalMaterialApi
@@ -74,15 +72,15 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.example.moment.domain.model.FragmentLocation
-import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.Routes
 import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
+import com.example.moment.ui.timeline.FragmentTimelineSection
+import com.example.moment.ui.timeline.FragmentTimelineViewModel
 import java.io.File
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -100,11 +98,12 @@ fun CaptureScreen(
     onClose: () -> Unit,
     onGenerateDiary: (LocalDate) -> Unit,
     onOpenDiary: (Long) -> Unit,
-    onOpenSettings: () -> Unit,
-    viewModel: CaptureViewModel = hiltViewModel()
+    viewModel: CaptureViewModel = hiltViewModel(),
+    timelineViewModel: FragmentTimelineViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val timelineState by timelineViewModel.uiState.collectAsStateWithLifecycle()
     val nasArchiveConflict by viewModel.nasArchiveConflictInfo.collectAsStateWithLifecycle()
     val pullRefreshState = rememberPullRefreshState(
         refreshing = state.nasArchiveRefreshing,
@@ -244,8 +243,6 @@ fun CaptureScreen(
                     selectedDate = state.summaryCalendarDay,
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
-                    onOpenHistory = { navController.navigate(Routes.History) },
-                    onOpenSettings = onOpenSettings,
                     momentExpanded = momentExpanded,
                     onToggleMomentExpanded = {
                         val cur = backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] ?: false
@@ -341,72 +338,18 @@ fun CaptureScreen(
                                 }
                             }
                         }
-                        state.summaryCalendarDay?.let { day ->
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(
-                                        width = 0.5.dp,
-                                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
-                                        shape = MaterialTheme.shapes.medium
-                                    ),
-                                shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f),
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                tonalElevation = 0.dp,
-                                shadowElevation = 0.dp
-                            ) {
-                                Column(
-                                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        "${day.format(DateTimeFormatter.ISO_LOCAL_DATE)} · 碎片历史",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    if (state.otherFragmentsOnDay.isEmpty()) {
-                                        Text(
-                                            if (state.editingFragmentId > 0) {
-                                                "今日仅有正在编辑的这条记录，暂无其它已保存碎片。"
-                                            } else {
-                                                "这一天还没有其它已保存碎片，写完后保存即可新增一条。"
-                                            },
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                        )
-                                    } else {
-                                        Text(
-                                            "以下为本日已保存内容，避免重复记录。",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f)
-                                        )
-                                        Column(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalArrangement = Arrangement.spacedBy(0.dp)
-                                        ) {
-                                            state.otherFragmentsOnDay.forEachIndexed { index, fragment ->
-                                                key(fragment.id) {
-                                                    DayFragmentSummaryRow(
-                                                        fragment = fragment,
-                                                        onOpen = { navController.navigate(Routes.capture(fragment.id)) }
-                                                    )
-                                                    if (index < state.otherFragmentsOnDay.lastIndex) {
-                                                        HorizontalDivider(
-                                                            thickness = 0.5.dp,
-                                                            color = MaterialTheme.colorScheme.outlineVariant.copy(
-                                                                alpha = 0.45f
-                                                            )
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        FragmentTimelineSection(
+                            state = timelineState,
+                            onAddFragment = {
+                                backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = true
+                            },
+                            onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
+                            onOpenDiary = onOpenDiary,
+                            onDeleteFragment = timelineViewModel::delete,
+                            onClearDeleteError = timelineViewModel::clearDeleteError,
+                            hiddenFragmentId = state.editingFragmentId.takeIf { it > 0L },
+                            hiddenDiaryFallbackDate = state.summaryCalendarDay
+                        )
                     }
                 }
                 }
@@ -523,8 +466,6 @@ private fun CaptureHeader(
     selectedDate: LocalDate?,
     canGenerateDiary: Boolean,
     onGenerateDiary: () -> Unit,
-    onOpenHistory: () -> Unit,
-    onOpenSettings: () -> Unit,
     momentExpanded: Boolean,
     onToggleMomentExpanded: () -> Unit,
     momentContent: String,
@@ -621,38 +562,13 @@ private fun CaptureHeader(
                 isDeleting = isDeleting,
                 onRequestDelete = onRequestDelete
             )
-            Column(
+            Button(
+                onClick = onGenerateDiary,
+                enabled = canGenerateDiary,
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                shape = MaterialTheme.shapes.large
             ) {
-                Button(
-                    onClick = onGenerateDiary,
-                    enabled = canGenerateDiary,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text("生成手帐")
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedButton(
-                        onClick = onOpenHistory,
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Text("历史")
-                    }
-                    OutlinedButton(
-                        onClick = onOpenSettings,
-                        modifier = Modifier.weight(1f),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Text("设置")
-                    }
-                }
+                Text("生成手帐")
             }
         }
     }
@@ -1025,43 +941,6 @@ private fun TagCapsule(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
         )
-    }
-}
-
-@Composable
-private fun DayFragmentSummaryRow(
-    fragment: LifeFragment,
-    onOpen: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                fragment.createdAt.atZone(ZoneId.systemDefault()).toLocalTime().toString().take(5),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.secondary
-            )
-            val preview = fragment.content.trim().ifBlank { "（无文字）" }
-                .let { if (it.length > 120) it.take(120) + "…" else it }
-            Text(
-                preview,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-        TextButton(
-            onClick = onOpen,
-            shape = MaterialTheme.shapes.small
-        ) {
-            Text("查看", color = MaterialTheme.colorScheme.primary)
-        }
     }
 }
 

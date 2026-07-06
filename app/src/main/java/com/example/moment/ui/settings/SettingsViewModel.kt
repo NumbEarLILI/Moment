@@ -123,6 +123,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _nasBusy.value = true
             _nasStatusMessage.value = null
+            persistNasWebdavSettingsFromForm()
             val r = nasMomentAccountRepository.registerMomentAccount(
                 currentNasConfigFromForm(),
                 _nasMomentAccountUsernameDraft.value,
@@ -144,6 +145,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _nasBusy.value = true
             _nasStatusMessage.value = null
+            persistNasWebdavSettingsFromForm()
             val r = nasMomentAccountRepository.loginMomentAccount(
                 currentNasConfigFromForm(),
                 _nasMomentAccountUsernameDraft.value,
@@ -235,12 +237,7 @@ class SettingsViewModel @Inject constructor(
 
     fun saveNasWebdavSettings() {
         viewModelScope.launch {
-            userPreferencesRepository.setNasWebdavSettings(
-                baseUrl = _nasBaseUrl.value,
-                username = _nasUsername.value,
-                password = _nasPassword.value,
-                trustSelfSignedCertificates = _nasTrustSelfSigned.value
-            )
+            persistNasWebdavSettingsFromForm()
             _saveSuccessMessage.emit("NAS 配置已保存")
         }
     }
@@ -430,4 +427,13 @@ class SettingsViewModel @Inject constructor(
             nasWebdavPassword = _nasPassword.value,
             nasWebdavTrustSelfSignedCertificates = _nasTrustSelfSigned.value
         ).toNasWebdavConfig()
+
+    private suspend fun persistNasWebdavSettingsFromForm() {
+        userPreferencesRepository.setNasWebdavSettings(
+            baseUrl = _nasBaseUrl.value,
+            username = _nasUsername.value,
+            password = _nasPassword.value,
+            trustSelfSignedCertificates = _nasTrustSelfSigned.value
+        )
+    }
 }
