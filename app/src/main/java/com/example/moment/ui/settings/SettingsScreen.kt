@@ -28,9 +28,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -45,6 +47,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.AppThemeMode
 import com.example.moment.domain.model.NasArchiveConflictChoice
+import com.example.moment.ui.theme.LocalWallpaperOverlayAlpha
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import kotlinx.coroutines.flow.collectLatest
 
@@ -76,6 +79,64 @@ fun SettingsScreen(
         }
     }
 
+    val hasCustomWallpaper = prefs.customBackgroundImageUri.isNotBlank()
+    var wallpaperTransparency by remember(prefs.wallpaperOverlayAlpha) {
+        mutableFloatStateOf(1f - prefs.wallpaperOverlayAlpha.coerceIn(0f, 1f))
+    }
+    val liveOverlayAlpha = 1f - wallpaperTransparency
+
+    CompositionLocalProvider(
+        LocalWallpaperOverlayAlpha provides if (hasCustomWallpaper) {
+            liveOverlayAlpha
+        } else {
+            prefs.wallpaperOverlayAlpha
+        }
+    ) {
+        SettingsScaffold(
+            snackbarHostState = snackbarHostState,
+            onBack = onBack,
+            prefs = prefs,
+            viewModel = viewModel,
+            aiBaseUrl = aiBaseUrl,
+            aiApiKey = aiApiKey,
+            aiModel = aiModel,
+            nasBusy = nasBusy,
+            nasStatusMessage = nasStatusMessage,
+            nasBackupRunIds = nasBackupRunIds,
+            selectedNasRunId = selectedNasRunId,
+            nasArchiveConflictInfo = nasArchiveConflictInfo,
+            showDeleteNasConfirm = showDeleteNasConfirm,
+            onShowDeleteNasConfirmChange = { showDeleteNasConfirm = it },
+            wallpaperTransparency = wallpaperTransparency,
+            onWallpaperTransparencyChange = { wallpaperTransparency = it },
+            onWallpaperTransparencyPersist = {
+                viewModel.persistWallpaperOverlayAlpha(1f - wallpaperTransparency)
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SettingsScaffold(
+    snackbarHostState: SnackbarHostState,
+    onBack: () -> Unit,
+    prefs: com.example.moment.domain.model.UserAppPreferences,
+    viewModel: SettingsViewModel,
+    aiBaseUrl: String,
+    aiApiKey: String,
+    aiModel: String,
+    nasBusy: Boolean,
+    nasStatusMessage: String?,
+    nasBackupRunIds: List<String>,
+    selectedNasRunId: String?,
+    nasArchiveConflictInfo: com.example.moment.domain.model.NasArchiveConflictInfo?,
+    showDeleteNasConfirm: Boolean,
+    onShowDeleteNasConfirmChange: (Boolean) -> Unit,
+    wallpaperTransparency: Float,
+    onWallpaperTransparencyChange: (Float) -> Unit,
+    onWallpaperTransparencyPersist: () -> Unit
+) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = appScaffoldContainerColor(),
@@ -172,17 +233,16 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                val overlayAlpha = prefs.wallpaperOverlayAlpha.coerceIn(0f, 1f)
-                val transparency = 1f - overlayAlpha
-                val transparencyPercent = (transparency * 100f).toInt()
+                val transparencyPercent = (wallpaperTransparency * 100f).toInt()
                 Text(
                     "背景透明度 $transparencyPercent%",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Slider(
-                    value = transparency,
-                    onValueChange = { viewModel.setWallpaperOverlayAlpha(1f - it) },
+                    value = wallpaperTransparency,
+                    onValueChange = onWallpaperTransparencyChange,
+                    onValueChangeFinished = onWallpaperTransparencyPersist,
                     valueRange = 0f..1f,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -351,7 +411,7 @@ fun SettingsScreen(
                 Text("同步选中备份到本机")
             }
             OutlinedButton(
-                onClick = { showDeleteNasConfirm = true },
+                onClick = { onShowDeleteNasConfirmChange(true) },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !nasBusy && selectedNasRunId != null
             ) {
@@ -362,7 +422,7 @@ fun SettingsScreen(
             }
             if (showDeleteNasConfirm) {
                 AlertDialog(
-                    onDismissRequest = { showDeleteNasConfirm = false },
+                    onDismissRequest = { onShowDeleteNasConfirmChange(false) },
                     title = { Text("删除 NAS 备份") },
                     text = {
                         Text(
@@ -373,7 +433,7 @@ fun SettingsScreen(
                     confirmButton = {
                         TextButton(
                             onClick = {
-                                showDeleteNasConfirm = false
+                                onShowDeleteNasConfirmChange(false)
                                 viewModel.deleteNasSelectedBackup()
                             }
                         ) {
@@ -381,7 +441,7 @@ fun SettingsScreen(
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { showDeleteNasConfirm = false }) {
+                        TextButton(onClick = { onShowDeleteNasConfirmChange(false) }) {
                             Text("取消")
                         }
                     }

@@ -192,7 +192,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setWallpaperOverlayAlpha(alpha: Float) {
+    fun persistWallpaperOverlayAlpha(alpha: Float) {
         viewModelScope.launch {
             userPreferencesRepository.setWallpaperOverlayAlpha(alpha)
         }
