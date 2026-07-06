@@ -6,14 +6,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -23,12 +20,12 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -40,33 +37,49 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.FullscreenImageViewer
 import com.example.moment.ui.common.MoodBadge
-import com.example.moment.ui.theme.appScaffoldContainerColor
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+private const val DEFAULT_INLINE_TIMELINE_LIMIT = 30
+
 @Composable
-fun FragmentTimelineScreen(
-    onBack: () -> Unit,
-    onOpenSettings: () -> Unit,
+fun FragmentTimelineSection(
+    state: FragmentTimelineUiState,
     onAddFragment: () -> Unit,
     onContinueEditFragment: (Long) -> Unit,
     onOpenDiary: (Long) -> Unit,
-    viewModel: FragmentTimelineViewModel = hiltViewModel()
+    onDeleteFragment: (Long) -> Unit,
+    onClearDeleteError: () -> Unit,
+    hiddenFragmentId: Long? = null,
+    hiddenDiaryFallbackDate: LocalDate? = null,
+    initialItemLimit: Int = DEFAULT_INLINE_TIMELINE_LIMIT,
+    modifier: Modifier = Modifier
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val zoneId = remember { ZoneId.systemDefault() }
     val timestampFormatter = remember { DateTimeFormatter.ofPattern("yyyy年M月d日 HH:mm", Locale.CHINA) }
     val diaryDateFormatter = remember { DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA) }
     var fullscreen by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
     var pendingDelete by remember { mutableStateOf<LifeFragment?>(null) }
+    var showAllItems by remember { mutableStateOf(false) }
+    val displayItems = remember(state.items, hiddenFragmentId, hiddenDiaryFallbackDate) {
+        state.items.filterNot { item ->
+            when (item) {
+                is FragmentTimelineItem.Fragment -> item.fragment.id == hiddenFragmentId
+                is FragmentTimelineItem.DiaryFallback -> item.diary.date == hiddenDiaryFallbackDate
+            }
+        }
+    }
+    val safeLimit = initialItemLimit.coerceAtLeast(1)
+    val visibleItems = remember(displayItems, showAllItems, safeLimit) {
+        if (showAllItems) displayItems else displayItems.take(safeLimit)
+    }
 
     fullscreen?.let { (uris, start) ->
         FullscreenImageViewer(
@@ -76,97 +89,74 @@ fun FragmentTimelineScreen(
         )
     }
 
-    Scaffold(
-        containerColor = appScaffoldContainerColor(),
-        contentColor = MaterialTheme.colorScheme.onBackground
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            item {
-                TimelineHeader(
-                    count = state.items.size,
-                    onBack = onBack,
-                    onOpenSettings = onOpenSettings,
-                    onAddFragment = onAddFragment
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        TimelineHeader(count = displayItems.size)
+        state.deleteErrorMessage?.let { message ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = message,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    TextButton(onClick = onClearDeleteError) {
+                        Text("知道了")
+                    }
+                }
+            }
+        }
+
+        when {
+            state.isLoading -> CircularProgressIndicator(Modifier.padding(vertical = 12.dp))
+            state.errorMessage != null -> {
+                Text(
+                    text = state.errorMessage.orEmpty(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
                 )
             }
-            state.deleteErrorMessage?.let { message ->
-                item {
-                    Surface(
+            displayItems.isEmpty() -> EmptyTimelineHint(onAddFragment = onAddFragment)
+            else -> {
+                visibleItems.forEach { item ->
+                    key(timelineItemKey(item)) {
+                        TimelineItemCard(
+                            item = item,
+                            zoneId = zoneId,
+                            timestampFormatter = timestampFormatter,
+                            diaryDateFormatter = diaryDateFormatter,
+                            deletingFragmentId = state.deletingFragmentId,
+                            onContinueEditFragment = onContinueEditFragment,
+                            onOpenDiary = onOpenDiary,
+                            onDeleteRequest = { pendingDelete = it },
+                            onImageClick = { uris, index -> fullscreen = uris to index }
+                        )
+                    }
+                }
+                if (displayItems.size > safeLimit) {
+                    OutlinedButton(
+                        onClick = { showAllItems = !showAllItems },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        shape = MaterialTheme.shapes.large
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = message,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            TextButton(onClick = viewModel::clearDeleteError) {
-                                Text("知道了")
+                        Text(
+                            if (showAllItems) {
+                                "收起到最近 $safeLimit 条"
+                            } else {
+                                "显示全部 ${displayItems.size} 条内容"
                             }
-                        }
-                    }
-                }
-            }
-
-            when {
-                state.isLoading -> item {
-                    CircularProgressIndicator(Modifier.padding(vertical = 12.dp))
-                }
-                state.errorMessage != null -> item {
-                    Text(
-                        text = state.errorMessage.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                state.items.isEmpty() -> item {
-                    EmptyTimelineHint(onAddFragment = onAddFragment)
-                }
-                else -> items(
-                    state.items,
-                    key = { item ->
-                        when (item) {
-                            is FragmentTimelineItem.Fragment ->
-                                "fragment-${item.fragment.id}-${item.fragment.stableId}"
-                            is FragmentTimelineItem.DiaryFallback ->
-                                "diary-${item.diary.id}-${item.diary.date}"
-                        }
-                    }
-                ) { item ->
-                    when (item) {
-                        is FragmentTimelineItem.Fragment -> {
-                            val fragment = item.fragment
-                            FragmentTimelineCard(
-                                fragment = fragment,
-                                zoneId = zoneId,
-                                timestampFormatter = timestampFormatter,
-                                onContinueEdit = { onContinueEditFragment(fragment.id) },
-                                isDeleting = state.deletingFragmentId == fragment.id,
-                                onDeleteRequest = { pendingDelete = fragment },
-                                onImageClick = { uris, index -> fullscreen = uris to index }
-                            )
-                        }
-                        is FragmentTimelineItem.DiaryFallback -> {
-                            DiaryFallbackTimelineCard(
-                                diary = item.diary,
-                                dateFormatter = diaryDateFormatter,
-                                onOpenDiary = { onOpenDiary(item.diary.id) },
-                                onImageClick = { uris, index -> fullscreen = uris to index }
-                            )
-                        }
+                        )
                     }
                 }
             }
@@ -187,7 +177,7 @@ fun FragmentTimelineScreen(
                 TextButton(
                     onClick = {
                         pendingDelete = null
-                        viewModel.delete(fragment.id)
+                        onDeleteFragment(fragment.id)
                     }
                 ) {
                     Text("删除", color = MaterialTheme.colorScheme.error)
@@ -204,10 +194,7 @@ fun FragmentTimelineScreen(
 
 @Composable
 private fun TimelineHeader(
-    count: Int,
-    onBack: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onAddFragment: () -> Unit
+    count: Int
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -217,26 +204,6 @@ private fun TimelineHeader(
         tonalElevation = 1.dp
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onBack, shape = MaterialTheme.shapes.small) {
-                    Text("返回", color = MaterialTheme.colorScheme.primary)
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onOpenSettings, shape = MaterialTheme.shapes.small) {
-                        Text("设置", color = MaterialTheme.colorScheme.primary)
-                    }
-                    OutlinedButton(onClick = onAddFragment, shape = MaterialTheme.shapes.medium) {
-                        Text("写新碎片")
-                    }
-                }
-            }
             Text(
                 "碎片时间线",
                 style = MaterialTheme.typography.headlineSmall,
@@ -255,6 +222,48 @@ private fun TimelineHeader(
         }
     }
 }
+
+@Composable
+private fun TimelineItemCard(
+    item: FragmentTimelineItem,
+    zoneId: ZoneId,
+    timestampFormatter: DateTimeFormatter,
+    diaryDateFormatter: DateTimeFormatter,
+    deletingFragmentId: Long?,
+    onContinueEditFragment: (Long) -> Unit,
+    onOpenDiary: (Long) -> Unit,
+    onDeleteRequest: (LifeFragment) -> Unit,
+    onImageClick: (List<String>, Int) -> Unit
+) {
+    when (item) {
+        is FragmentTimelineItem.Fragment -> {
+            val fragment = item.fragment
+            FragmentTimelineCard(
+                fragment = fragment,
+                zoneId = zoneId,
+                timestampFormatter = timestampFormatter,
+                onContinueEdit = { onContinueEditFragment(fragment.id) },
+                isDeleting = deletingFragmentId == fragment.id,
+                onDeleteRequest = { onDeleteRequest(fragment) },
+                onImageClick = onImageClick
+            )
+        }
+        is FragmentTimelineItem.DiaryFallback -> {
+            DiaryFallbackTimelineCard(
+                diary = item.diary,
+                dateFormatter = diaryDateFormatter,
+                onOpenDiary = { onOpenDiary(item.diary.id) },
+                onImageClick = onImageClick
+            )
+        }
+    }
+}
+
+private fun timelineItemKey(item: FragmentTimelineItem): String =
+    when (item) {
+        is FragmentTimelineItem.Fragment -> "fragment-${item.fragment.id}-${item.fragment.stableId}"
+        is FragmentTimelineItem.DiaryFallback -> "diary-${item.diary.id}-${item.diary.date}"
+    }
 
 @Composable
 private fun EmptyTimelineHint(onAddFragment: () -> Unit) {

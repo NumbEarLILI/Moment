@@ -17,7 +17,6 @@ import com.example.moment.ui.history.HistoryScreen
 import com.example.moment.ui.history.HistoryViewModel
 import com.example.moment.ui.place.PlacePickScreen
 import com.example.moment.ui.settings.SettingsScreen
-import com.example.moment.ui.timeline.FragmentTimelineScreen
 import java.time.LocalDate
 
 @Composable
@@ -44,7 +43,6 @@ fun MomentApp() {
                 },
                 onGenerateDiary = { date -> navController.navigate(Routes.preview(date, 0L)) },
                 onOpenDiary = { id -> navController.navigate("detail/$id") },
-                onOpenTimeline = { navController.navigate(Routes.Timeline) },
                 onOpenSettings = { navController.navigate(Routes.Settings) }
             )
         }
@@ -72,20 +70,6 @@ fun MomentApp() {
                 onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
                 onOpenDiary = { id -> navController.navigate("detail/$id") },
                 viewModel = historyViewModel
-            )
-        }
-        composable(Routes.Timeline) {
-            FragmentTimelineScreen(
-                onBack = { navController.popBackStack() },
-                onOpenSettings = { navController.navigate(Routes.Settings) },
-                onAddFragment = {
-                    navController.navigate(Routes.RootCapture) {
-                        popUpTo(navController.graph.startDestinationId)
-                        launchSingleTop = true
-                    }
-                },
-                onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
-                onOpenDiary = { id -> navController.navigate("detail/$id") }
             )
         }
         composable(Routes.Settings) {
@@ -139,7 +123,6 @@ object Routes {
     /** @param diaryId 已保存手帐的主键；无锚点手帐时用 0（须写入路径，query 在部分机型上不进 SavedStateHandle）。 */
     fun preview(date: LocalDate, diaryId: Long): String = "preview/$date/$diaryId"
     const val History = "history"
-    const val Timeline = "timeline"
     const val Settings = "settings"
     const val Detail = "detail/{id}"
     const val DiaryEdit = "edit/{id}"
