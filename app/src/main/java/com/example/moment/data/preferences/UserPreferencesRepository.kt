@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.moment.domain.model.AppThemeMode
@@ -37,6 +38,8 @@ class UserPreferencesRepository @Inject constructor(
         UserAppPreferences(
             themeMode = themeMode,
             customBackgroundImageUri = prefs[Keys.CUSTOM_BACKGROUND_IMAGE_URI].orEmpty(),
+            wallpaperOverlayAlpha = prefs[Keys.WALLPAPER_OVERLAY_ALPHA]
+                ?: UserAppPreferences.DEFAULT_WALLPAPER_OVERLAY_ALPHA,
             aiBaseUrl = prefs[Keys.AI_BASE_URL].orEmpty(),
             aiApiKey = securePreferenceCipher.decrypt(prefs[Keys.AI_API_KEY].orEmpty()),
             aiModel = prefs[Keys.AI_MODEL].orEmpty(),
@@ -53,6 +56,11 @@ class UserPreferencesRepository @Inject constructor(
 
     suspend fun setCustomBackgroundImageUri(uri: String) {
         dataStore.edit { it[Keys.CUSTOM_BACKGROUND_IMAGE_URI] = uri.trim() }
+    }
+
+    suspend fun setWallpaperOverlayAlpha(alpha: Float) {
+        val clamped = alpha.coerceIn(0f, 1f)
+        dataStore.edit { it[Keys.WALLPAPER_OVERLAY_ALPHA] = clamped }
     }
 
     suspend fun setThemeMode(mode: AppThemeMode) {
@@ -124,6 +132,7 @@ class UserPreferencesRepository @Inject constructor(
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val CUSTOM_BACKGROUND_IMAGE_URI = stringPreferencesKey("custom_background_image_uri")
+        val WALLPAPER_OVERLAY_ALPHA = floatPreferencesKey("wallpaper_overlay_alpha")
         val AI_BASE_URL = stringPreferencesKey("ai_base_url")
         val AI_API_KEY = stringPreferencesKey("ai_api_key")
         val AI_MODEL = stringPreferencesKey("ai_model")

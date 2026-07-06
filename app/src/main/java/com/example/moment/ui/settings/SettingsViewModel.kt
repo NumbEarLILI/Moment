@@ -192,6 +192,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun persistWallpaperOverlayAlpha(alpha: Float) {
+        viewModelScope.launch {
+            userPreferencesRepository.setWallpaperOverlayAlpha(alpha)
+        }
+    }
+
     fun setAiBaseUrl(value: String) {
         _aiBaseUrl.value = value
     }
