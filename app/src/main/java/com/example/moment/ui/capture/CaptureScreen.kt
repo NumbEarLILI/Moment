@@ -83,12 +83,9 @@ import com.example.moment.ui.timeline.FragmentTimelineSection
 import com.example.moment.ui.timeline.FragmentTimelineViewModel
 import java.io.File
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val ImageThumbSize = 88.dp
-private val HeaderDateFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("M月d日", Locale.CHINA)
 
 private const val CAPTURE_MOMENT_EXPANDED_KEY = "captureMomentExpanded"
 
@@ -138,6 +135,12 @@ fun CaptureScreen(
         viewModel.save()
     }
 
+    val weatherPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        viewModel.refreshWeather()
+    }
+
     var showPlacePickPermissionDialog by remember { mutableStateOf(false) }
     var pendingPlacePickAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
@@ -174,6 +177,23 @@ fun CaptureScreen(
                 )
             )
         }
+    }
+
+    fun requestWeather() {
+        if (hasLocationPermission()) {
+            viewModel.refreshWeather()
+        } else {
+            weatherPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        requestWeather()
     }
 
     val imagePicker = rememberLauncherForActivityResult(
@@ -242,7 +262,8 @@ fun CaptureScreen(
                         )
                     }
                     CaptureHeader(
-                    selectedDate = state.summaryCalendarDay,
+                    weatherCaption = state.weatherCaption,
+                    onWeatherClick = { requestWeather() },
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
                     momentExpanded = momentExpanded,
@@ -471,7 +492,8 @@ fun CaptureScreen(
 
 @Composable
 private fun CaptureHeader(
-    selectedDate: LocalDate?,
+    weatherCaption: String,
+    onWeatherClick: () -> Unit,
     canGenerateDiary: Boolean,
     onGenerateDiary: () -> Unit,
     momentExpanded: Boolean,
@@ -515,11 +537,13 @@ private fun CaptureHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = selectedDate?.format(HeaderDateFormatter) ?: "此刻",
+                text = weatherCaption,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onWeatherClick),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

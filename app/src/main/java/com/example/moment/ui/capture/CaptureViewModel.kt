@@ -4,7 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.preferences.UserPreferencesRepository
+import com.example.moment.data.location.ChinaCoordinateTransform
 import com.example.moment.data.location.FragmentLocationCapture
+import com.example.moment.data.weather.OpenMeteoWeatherClient
+import com.example.moment.domain.weather.HomeWeatherCaption
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
@@ -64,6 +67,7 @@ class CaptureViewModel @Inject constructor(
     observeFragmentsForDate: ObserveFragmentsForDateUseCase,
     observeDiaryEntries: ObserveDiaryEntriesUseCase,
     private val fragmentLocationCapture: FragmentLocationCapture,
+    private val weatherClient: OpenMeteoWeatherClient,
     savedStateHandle: SavedStateHandle,
     private val zoneId: ZoneId,
     private val clock: Clock
@@ -247,6 +251,34 @@ class CaptureViewModel @Inject constructor(
                     baselineRecordedDate = recordedAtText.date,
                     baselineRecordedTime = recordedAtText.time,
                     baselineRecordedAt = recordedAt
+                )
+            }
+        }
+    }
+
+    fun refreshWeather() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(weatherCaption = HomeWeatherCaption.LOADING) }
+            val loc = runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+            if (loc == null) {
+                _uiState.update {
+                    it.copy(
+                        weatherCaption = HomeWeatherCaption.from(
+                            locationAvailable = false,
+                            weather = null
+                        )
+                    )
+                }
+                return@launch
+            }
+            val (lat, lng) = ChinaCoordinateTransform.gcj02ToWgs84(loc.latitude, loc.longitude)
+            val weather = runCatching { weatherClient.fetchCurrent(lat, lng) }.getOrNull()
+            _uiState.update {
+                it.copy(
+                    weatherCaption = HomeWeatherCaption.from(
+                        locationAvailable = true,
+                        weather = weather
+                    )
                 )
             }
         }
@@ -474,7 +506,8 @@ data class CaptureUiState(
     val canGenerateDiary: Boolean = false,
     val savedDiaryEntries: List<DiaryEntry> = emptyList(),
     val nasArchiveRefreshing: Boolean = false,
-    val nasArchiveSyncMessage: String? = null
+    val nasArchiveSyncMessage: String? = null,
+    val weatherCaption: String = HomeWeatherCaption.LOADING
 ) {
     fun baselineRecordedText(): FragmentRecordedAtText? =
         if (baselineRecordedDate.isNotBlank() && baselineRecordedTime.isNotBlank()) {
