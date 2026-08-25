@@ -88,7 +88,7 @@ import java.util.Locale
 
 private val ImageThumbSize = 88.dp
 private val HeaderDateFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)
+    DateTimeFormatter.ofPattern("M月d日", Locale.CHINA)
 
 private const val CAPTURE_MOMENT_EXPANDED_KEY = "captureMomentExpanded"
 
@@ -506,8 +506,8 @@ private fun CaptureHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -516,9 +516,9 @@ private fun CaptureHeader(
         ) {
             Text(
                 text = selectedDate?.format(HeaderDateFormatter) ?: "此刻",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
