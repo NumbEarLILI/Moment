@@ -3,8 +3,6 @@ package com.example.moment.ui.diary
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,13 +33,15 @@ import coil.compose.AsyncImage
 import com.example.moment.domain.location.shortenedDiaryPlaceLabel
 import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
+import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.ui.common.FragmentPlaceLine
 import com.example.moment.ui.common.FullscreenImageViewer
+import com.example.moment.ui.common.TagLine
 import com.example.moment.ui.theme.MomentHairline
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 internal fun mergedPlogDisplayImageUris(
     fragment: LifeFragment,
@@ -106,7 +106,6 @@ fun DiaryPlogTimeline(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DiaryPlogMomentCard(
     fragment: LifeFragment,
@@ -229,47 +228,24 @@ private fun DiaryPlogMomentCard(
             }
             when {
                 locationPin != null && onLocationPinClick != null -> {
-                    Text(
-                        shortenedDiaryPlaceLabel(locationPin.placeName),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.clickable { onLocationPinClick(locationPin) }
+                    FragmentPlaceLine(
+                        location = FragmentLocation(
+                            latitude = locationPin.latitude,
+                            longitude = locationPin.longitude,
+                            label = locationPin.placeName
+                        ),
+                        placeLabel = shortenedDiaryPlaceLabel(locationPin.placeName),
+                        onClick = { onLocationPinClick(locationPin) }
                     )
                 }
                 else -> {
                     fragment.location?.let { loc ->
-                        val label = loc.label?.trim()?.takeIf { it.isNotEmpty() }
-                            ?: String.format(Locale.CHINA, "约 %.4f，%.4f", loc.latitude, loc.longitude)
-                        Text(
-                            "地点 · $label",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        FragmentPlaceLine(location = loc)
                     }
                 }
             }
 
-            if (fragment.tags.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    fragment.tags.forEach { tag ->
-                        val t = tag.trim()
-                        if (t.isNotEmpty()) {
-                            Text(
-                                "#$t",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                        }
-                    }
-                }
-            }
+            TagLine(tags = fragment.tags)
         }
     }
 

@@ -74,10 +74,11 @@ import coil.compose.AsyncImage
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.FragmentWeather
 import com.example.moment.domain.model.NasArchiveConflictChoice
-import com.example.moment.domain.model.fragmentContextLine
 import com.example.moment.ui.Routes
+import com.example.moment.ui.common.FragmentWeatherAndPlace
 import com.example.moment.ui.common.QuietTextAction
 import com.example.moment.ui.common.RecordedAtField
+import com.example.moment.ui.common.TagChip
 import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.theme.MomentHairline
@@ -803,25 +804,10 @@ private fun CaptureMomentExpandable(
                             enabled = interactionsEnabled
                         )
                     }
-                    location?.let { loc ->
-                        Text(
-                            loc.label?.takeIf { it.isNotBlank() } ?: String.format(
-                                Locale.CHINA,
-                                "%.4f，%.4f",
-                                loc.latitude,
-                                loc.longitude
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    fragmentContextLine(weather = weather, location = null)?.let { line ->
-                        Text(
-                            line,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    FragmentWeatherAndPlace(
+                        weather = weather,
+                        location = location
+                    )
                     if (tagList.isNotEmpty()) {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
@@ -904,23 +890,12 @@ private fun TagCapsule(
     text: String,
     onRemove: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.heightIn(min = 28.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(
-            "#$text",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+    TagChip(text = text) {
         Text(
             "×",
             modifier = Modifier
                 .clickable(onClick = onRemove)
-                .padding(horizontal = 6.dp, vertical = 2.dp),
+                .padding(horizontal = 4.dp, vertical = 2.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

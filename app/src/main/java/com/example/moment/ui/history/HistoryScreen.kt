@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.LifeFragment
-import com.example.moment.domain.model.fragmentContextLine
+import com.example.moment.ui.common.FragmentWeatherAndPlace
 import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.MonthCalendar
 import com.example.moment.ui.common.QuietTextAction
@@ -210,15 +210,10 @@ private fun FragmentCard(
         }
         fragment.mood?.let { MoodBadge(mood = it) }
         TagLine(tags = fragment.tags)
-        fragmentContextLine(fragment.weather, fragment.location)?.let { line ->
-            Text(
-                line,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        FragmentWeatherAndPlace(
+            weather = fragment.weather,
+            location = fragment.location
+        )
         if (fragment.imageUris.isNotEmpty()) {
             Text(
                 "${fragment.imageUris.size} 张图片",

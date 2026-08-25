@@ -33,7 +33,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
-import com.example.moment.domain.model.fragmentContextLine
+import com.example.moment.ui.common.FragmentWeatherAndPlace
 import com.example.moment.ui.common.FullscreenImageViewer
 import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.QuietTextAction
@@ -324,15 +324,10 @@ private fun FragmentTimelineCard(
             MoodBadge(mood = mood)
         }
         TagLine(tags = fragment.tags)
-        fragmentContextLine(fragment.weather, fragment.location)?.let { line ->
-            Text(
-                line,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        FragmentWeatherAndPlace(
+            weather = fragment.weather,
+            location = fragment.location
+        )
     }
 }
 

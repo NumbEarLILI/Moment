@@ -50,6 +50,14 @@ class FragmentWeatherTest {
     }
 
     @Test
+    fun placeLabelFallsBackToCoordinates() {
+        assertEquals(
+            "约 31.2300，121.4700",
+            fragmentPlaceLabel(FragmentLocation(31.23, 121.47, "  "))
+        )
+    }
+
+    @Test
     fun contextLineEmptyWhenNeitherPresent() {
         assertNull(fragmentContextLine(weather = null, location = null))
     }
