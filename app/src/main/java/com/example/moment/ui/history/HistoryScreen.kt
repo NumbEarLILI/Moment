@@ -3,13 +3,11 @@ package com.example.moment.ui.history
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -29,6 +27,7 @@ import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.MonthCalendar
 import com.example.moment.ui.common.TagLine
 import com.example.moment.ui.diary.DiarySummaryCard
+import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import java.time.LocalDate
 import java.time.ZoneId
@@ -53,7 +52,7 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
                 Column(
@@ -97,6 +96,7 @@ fun HistoryScreen(
                     onNextMonth = viewModel::nextMonth
                 )
             }
+            item { MomentHairline() }
             item {
                 Text(
                     "碎片",
@@ -110,16 +110,24 @@ fun HistoryScreen(
                 state.fragments.isEmpty() -> item {
                     EmptyDayHint(state.selectedDate, viewModel.today)
                 }
-                else -> items(state.fragments, key = { "fragment-${it.id}" }) { fragment ->
-                    FragmentCard(
-                        fragment = fragment,
-                        onContinueEdit = { onContinueEditFragment(fragment.id) },
-                        onDelete = { viewModel.delete(fragment.id) }
-                    )
+                else -> itemsIndexed(
+                    items = state.fragments,
+                    key = { _, fragment -> "fragment-${fragment.id}" }
+                ) { index, fragment ->
+                    Column(Modifier.fillMaxWidth()) {
+                        FragmentCard(
+                            fragment = fragment,
+                            onContinueEdit = { onContinueEditFragment(fragment.id) },
+                            onDelete = { viewModel.delete(fragment.id) }
+                        )
+                        if (index < state.fragments.lastIndex) {
+                            MomentHairline(Modifier.padding(top = 12.dp))
+                        }
+                    }
                 }
             }
+            item { MomentHairline() }
             item {
-                Spacer(Modifier.height(4.dp))
                 Text(
                     "手帐",
                     style = MaterialTheme.typography.labelLarge,
@@ -135,8 +143,16 @@ fun HistoryScreen(
                     )
                 }
             } else {
-                items(state.diaryEntries, key = { "diary-${it.id}" }) { entry ->
-                    DiarySummaryCard(entry = entry, onClick = { onOpenDiary(entry.id) })
+                itemsIndexed(
+                    items = state.diaryEntries,
+                    key = { _, entry -> "diary-${entry.id}" }
+                ) { index, entry ->
+                    Column(Modifier.fillMaxWidth()) {
+                        DiarySummaryCard(entry = entry, onClick = { onOpenDiary(entry.id) })
+                        if (index < state.diaryEntries.lastIndex) {
+                            MomentHairline()
+                        }
+                    }
                 }
             }
         }

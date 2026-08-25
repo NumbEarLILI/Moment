@@ -73,6 +73,7 @@ import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.Routes
 import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.theme.appScaffoldContainerColor
+import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.momentTransparentTextFieldColors
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 import com.example.moment.ui.timeline.FragmentTimelineSection
@@ -312,9 +313,10 @@ fun CaptureScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp)
-                                .padding(top = 16.dp, bottom = 28.dp),
+                                .padding(top = 8.dp, bottom = 28.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
+                        MomentHairline()
                         if (state.savedDiaryEntries.isNotEmpty()) {
                             Column(
                                 modifier = Modifier.fillMaxWidth(),
@@ -325,8 +327,11 @@ fun CaptureScreen(
                                     style = MaterialTheme.typography.labelLarge,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                state.savedDiaryEntries.forEach { entry ->
+                                state.savedDiaryEntries.forEachIndexed { index, entry ->
                                     key(entry.id) {
+                                        if (index > 0) {
+                                            MomentHairline()
+                                        }
                                         DiarySummaryCard(
                                             entry = entry,
                                             onClick = { onOpenDiary(entry.id) }
@@ -334,6 +339,9 @@ fun CaptureScreen(
                                     }
                                 }
                             }
+                        }
+                        if (state.savedDiaryEntries.isNotEmpty()) {
+                            MomentHairline()
                         }
                         FragmentTimelineSection(
                             state = timelineState,

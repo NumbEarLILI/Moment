@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -36,6 +37,7 @@ import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.FullscreenImageViewer
+import com.example.moment.ui.theme.MomentHairline
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -82,9 +84,12 @@ fun DiaryPlogTimeline(
         )
     }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        fragments.forEach { fragment ->
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        fragments.forEachIndexed { index, fragment ->
             val pin = locationPins.firstOrNull { it.fragmentStableId == fragment.stableId }
+            if (index > 0) {
+                MomentHairline(Modifier.padding(vertical = 14.dp))
+            }
             DiaryPlogMomentCard(
                 fragment = fragment,
                 displayImageUris = mergedPlogDisplayImageUris(fragment, fragmentImageUris),

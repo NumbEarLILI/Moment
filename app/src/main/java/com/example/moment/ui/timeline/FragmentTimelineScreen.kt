@@ -36,6 +36,7 @@ import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.FullscreenImageViewer
 import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.TagLine
+import com.example.moment.ui.theme.MomentHairline
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -85,7 +86,7 @@ fun FragmentTimelineSection(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(22.dp)
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         state.deleteErrorMessage?.let { message ->
             Row(
@@ -116,8 +117,11 @@ fun FragmentTimelineSection(
             }
             displayItems.isEmpty() -> EmptyTimelineHint(onAddFragment = onAddFragment)
             else -> {
-                visibleItems.forEach { item ->
+                visibleItems.forEachIndexed { index, item ->
                     key(timelineItemKey(item)) {
+                        if (index > 0) {
+                            MomentHairline(Modifier.padding(vertical = 14.dp))
+                        }
                         TimelineItemCard(
                             item = item,
                             zoneId = zoneId,
@@ -127,7 +131,7 @@ fun FragmentTimelineSection(
                             onContinueEditFragment = onContinueEditFragment,
                             onOpenDiary = onOpenDiary,
                             onDeleteRequest = { pendingDelete = it },
-                            onImageClick = { uris, index -> fullscreen = uris to index }
+                            onImageClick = { uris, imageIndex -> fullscreen = uris to imageIndex }
                         )
                     }
                 }

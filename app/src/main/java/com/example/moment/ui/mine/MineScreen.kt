@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.UserAppPreferences
+import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.appScaffoldContainerColor
 
 @Composable
@@ -56,6 +57,7 @@ fun MineScreen(
                 preferences = preferences,
                 onClick = onOpenAccountSettings
             )
+            MomentHairline()
             Text(
                 "设置",
                 modifier = Modifier
