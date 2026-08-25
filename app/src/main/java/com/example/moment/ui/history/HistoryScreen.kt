@@ -12,7 +12,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -25,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.MonthCalendar
+import com.example.moment.ui.common.QuietTextAction
 import com.example.moment.ui.common.TagLine
 import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.theme.MomentHairline
@@ -71,11 +71,10 @@ fun HistoryScreen(
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         if (state.selectedDate != viewModel.today) {
-                            TextButton(
+                            QuietTextAction(
+                                text = "补记",
                                 onClick = { onAddFragmentForPastDay(state.selectedDate) }
-                            ) {
-                                Text("补记")
-                            }
+                            )
                         }
                     }
                     Text(
@@ -192,12 +191,12 @@ private fun FragmentCard(
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.weight(1f)
             )
-            TextButton(onClick = onContinueEdit) {
-                Text("编辑")
-            }
-            TextButton(onClick = onDelete) {
-                Text("删除", color = MaterialTheme.colorScheme.error)
-            }
+            QuietTextAction(text = "编辑", onClick = onContinueEdit)
+            QuietTextAction(
+                text = "删除",
+                onClick = onDelete,
+                color = MaterialTheme.colorScheme.error
+            )
         }
         if (fragment.content.isNotBlank()) {
             Text(

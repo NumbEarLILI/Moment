@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -209,7 +210,7 @@ private fun MomentBottomNavigation(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .height(48.dp)
+                .height(56.dp)
                 .selectableGroup(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
@@ -219,20 +220,20 @@ private fun MomentBottomNavigation(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp)
+                        .height(56.dp)
                         .selectable(
                             selected = selected,
                             onClick = { onTabClick(tab) },
                             role = Role.Tab
                         )
-                        .padding(top = 6.dp),
+                        .padding(top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     Icon(
                         painter = painterResource(tab.iconRes),
                         contentDescription = null,
-                        modifier = Modifier.height(20.dp),
+                        modifier = Modifier.height(22.dp),
                         tint = if (selected) {
                             MaterialTheme.colorScheme.primary
                         } else {
@@ -242,6 +243,7 @@ private fun MomentBottomNavigation(
                     Text(
                         text = tab.label,
                         style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                         color = if (selected) {
                             MaterialTheme.colorScheme.primary
                         } else {

@@ -35,6 +35,7 @@ import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.FullscreenImageViewer
 import com.example.moment.ui.common.MoodBadge
+import com.example.moment.ui.common.QuietTextAction
 import com.example.moment.ui.common.TagLine
 import com.example.moment.ui.theme.MomentHairline
 import java.time.LocalDate
@@ -279,21 +280,17 @@ private fun FragmentTimelineCard(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            TextButton(
+            QuietTextAction(
+                text = "编辑",
                 onClick = onContinueEdit,
                 enabled = !isDeleting
-            ) {
-                Text("编辑")
-            }
-            TextButton(
+            )
+            QuietTextAction(
+                text = if (isDeleting) "删除中..." else "删除",
                 onClick = onDeleteRequest,
-                enabled = !isDeleting
-            ) {
-                Text(
-                    if (isDeleting) "删除中..." else "删除",
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
+                enabled = !isDeleting,
+                color = MaterialTheme.colorScheme.error
+            )
         }
 
         if (imageUris.isNotEmpty()) {
@@ -371,12 +368,11 @@ private fun DiaryFallbackTimelineCard(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            TextButton(
+            QuietTextAction(
+                text = "查看手帐",
                 onClick = onOpenDiary,
                 enabled = diary.id > 0
-            ) {
-                Text("查看手帐")
-            }
+            )
         }
 
         if (imageUris.isNotEmpty()) {
@@ -439,7 +435,7 @@ private fun TimelineImageGallery(
         modifier = Modifier
             .fillMaxWidth()
             .height(heroHeight)
-            .clip(MaterialTheme.shapes.medium)
+            .clip(MaterialTheme.shapes.large)
             .clickable { onImageClick(imageUris, 0) }
     )
     if (imageUris.size > 1) {
@@ -454,7 +450,7 @@ private fun TimelineImageGallery(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(72.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .clickable { onImageClick(imageUris, idx + 1) }
                 )
             }

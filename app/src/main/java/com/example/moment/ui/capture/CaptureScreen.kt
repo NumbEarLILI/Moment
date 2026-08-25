@@ -41,9 +41,11 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,11 +73,11 @@ import coil.compose.AsyncImage
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.Routes
+import com.example.moment.ui.common.QuietTextAction
 import com.example.moment.ui.common.RecordedAtField
 import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.theme.MomentHairline
-import com.example.moment.ui.theme.momentTransparentTextFieldColors
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 import com.example.moment.ui.timeline.FragmentTimelineSection
 import com.example.moment.ui.timeline.FragmentTimelineViewModel
@@ -504,8 +506,8 @@ private fun CaptureHeader(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -521,12 +523,11 @@ private fun CaptureHeader(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            TextButton(
+            QuietTextAction(
+                text = "生成手帐",
                 onClick = onGenerateDiary,
                 enabled = canGenerateDiary
-            ) {
-                Text("生成手帐")
-            }
+            )
         }
         CaptureMomentExpandable(
             expanded = momentExpanded,
@@ -601,69 +602,95 @@ private fun CaptureMomentExpandable(
             contentFieldValue = TextFieldValue(content, selection = TextRange(content.length))
         }
     }
-    val fieldColors = momentTransparentTextFieldColors()
-    Column(Modifier.fillMaxWidth()) {
-        if (!expanded) {
-            val preview = content.trim().replace("\n", " ").let {
-                if (it.length > 56) it.take(56) + "…" else it
-            }
-            Text(
-                text = if (content.isNotBlank()) preview else "写下这一刻…",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = interactionsEnabled, onClick = onToggleExpanded)
-                    .padding(vertical = 12.dp),
-                style = MaterialTheme.typography.bodyLarge,
-                color = if (content.isNotBlank()) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        AnimatedVisibility(
-            visible = expanded,
-            enter = fadeIn(animationSpec = tween(220)),
-            exit = fadeOut(animationSpec = tween(180))
+    val contentTextStyle = MaterialTheme.typography.bodyLarge.copy(
+        color = MaterialTheme.colorScheme.onSurface
+    )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            val thumbRowScroll = rememberScrollState()
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(
-                        onClick = onToggleExpanded,
-                        enabled = interactionsEnabled
-                    ) {
-                        Text("收起")
-                    }
+            if (!expanded) {
+                val preview = content.trim().replace("\n", " ").let {
+                    if (it.length > 56) it.take(56) + "…" else it
                 }
-                TextField(
-                    value = contentFieldValue,
-                    onValueChange = { value ->
-                        contentFieldValue = value
-                        if (value.text != content) onContentChange(value.text)
-                    },
+                Text(
+                    text = if (content.isNotBlank()) preview else "写下这一刻…",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(132.dp),
-                    placeholder = { Text("写下这一刻…") },
-                    colors = fieldColors
+                        .clickable(enabled = interactionsEnabled, onClick = onToggleExpanded)
+                        .padding(vertical = 6.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (content.isNotBlank()) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    },
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-                RecordedAtField(
-                    dateText = recordedDate,
-                    onDateTextChange = onRecordedDateChange,
-                    timeText = recordedTime,
-                    onTimeTextChange = onRecordedTimeChange,
-                    enabled = interactionsEnabled
-                )
-                if (isAnalyzingImages) {
+            }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn(animationSpec = tween(220)),
+                exit = fadeOut(animationSpec = tween(180))
+            ) {
+                val thumbRowScroll = rememberScrollState()
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        BasicTextField(
+                            value = contentFieldValue,
+                            onValueChange = { value ->
+                                contentFieldValue = value
+                                if (value.text != content) onContentChange(value.text)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 96.dp),
+                            textStyle = contentTextStyle,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { inner ->
+                                Box {
+                                    if (contentFieldValue.text.isEmpty()) {
+                                        Text(
+                                            "写下这一刻…",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                                        )
+                                    }
+                                    inner()
+                                }
+                            }
+                        )
+                        QuietTextAction(
+                            text = "收起",
+                            onClick = onToggleExpanded,
+                            enabled = interactionsEnabled
+                        )
+                    }
+                    RecordedAtField(
+                        dateText = recordedDate,
+                        onDateTextChange = onRecordedDateChange,
+                        timeText = recordedTime,
+                        onTimeTextChange = onRecordedTimeChange,
+                        enabled = interactionsEnabled
+                    )
+                    if (isAnalyzingImages) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -673,7 +700,7 @@ private fun CaptureMomentExpandable(
                                 strokeWidth = 2.dp
                             )
                             Text(
-                                "正在自动识别图片并生成标签",
+                                "正在识别图片…",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -699,26 +726,24 @@ private fun CaptureMomentExpandable(
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(
+                        QuietTextAction(
+                            text = "相机",
                             onClick = onCamera,
                             enabled = interactionsEnabled && !isAnalyzingImages
-                        ) {
-                            Text("相机")
-                        }
-                        TextButton(
+                        )
+                        QuietTextAction(
+                            text = "相册",
                             onClick = onGallery,
                             enabled = interactionsEnabled && !isAnalyzingImages
-                        ) {
-                            Text("相册")
-                        }
-                        TextButton(
+                        )
+                        QuietTextAction(
+                            text = "地点",
                             onClick = onPickPlace,
                             enabled = interactionsEnabled
-                        ) {
-                            Text("地点")
-                        }
+                        )
                     }
                     location?.let { loc ->
                         Text(
@@ -736,7 +761,7 @@ private fun CaptureMomentExpandable(
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             tagList.forEach { tag ->
                                 key(tag) {
@@ -748,22 +773,36 @@ private fun CaptureMomentExpandable(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        TextField(
+                        BasicTextField(
                             value = newTagInput,
                             onValueChange = onNewTagInputChange,
-                            modifier = Modifier.weight(1f),
+                            enabled = interactionsEnabled,
                             singleLine = true,
-                            placeholder = { Text("标签") },
-                            colors = fieldColors
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.weight(1f),
+                            decorationBox = { inner ->
+                                Box {
+                                    if (newTagInput.isBlank()) {
+                                        Text(
+                                            "添加标签",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    inner()
+                                }
+                            }
                         )
-                        TextButton(
+                        QuietTextAction(
+                            text = "添加",
                             onClick = onCommitNewTag,
                             enabled = interactionsEnabled && newTagInput.trim().isNotEmpty()
-                        ) {
-                            Text("添加")
-                        }
+                        )
                     }
                     errorMessage?.let { msg ->
                         Text(
@@ -775,26 +814,25 @@ private fun CaptureMomentExpandable(
                     Button(
                         onClick = onSave,
                         enabled = saveEnabled,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.large
                     ) {
                         Text(saveLabel)
                     }
                     if (canDeleteFragment) {
-                        TextButton(
+                        QuietTextAction(
+                            text = if (isDeleting) "删除中…" else "删除碎片",
                             onClick = onRequestDelete,
                             enabled = interactionsEnabled && !isDeleting && !isAnalyzingImages,
+                            color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = if (isDeleting) "删除中…" else "删除碎片",
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
+                        )
                     }
                 }
             }
         }
     }
+}
 
 @Composable
 private fun TagCapsule(

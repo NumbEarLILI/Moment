@@ -58,15 +58,25 @@ fun MineScreen(
                 onClick = onOpenAccountSettings
             )
             MomentHairline()
-            Text(
-                "设置",
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onOpenSettings)
                     .padding(vertical = 16.dp),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "设置",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    "›",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                )
+            }
         }
     }
 }
@@ -109,6 +119,11 @@ private fun AccountInfoRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Text(
+            "›",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+        )
     }
 }
 

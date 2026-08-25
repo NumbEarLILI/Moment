@@ -13,9 +13,9 @@ import com.example.moment.domain.model.AppThemeMode
 
 /** 浅色偏白、中性 */
 private val MomentLightColors = lightColorScheme(
-    primary = Color(0xFF6B4423),
+    primary = Color(0xFF7A4E2D),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFDCC2),
+    primaryContainer = Color(0xFFF0D6C0),
     onPrimaryContainer = Color(0xFF2C1608),
     secondary = Color(0xFF5D5D5D),
     onSecondary = Color.White,
@@ -25,14 +25,14 @@ private val MomentLightColors = lightColorScheme(
     onTertiary = Color.White,
     tertiaryContainer = Color(0xFFDDE8D4),
     onTertiaryContainer = Color(0xFF1A2114),
-    background = Color(0xFFFAFAFA),
-    onBackground = Color(0xFF1A1A1A),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF1A1A1A),
-    surfaceVariant = Color(0xFFECECEC),
-    onSurfaceVariant = Color(0xFF454545),
-    outline = Color(0xFFC9C9C9),
-    outlineVariant = Color(0xFFE0E0E0),
+    background = Color(0xFFF6F3EE),
+    onBackground = Color(0xFF2C261F),
+    surface = Color(0xFFFAF7F2),
+    onSurface = Color(0xFF2C261F),
+    surfaceVariant = Color(0xFFECE6DE),
+    onSurfaceVariant = Color(0xFF6A6158),
+    outline = Color(0xFFD4CBC1),
+    outlineVariant = Color(0xFFE8E1D8),
     error = Color(0xFFBA1A1A),
     onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
@@ -116,6 +116,7 @@ fun MomentTheme(
     }
     MaterialTheme(
         colorScheme = colorScheme,
+        typography = MomentTypography,
         shapes = MomentShapes,
         content = content
     )

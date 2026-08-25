@@ -30,6 +30,6 @@ fun MomentHairline(modifier: Modifier = Modifier) {
     HorizontalDivider(
         modifier = modifier.fillMaxWidth(),
         thickness = 0.5.dp,
-        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.32f)
+        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f)
     )
 }

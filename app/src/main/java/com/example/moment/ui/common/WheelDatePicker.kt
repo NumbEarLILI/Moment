@@ -67,7 +67,7 @@ fun RecordedAtField(
 ) {
     val selected = parseIsoDateOrNull(dateText) ?: today
     var showSheet by remember { mutableStateOf(false) }
-    val timeStyle = MaterialTheme.typography.bodyLarge.copy(
+    val timeStyle = MaterialTheme.typography.bodyMedium.copy(
         color = MaterialTheme.colorScheme.onSurface
     )
 
@@ -78,16 +78,17 @@ fun RecordedAtField(
     ) {
         Text(
             "时间",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             selected.format(DateDisplayFormatter),
             modifier = Modifier
                 .clip(MaterialTheme.shapes.small)
                 .clickable(enabled = enabled) { showSheet = true }
-                .padding(vertical = 8.dp),
-            style = MaterialTheme.typography.bodyLarge,
+                .padding(vertical = 6.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.primary
         )
         BasicTextField(
@@ -104,7 +105,7 @@ fun RecordedAtField(
                     if (timeText.isBlank()) {
                         Text(
                             "22:30",
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
                         )
                     }
