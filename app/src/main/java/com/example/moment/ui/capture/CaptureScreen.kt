@@ -12,7 +12,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -37,16 +36,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,6 +73,7 @@ import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.Routes
 import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.theme.appScaffoldContainerColor
+import com.example.moment.ui.theme.momentTransparentTextFieldColors
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 import com.example.moment.ui.timeline.FragmentTimelineSection
 import com.example.moment.ui.timeline.FragmentTimelineViewModel
@@ -324,9 +322,8 @@ fun CaptureScreen(
                             ) {
                                 Text(
                                     "当天手帐",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 state.savedDiaryEntries.forEach { entry ->
                                     key(entry.id) {
@@ -495,82 +492,63 @@ private fun CaptureHeader(
     isDeleting: Boolean,
     onRequestDelete: () -> Unit,
 ) {
-    val subtitle = selectedDate?.let { "${it.format(HeaderDateFormatter)} · 把这天整理成一页手帐" }
-        ?: "随手记下文字、照片与地点"
-
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "Moment",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            CaptureMomentExpandable(
-                expanded = momentExpanded,
-                onToggleExpanded = onToggleMomentExpanded,
-                content = momentContent,
-                onContentChange = onMomentContentChange,
-                recordedDate = recordedDate,
-                onRecordedDateChange = onRecordedDateChange,
-                recordedTime = recordedTime,
-                onRecordedTimeChange = onRecordedTimeChange,
-                tagList = tagList,
-                onRemoveTag = onRemoveTag,
-                newTagInput = newTagInput,
-                onNewTagInputChange = onNewTagInputChange,
-                onCommitNewTag = onCommitNewTag,
-                imageUriList = imageUriList,
-                onRemoveImage = onRemoveImage,
-                onCamera = onCamera,
-                onGallery = onGallery,
-                onPickPlace = onPickPlace,
-                location = location,
-                isAnalyzingImages = isAnalyzingImages,
-                interactionsEnabled = momentInteractionsEnabled,
-                errorMessage = errorMessage,
-                saveLabel = saveLabel,
-                onSave = onSave,
-                saveEnabled = saveEnabled,
-                canDeleteFragment = canDeleteFragment,
-                isDeleting = isDeleting,
-                onRequestDelete = onRequestDelete
+            Text(
+                text = selectedDate?.format(HeaderDateFormatter) ?: "此刻",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Button(
+            TextButton(
                 onClick = onGenerateDiary,
-                enabled = canGenerateDiary,
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large
+                enabled = canGenerateDiary
             ) {
                 Text("生成手帐")
             }
         }
+        CaptureMomentExpandable(
+            expanded = momentExpanded,
+            onToggleExpanded = onToggleMomentExpanded,
+            content = momentContent,
+            onContentChange = onMomentContentChange,
+            recordedDate = recordedDate,
+            onRecordedDateChange = onRecordedDateChange,
+            recordedTime = recordedTime,
+            onRecordedTimeChange = onRecordedTimeChange,
+            tagList = tagList,
+            onRemoveTag = onRemoveTag,
+            newTagInput = newTagInput,
+            onNewTagInputChange = onNewTagInputChange,
+            onCommitNewTag = onCommitNewTag,
+            imageUriList = imageUriList,
+            onRemoveImage = onRemoveImage,
+            onCamera = onCamera,
+            onGallery = onGallery,
+            onPickPlace = onPickPlace,
+            location = location,
+            isAnalyzingImages = isAnalyzingImages,
+            interactionsEnabled = momentInteractionsEnabled,
+            errorMessage = errorMessage,
+            saveLabel = saveLabel,
+            onSave = onSave,
+            saveEnabled = saveEnabled,
+            canDeleteFragment = canDeleteFragment,
+            isDeleting = isDeleting,
+            onRequestDelete = onRequestDelete
+        )
     }
 }
 
@@ -606,7 +584,6 @@ private fun CaptureMomentExpandable(
     isDeleting: Boolean,
     onRequestDelete: () -> Unit,
 ) {
-    val corner = RoundedCornerShape(14.dp)
     var contentFieldValue by remember {
         mutableStateOf(TextFieldValue(content, selection = TextRange(content.length)))
     }
@@ -615,145 +592,85 @@ private fun CaptureMomentExpandable(
             contentFieldValue = TextFieldValue(content, selection = TextRange(content.length))
         }
     }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                shape = corner
-            ),
-        shape = corner,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
-    ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Row(
+    val fieldColors = momentTransparentTextFieldColors()
+    Column(Modifier.fillMaxWidth()) {
+        if (!expanded) {
+            val preview = content.trim().replace("\n", " ").let {
+                if (it.length > 56) it.take(56) + "…" else it
+            }
+            Text(
+                text = if (content.isNotBlank()) preview else "写下这一刻…",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(corner)
                     .clickable(enabled = interactionsEnabled, onClick = onToggleExpanded)
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(vertical = 12.dp),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (content.isNotBlank()) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(animationSpec = tween(220)),
+            exit = fadeOut(animationSpec = tween(180))
+        ) {
+            val thumbRowScroll = rememberScrollState()
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "发生了什么？",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    when {
-                        expanded -> Text(
-                            "点按标题栏可收起",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-                        )
-                        content.isNotBlank() -> Text(
-                            text = content.trim().replace("\n", " ").let {
-                                if (it.length > 56) it.take(56) + "…" else it
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        else -> Text(
-                            "点按展开，添加文字、照片、地点与标签",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                            maxLines = 2
-                        )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(
+                        onClick = onToggleExpanded,
+                        enabled = interactionsEnabled
+                    ) {
+                        Text("收起")
                     }
                 }
-                Text(
-                    if (expanded) "收起" else "展开",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            AnimatedVisibility(
-                visible = expanded,
-                enter = fadeIn(animationSpec = tween(220)),
-                exit = fadeOut(animationSpec = tween(180))
-            ) {
-                val thumbRowScroll = rememberScrollState()
-                Column(
+                TextField(
+                    value = contentFieldValue,
+                    onValueChange = { value ->
+                        contentFieldValue = value
+                        if (value.text != content) onContentChange(value.text)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .height(132.dp),
+                    placeholder = { Text("写下这一刻…") },
+                    colors = fieldColors
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    OutlinedTextField(
-                        value = contentFieldValue,
-                        onValueChange = { value ->
-                            contentFieldValue = value
-                            if (value.text != content) onContentChange(value.text)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(132.dp),
-                        placeholder = { Text("写下这一刻…") },
-                        shape = MaterialTheme.shapes.medium,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                            cursorColor = MaterialTheme.colorScheme.primary
-                        )
+                    TextField(
+                        value = recordedDate,
+                        onValueChange = onRecordedDateChange,
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("日期") },
+                        placeholder = { Text("2026-05-13") },
+                        colors = fieldColors
                     )
-                    Text(
-                        "记录时间",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
+                    TextField(
+                        value = recordedTime,
+                        onValueChange = onRecordedTimeChange,
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("时间") },
+                        placeholder = { Text("22:30") },
+                        colors = fieldColors
                     )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = recordedDate,
-                            onValueChange = onRecordedDateChange,
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            label = { Text("日期") },
-                            placeholder = { Text("2026-05-13") },
-                            shape = MaterialTheme.shapes.medium,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                                cursorColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                        OutlinedTextField(
-                            value = recordedTime,
-                            onValueChange = onRecordedTimeChange,
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            label = { Text("时间") },
-                            placeholder = { Text("22:30") },
-                            shape = MaterialTheme.shapes.medium,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                                cursorColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                    }
-                    Text(
-                        "保存后会按这个时间进入当天碎片、手帐时间线和生成文案。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "图片",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    if (isAnalyzingImages) {
+                }
+                if (isAnalyzingImages) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -786,12 +703,6 @@ private fun CaptureMomentExpandable(
                                 }
                             }
                         }
-                    } else {
-                        Text(
-                            "使用相机或相册添加照片，添加后会自动识别并生成标签",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -801,45 +712,33 @@ private fun CaptureMomentExpandable(
                             onClick = onCamera,
                             enabled = interactionsEnabled && !isAnalyzingImages
                         ) {
-                            Text("相机拍照")
+                            Text("相机")
                         }
                         TextButton(
                             onClick = onGallery,
                             enabled = interactionsEnabled && !isAnalyzingImages
                         ) {
-                            Text("从相册选择")
+                            Text("相册")
+                        }
+                        TextButton(
+                            onClick = onPickPlace,
+                            enabled = interactionsEnabled
+                        ) {
+                            Text("地点")
                         }
                     }
-                    Text(
-                        "地点",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
                     location?.let { loc ->
                         Text(
-                            "当前：${loc.label.orEmpty()}（${
-                                String.format(
-                                    Locale.CHINA,
-                                    "%.4f，%.4f",
-                                    loc.latitude,
-                                    loc.longitude
-                                )
-                            }）",
+                            loc.label?.takeIf { it.isNotBlank() } ?: String.format(
+                                Locale.CHINA,
+                                "%.4f，%.4f",
+                                loc.latitude,
+                                loc.longitude
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    TextButton(
-                        onClick = onPickPlace,
-                        enabled = interactionsEnabled
-                    ) {
-                        Text("在地图上选择地点名称")
-                    }
-                    Text(
-                        "标签",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
                     if (tagList.isNotEmpty()) {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
@@ -858,18 +757,13 @@ private fun CaptureMomentExpandable(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        OutlinedTextField(
+                        TextField(
                             value = newTagInput,
                             onValueChange = onNewTagInputChange,
                             modifier = Modifier.weight(1f),
                             singleLine = true,
-                            placeholder = { Text("自定义标签") },
-                            shape = MaterialTheme.shapes.large,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                                cursorColor = MaterialTheme.colorScheme.primary
-                            )
+                            placeholder = { Text("标签") },
+                            colors = fieldColors
                         )
                         TextButton(
                             onClick = onCommitNewTag,
@@ -888,8 +782,7 @@ private fun CaptureMomentExpandable(
                     Button(
                         onClick = onSave,
                         enabled = saveEnabled,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(saveLabel)
                     }
@@ -909,7 +802,6 @@ private fun CaptureMomentExpandable(
             }
         }
     }
-}
 
 @Composable
 private fun TagCapsule(
@@ -917,29 +809,24 @@ private fun TagCapsule(
     onRemove: () -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .heightIn(min = 32.dp)
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f))
-            .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        modifier = Modifier.heightIn(min = 28.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         Text(
-            text,
+            "#$text",
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
             "×",
             modifier = Modifier
-                .clip(CircleShape)
                 .clickable(onClick = onRemove)
                 .padding(horizontal = 6.dp, vertical = 2.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

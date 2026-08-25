@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -196,9 +197,15 @@ private fun MomentBottomNavigation(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        tonalElevation = 3.dp
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
-        Row(
+        Column(Modifier.fillMaxWidth()) {
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+            )
+            Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
@@ -242,6 +249,7 @@ private fun MomentBottomNavigation(
                         }
                     )
                 }
+            }
             }
         }
     }

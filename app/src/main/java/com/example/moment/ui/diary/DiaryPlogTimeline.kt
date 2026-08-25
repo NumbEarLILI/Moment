@@ -8,18 +8,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -87,12 +82,7 @@ fun DiaryPlogTimeline(
         )
     }
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            "按时间 · 每一刻",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         fragments.forEach { fragment ->
             val pin = locationPins.firstOrNull { it.fragmentStableId == fragment.stableId }
             DiaryPlogMomentCard(
@@ -131,18 +121,10 @@ private fun DiaryPlogMomentCard(
     val rawContent = fragment.content.trim()
     val uris = displayImageUris
 
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -165,18 +147,11 @@ private fun DiaryPlogMomentCard(
                     )
                 }
                 fragment.mood?.let { mood ->
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ) {
-                        Text(
-                            mood.displayName,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
+                    Text(
+                        mood.displayName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -240,16 +215,13 @@ private fun DiaryPlogMomentCard(
 
             when {
                 locationPin != null && onLocationPinClick != null -> {
-                    AssistChip(
-                        onClick = { onLocationPinClick(locationPin) },
-                        label = {
-                            Text(
-                                "地点 · ${shortenedDiaryPlaceLabel(locationPin.placeName)}",
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                    Text(
+                        shortenedDiaryPlaceLabel(locationPin.placeName),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clickable { onLocationPinClick(locationPin) }
                     )
                 }
                 else -> {
@@ -286,7 +258,6 @@ private fun DiaryPlogMomentCard(
             }
         }
     }
-}
 
 /**
  * 按手帐保存的 stableId 顺序构建时间线；本地库里不存在的 id（例如 NAS 只恢复了日记）

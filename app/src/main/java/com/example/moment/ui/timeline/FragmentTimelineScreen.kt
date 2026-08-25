@@ -3,8 +3,6 @@ package com.example.moment.ui.timeline
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,13 +12,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +35,7 @@ import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.ui.common.FullscreenImageViewer
 import com.example.moment.ui.common.MoodBadge
+import com.example.moment.ui.common.TagLine
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -91,28 +85,22 @@ fun FragmentTimelineSection(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(22.dp)
     ) {
         state.deleteErrorMessage?.let { message ->
-            Surface(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = message,
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    TextButton(onClick = onClearDeleteError) {
-                        Text("知道了")
-                    }
+                Text(
+                    text = message,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+                TextButton(onClick = onClearDeleteError) {
+                    Text("知道了")
                 }
             }
         }
@@ -144,16 +132,15 @@ fun FragmentTimelineSection(
                     }
                 }
                 if (displayItems.size > safeLimit) {
-                    OutlinedButton(
+                    TextButton(
                         onClick = { showAllItems = !showAllItems },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
                             if (showAllItems) {
-                                "收起到最近 $safeLimit 条"
+                                "收起"
                             } else {
-                                "显示全部 ${displayItems.size} 条内容"
+                                "显示全部 ${displayItems.size} 条"
                             }
                         )
                     }
@@ -235,30 +222,26 @@ private fun timelineItemKey(item: FragmentTimelineItem): String =
 
 @Composable
 private fun EmptyTimelineHint(onAddFragment: () -> Unit) {
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f),
-            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("还没有碎片", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "记录一条文字、照片或地点，它会出现在这里。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.82f)
-            )
-            Button(onClick = onAddFragment, shape = MaterialTheme.shapes.large) {
-                Text("开始记录")
-            }
+        Text(
+            "还没有记录",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            "写下这一刻，它会出现在这里。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        TextButton(onClick = onAddFragment) {
+            Text("开始记录")
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FragmentTimelineCard(
     fragment: LifeFragment,
@@ -277,122 +260,78 @@ private fun FragmentTimelineCard(
     }
     val content = fragment.content.trim()
 
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Text(
+                text = timestamp,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(
+                onClick = onContinueEdit,
+                enabled = !isDeleting
             ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = timestamp,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "生活碎片",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                TextButton(
-                    onClick = onContinueEdit,
-                    enabled = !isDeleting,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text("继续编辑")
-                }
-                TextButton(
-                    onClick = onDeleteRequest,
-                    enabled = !isDeleting,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text(
-                        if (isDeleting) "删除中..." else "删除",
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
+                Text("编辑")
             }
-
-            if (imageUris.isNotEmpty()) {
-                TimelineImageGallery(
-                    keyPrefix = "fragment-${fragment.id}",
-                    imageUris = imageUris,
-                    onImageClick = onImageClick
-                )
-            }
-
-            when {
-                content.isNotEmpty() -> {
-                    Text(
-                        text = content,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                imageUris.isNotEmpty() -> {
-                    Text(
-                        "这一条只有图片记录。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontStyle = FontStyle.Italic
-                    )
-                }
-            }
-
-            fragment.mood?.let { mood ->
-                MoodBadge(mood = mood, label = "心情")
-            }
-
-            if (fragment.tags.isNotEmpty()) {
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    fragment.tags.forEach { tag ->
-                        val text = tag.trim()
-                        if (text.isNotEmpty()) {
-                            Surface(
-                                shape = MaterialTheme.shapes.small,
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f),
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ) {
-                                Text(
-                                    text = "#$text",
-                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    softWrap = false
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            fragment.location?.let { loc ->
-                val label = loc.label?.trim()?.takeIf { it.isNotEmpty() }
-                    ?: String.format(Locale.CHINA, "约 %.4f，%.4f", loc.latitude, loc.longitude)
+            TextButton(
+                onClick = onDeleteRequest,
+                enabled = !isDeleting
+            ) {
                 Text(
-                    "地点 · $label",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    if (isDeleting) "删除中..." else "删除",
+                    color = MaterialTheme.colorScheme.error
                 )
             }
+        }
+
+        if (imageUris.isNotEmpty()) {
+            TimelineImageGallery(
+                keyPrefix = "fragment-${fragment.id}",
+                imageUris = imageUris,
+                onImageClick = onImageClick
+            )
+        }
+
+        when {
+            content.isNotEmpty() -> {
+                Text(
+                    text = content,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            imageUris.isNotEmpty() -> {
+                Text(
+                    "图片记录",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontStyle = FontStyle.Italic
+                )
+            }
+        }
+
+        fragment.mood?.let { mood ->
+            MoodBadge(mood = mood)
+        }
+        TagLine(tags = fragment.tags)
+        fragment.location?.let { loc ->
+            val label = loc.label?.trim()?.takeIf { it.isNotEmpty() }
+                ?: String.format(Locale.CHINA, "约 %.4f，%.4f", loc.latitude, loc.longitude)
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -413,91 +352,69 @@ private fun DiaryFallbackTimelineCard(
         diary.highlights.map { it.trim() }.filter { it.isNotEmpty() }
     }
 
-    Card(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.32f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Text(
+                text = diary.date.format(dateFormatter),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(
+                onClick = onOpenDiary,
+                enabled = diary.id > 0
             ) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("查看手帐")
+            }
+        }
+
+        if (imageUris.isNotEmpty()) {
+            TimelineImageGallery(
+                keyPrefix = "diary-${diary.id}",
+                imageUris = imageUris,
+                onImageClick = onImageClick
+            )
+        }
+
+        if (title.isNotEmpty()) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        if (body.isNotEmpty()) {
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 8,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        diary.moodSummary?.trim()?.takeIf { it.isNotEmpty() }?.let { mood ->
+            Text(
+                text = "心情 · $mood",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (highlights.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                highlights.forEach { highlight ->
                     Text(
-                        text = diary.date.format(dateFormatter),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "手帐 · 无碎片记录",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = highlight,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-                TextButton(
-                    onClick = onOpenDiary,
-                    enabled = diary.id > 0,
-                    shape = MaterialTheme.shapes.small
-                ) {
-                    Text("查看手帐")
-                }
-            }
-
-            if (imageUris.isNotEmpty()) {
-                TimelineImageGallery(
-                    keyPrefix = "diary-${diary.id}",
-                    imageUris = imageUris,
-                    onImageClick = onImageClick
-                )
-            }
-
-            if (title.isNotEmpty()) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            if (body.isNotEmpty()) {
-                Text(
-                    text = body,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 8,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            diary.moodSummary?.trim()?.takeIf { it.isNotEmpty() }?.let { mood ->
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
-                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                ) {
-                    Text(
-                        text = "心情 · $mood",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        style = MaterialTheme.typography.labelMedium
-                    )
-                }
-            }
-            if (highlights.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    highlights.forEach { highlight ->
-                        Text(
-                            text = "· $highlight",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
         }

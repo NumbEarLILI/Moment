@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import com.example.moment.ui.theme.momentTransparentTextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,21 +38,15 @@ fun DiaryEditorForm(
         if (state.isLoading) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         } else {
-        val fieldColors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.75f),
-            cursorColor = MaterialTheme.colorScheme.primary,
-            focusedLabelColor = MaterialTheme.colorScheme.primary
-        )
+        val fieldColors = momentTransparentTextFieldColors()
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             val expandedDiaryLayout =
                 state.plogFragments.isNotEmpty() || state.fragmentStories.isNotEmpty()
-            OutlinedTextField(
+            TextField(
                 value = state.title,
                 onValueChange = onTitleChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("标题") },
-                shape = MaterialTheme.shapes.medium,
                 colors = fieldColors
             )
             if (state.plogFragments.isNotEmpty()) {
@@ -98,17 +92,11 @@ fun DiaryEditorForm(
                     }
                 }
             }
-            OutlinedTextField(
+            TextField(
                 value = state.body,
                 onValueChange = onBodyChange,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(if (expandedDiaryLayout) "整篇文字（可选）" else "正文") },
-                supportingText = if (expandedDiaryLayout) {
-                    { Text("可选：摘要或全文润色。") }
-                } else {
-                    null
-                },
-                shape = MaterialTheme.shapes.medium,
                 colors = fieldColors,
                 minLines = if (expandedDiaryLayout) 4 else 6
             )
@@ -150,8 +138,7 @@ fun DiaryEditorForm(
             Button(
                 onClick = onSave,
                 enabled = !state.isSaving && state.sourceFragmentStableIds.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (state.isSaving) "保存中..." else saveButtonLabel)
             }

@@ -1,7 +1,6 @@
 package com.example.moment.ui.common
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,9 +10,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,8 +28,6 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 import java.util.Locale
-
-private val DayShape = RoundedCornerShape(12.dp)
 
 @Composable
 fun MonthCalendar(
@@ -52,67 +49,57 @@ fun MonthCalendar(
     val cells = remember(visibleMonth, weekFields) { calendarCellsForMonth(visibleMonth, weekFields) }
     val scheme = MaterialTheme.colorScheme
 
-    Surface(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = scheme.surface,
-        tonalElevation = 1.dp,
-        shadowElevation = 0.dp
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            Modifier
+        Row(
+            modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = onPreviousMonth) {
-                    Text("‹", style = MaterialTheme.typography.titleLarge, color = scheme.primary)
-                }
+            TextButton(onClick = onPreviousMonth) {
+                Text("‹", style = MaterialTheme.typography.titleLarge, color = scheme.primary)
+            }
+            Text(
+                "${visibleMonth.year}年${visibleMonth.monthValue}月",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = scheme.onSurface
+            )
+            TextButton(onClick = onNextMonth) {
+                Text("›", style = MaterialTheme.typography.titleLarge, color = scheme.primary)
+            }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            weekDayLabels.forEach { label ->
                 Text(
-                    "${visibleMonth.year}年${visibleMonth.monthValue}月",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = scheme.onSurface
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp)
                 )
-                TextButton(onClick = onNextMonth) {
-                    Text("›", style = MaterialTheme.typography.titleLarge, color = scheme.primary)
-                }
             }
-            Row(Modifier.fillMaxWidth()) {
-                weekDayLabels.forEach { label ->
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = scheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(vertical = 4.dp)
+        }
+        cells.chunked(7).forEach { week ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                week.forEach { date ->
+                    DayCell(
+                        date = date,
+                        selectedDate = selectedDate,
+                        today = today,
+                        hasSavedDiary = date != null && date in datesWithSavedDiary,
+                        onClick = onDayClick,
+                        modifier = Modifier.weight(1f)
                     )
-                }
-            }
-            cells.chunked(7).forEach { week ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    week.forEach { date ->
-                        DayCell(
-                            date = date,
-                            selectedDate = selectedDate,
-                            today = today,
-                            hasSavedDiary = date != null && date in datesWithSavedDiary,
-                            onClick = onDayClick,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
                 }
             }
         }
@@ -150,31 +137,21 @@ private fun DayCell(
     val scheme = MaterialTheme.colorScheme
     val isSelected = date == selectedDate
     val isToday = date == today
-    val bg = when {
-        isSelected -> scheme.primaryContainer
-        hasSavedDiary -> scheme.tertiaryContainer.copy(alpha = 0.88f)
-        else -> scheme.surfaceVariant.copy(alpha = 0.55f)
-    }
-    val borderModifier = when {
-        isToday && !isSelected -> Modifier.border(1.5.dp, scheme.primary, DayShape)
-        else -> Modifier
-    }
+    val bg = if (isSelected) scheme.primary.copy(alpha = 0.16f) else Color.Transparent
     Box(
         modifier = modifier
             .aspectRatio(1f)
-            .clip(DayShape)
+            .clip(CircleShape)
             .background(bg)
-            .then(borderModifier)
             .clickable { onClick(date) },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "${date.dayOfMonth}",
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isToday || isSelected || hasSavedDiary) FontWeight.SemiBold else FontWeight.Medium,
+            fontWeight = if (isToday || isSelected || hasSavedDiary) FontWeight.SemiBold else FontWeight.Normal,
             color = when {
-                isSelected -> scheme.onPrimaryContainer
-                hasSavedDiary -> scheme.onTertiaryContainer
+                isSelected || isToday -> scheme.primary
                 else -> scheme.onSurface
             }
         )
