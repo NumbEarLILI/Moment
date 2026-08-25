@@ -23,7 +23,11 @@ class WmoWeatherLabelsTest {
     }
 
     @Test
-    fun unknownCodeFallsBackToGenericWeather() {
-        assertEquals("天气", WmoWeatherLabels.chineseCondition(1234))
+    fun cloudyAndPrecipitationLabels() {
+        assertEquals("晴间多云", WmoWeatherLabels.chineseCondition(1))
+        assertEquals("雾", WmoWeatherLabels.chineseCondition(45))
+        assertEquals("毛毛雨", WmoWeatherLabels.chineseCondition(51))
+        assertEquals("阵雨", WmoWeatherLabels.chineseCondition(80))
+        assertEquals("阵雪", WmoWeatherLabels.chineseCondition(85))
     }
 }

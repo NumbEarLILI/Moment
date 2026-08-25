@@ -17,8 +17,8 @@ class OpenMeteoWeatherClient @Inject constructor() {
     suspend fun fetchCurrent(latitude: Double, longitude: Double): CurrentWeather? =
         withContext(Dispatchers.IO) {
             val uri = Uri.parse("https://api.open-meteo.com/v1/forecast").buildUpon()
-                .appendQueryParameter("latitude", String.format(Locale.US, "%.4f", latitude))
-                .appendQueryParameter("longitude", String.format(Locale.US, "%.4f", longitude))
+                .appendQueryParameter("latitude", String.format(Locale.US, "%.2f", latitude))
+                .appendQueryParameter("longitude", String.format(Locale.US, "%.2f", longitude))
                 .appendQueryParameter("current", "temperature_2m,weather_code")
                 .appendQueryParameter("timezone", "auto")
                 .build()
@@ -30,8 +30,9 @@ class OpenMeteoWeatherClient @Inject constructor() {
                 conn.setRequestProperty("User-Agent", USER_AGENT)
                 conn.instanceFollowRedirects = true
                 val code = conn.responseCode
+                val stream = if (code == HttpURLConnection.HTTP_OK) conn.inputStream else conn.errorStream
+                val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 if (code != HttpURLConnection.HTTP_OK) return@withContext null
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
                 OpenMeteoWeatherParser.parse(body)
             } catch (_: Exception) {
                 null

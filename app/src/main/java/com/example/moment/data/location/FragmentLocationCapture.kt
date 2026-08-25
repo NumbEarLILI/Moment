@@ -42,21 +42,28 @@ class FragmentLocationCapture @Inject constructor(
             fetchBestLocation()
         } ?: return@withContext null
 
-        val (lat, lng) =
-            if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(location.provider)) {
-                ChinaCoordinateTransform.wgs84ToGcj02(location.latitude, location.longitude)
-            } else {
-                location.latitude to location.longitude
-            }
-
-        FragmentLocation(
-            latitude = lat,
-            longitude = lng,
-            label = formatCoordinateLabel(lat, lng)
-        )
+        location.toFragmentLocation()
     }
 
-    private fun hasLocationPermission(): Boolean {
+    suspend fun captureLastKnownIfPermitted(): FragmentLocation? = withContext(Dispatchers.IO) {
+        if (!hasLocationPermission()) return@withContext null
+        val lm = context.getSystemService(LocationManager::class.java) ?: return@withContext null
+        var best: Location? = null
+        for (provider in locationProviders()) {
+            val location = try {
+                @Suppress("DEPRECATION")
+                lm.getLastKnownLocation(provider)
+            } catch (_: SecurityException) {
+                null
+            } ?: continue
+            if (CapturedLocationQuality.isBetter(location.toCandidate(), best?.toCandidate())) {
+                best = location
+            }
+        }
+        best?.toFragmentLocation()
+    }
+
+    fun hasLocationPermission(): Boolean {
         val coarse = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_COARSE_LOCATION
@@ -68,15 +75,31 @@ class FragmentLocationCapture @Inject constructor(
         return coarse || fine
     }
 
+    private fun locationProviders(): List<String> = buildList {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            add(LocationManager.FUSED_PROVIDER)
+        }
+        add(LocationManager.GPS_PROVIDER)
+        add(LocationManager.NETWORK_PROVIDER)
+    }
+
+    private fun Location.toFragmentLocation(): FragmentLocation {
+        val (lat, lng) =
+            if (ChinaCoordinateTransform.shouldConvertCapturedLocationToGcj02(provider)) {
+                ChinaCoordinateTransform.wgs84ToGcj02(latitude, longitude)
+            } else {
+                latitude to longitude
+            }
+        return FragmentLocation(
+            latitude = lat,
+            longitude = lng,
+            label = formatCoordinateLabel(lat, lng)
+        )
+    }
+
     private suspend fun fetchBestLocation(): Location? {
         val lm = context.getSystemService(LocationManager::class.java) ?: return null
-        val providers = buildList {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                add(LocationManager.FUSED_PROVIDER)
-            }
-            add(LocationManager.GPS_PROVIDER)
-            add(LocationManager.NETWORK_PROVIDER)
-        }
+        val providers = locationProviders()
 
         val executor = Executors.newSingleThreadExecutor()
         return try {

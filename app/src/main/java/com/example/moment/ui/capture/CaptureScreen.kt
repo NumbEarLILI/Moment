@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -83,9 +84,12 @@ import com.example.moment.ui.timeline.FragmentTimelineSection
 import com.example.moment.ui.timeline.FragmentTimelineViewModel
 import java.io.File
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private val ImageThumbSize = 88.dp
+private val HeaderDateFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("M月d日", Locale.CHINA)
 
 private const val CAPTURE_MOMENT_EXPANDED_KEY = "captureMomentExpanded"
 
@@ -112,6 +116,8 @@ fun CaptureScreen(
         .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
         .collectAsStateWithLifecycle()
     val navFragmentId = backStackEntry.arguments?.getLong("fragmentId") ?: 0L
+    val isRootHome = navFragmentId == 0L &&
+        backStackEntry.arguments?.getString("forDate").isNullOrBlank()
     val momentExpanded by backStackEntry.savedStateHandle
         .getStateFlow(CAPTURE_MOMENT_EXPANDED_KEY, navFragmentId > 0L)
         .collectAsStateWithLifecycle()
@@ -180,20 +186,25 @@ fun CaptureScreen(
     }
 
     fun requestWeather() {
+        if (!isRootHome) return
         if (hasLocationPermission()) {
             viewModel.refreshWeather()
         } else {
             weatherPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                )
+                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
             )
         }
     }
 
-    LaunchedEffect(Unit) {
-        requestWeather()
+    LaunchedEffect(isRootHome) {
+        if (!isRootHome) return@LaunchedEffect
+        if (hasLocationPermission()) {
+            viewModel.refreshWeather()
+        } else if (viewModel.consumeAutoRequestWeatherLocation()) {
+            weatherPermissionLauncher.launch(
+                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
+            )
+        }
     }
 
     val imagePicker = rememberLauncherForActivityResult(
@@ -262,7 +273,9 @@ fun CaptureScreen(
                         )
                     }
                     CaptureHeader(
+                    isRootHome = isRootHome,
                     weatherCaption = state.weatherCaption,
+                    selectedDate = state.summaryCalendarDay,
                     onWeatherClick = { requestWeather() },
                     canGenerateDiary = state.canGenerateDiary,
                     onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
@@ -492,7 +505,9 @@ fun CaptureScreen(
 
 @Composable
 private fun CaptureHeader(
+    isRootHome: Boolean,
     weatherCaption: String,
+    selectedDate: LocalDate?,
     onWeatherClick: () -> Unit,
     canGenerateDiary: Boolean,
     onGenerateDiary: () -> Unit,
@@ -537,13 +552,26 @@ private fun CaptureHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = weatherCaption,
+                text = if (isRootHome) {
+                    weatherCaption
+                } else {
+                    selectedDate?.format(HeaderDateFormatter) ?: "此刻"
+                },
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(onClick = onWeatherClick),
+                    .then(
+                        if (isRootHome) {
+                            Modifier.clickable(
+                                role = Role.Button,
+                                onClick = onWeatherClick
+                            )
+                        } else {
+                            Modifier
+                        }
+                    ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

@@ -4,10 +4,10 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.preferences.UserPreferencesRepository
-import com.example.moment.data.location.ChinaCoordinateTransform
 import com.example.moment.data.location.FragmentLocationCapture
-import com.example.moment.data.weather.OpenMeteoWeatherClient
+import com.example.moment.data.weather.HomeWeatherRepository
 import com.example.moment.domain.weather.HomeWeatherCaption
+import com.example.moment.domain.weather.LoadCurrentWeather
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.LifeFragment
@@ -67,7 +67,7 @@ class CaptureViewModel @Inject constructor(
     observeFragmentsForDate: ObserveFragmentsForDateUseCase,
     observeDiaryEntries: ObserveDiaryEntriesUseCase,
     private val fragmentLocationCapture: FragmentLocationCapture,
-    private val weatherClient: OpenMeteoWeatherClient,
+    private val weatherRepository: HomeWeatherRepository,
     savedStateHandle: SavedStateHandle,
     private val zoneId: ZoneId,
     private val clock: Clock
@@ -78,6 +78,8 @@ class CaptureViewModel @Inject constructor(
         _nasArchiveConflict.asStateFlow()
 
     private var nasArchiveConflictContinuation: CancellableContinuation<NasArchiveConflictChoice>? = null
+    private var weatherGeneration = 0
+    private var weatherLocationAutoRequested = false
 
     override fun onCleared() {
         nasArchiveConflictContinuation?.cancel()
@@ -256,31 +258,37 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
+    fun consumeAutoRequestWeatherLocation(): Boolean {
+        if (weatherLocationAutoRequested) return false
+        weatherLocationAutoRequested = true
+        return true
+    }
+
     fun refreshWeather() {
+        val generation = ++weatherGeneration
         viewModelScope.launch {
-            _uiState.update { it.copy(weatherCaption = HomeWeatherCaption.LOADING) }
-            val loc = runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
-            if (loc == null) {
-                _uiState.update {
-                    it.copy(
-                        weatherCaption = HomeWeatherCaption.from(
-                            locationAvailable = false,
-                            weather = null
-                        )
-                    )
-                }
-                return@launch
+            val previous = _uiState.value.weatherCaption
+            val showLoading = previous.isBlank() ||
+                previous == HomeWeatherCaption.LOADING ||
+                previous == HomeWeatherCaption.NEED_LOCATION ||
+                previous == HomeWeatherCaption.UNAVAILABLE
+            if (showLoading) {
+                _uiState.update { it.copy(weatherCaption = HomeWeatherCaption.LOADING) }
             }
-            val (lat, lng) = ChinaCoordinateTransform.gcj02ToWgs84(loc.latitude, loc.longitude)
-            val weather = runCatching { weatherClient.fetchCurrent(lat, lng) }.getOrNull()
-            _uiState.update {
-                it.copy(
-                    weatherCaption = HomeWeatherCaption.from(
-                        locationAvailable = true,
-                        weather = weather
-                    )
-                )
+            val hasPermission = fragmentLocationCapture.hasLocationPermission()
+            val loc = if (hasPermission) {
+                runCatching { fragmentLocationCapture.captureLastKnownIfPermitted() }.getOrNull()
+                    ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+            } else {
+                null
             }
+            val caption = LoadCurrentWeather.caption(
+                hasPermission = hasPermission,
+                location = loc,
+                fetch = { lat, lng -> weatherRepository.fetchCurrent(lat, lng) }
+            )
+            if (generation != weatherGeneration) return@launch
+            _uiState.update { it.copy(weatherCaption = caption) }
         }
     }
 
