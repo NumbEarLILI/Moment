@@ -3,7 +3,7 @@ package com.example.moment.domain.usecase
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
-import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.model.isNasGhostPlaceholder
 import com.example.moment.domain.nas.NasArchiveSyncCoordinator
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
@@ -86,12 +86,4 @@ class SaveDiaryUseCase @Inject constructor(
             sid to epochMillis
         }.toMap()
     }
-
-    private fun LifeFragment.isNasGhostPlaceholder(): Boolean =
-        content.isBlank() &&
-            imageUris.isEmpty() &&
-            mood == null &&
-            tags.isEmpty() &&
-            location == null &&
-            weather == null
 }

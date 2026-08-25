@@ -75,7 +75,6 @@ import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.FragmentWeather
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.domain.model.fragmentContextLine
-import com.example.moment.domain.weather.parseWeatherCaption
 import com.example.moment.ui.Routes
 import com.example.moment.ui.common.QuietTextAction
 import com.example.moment.ui.common.RecordedAtField
@@ -331,8 +330,7 @@ fun CaptureScreen(
                         }
                     },
                     location = state.locationOverride ?: state.baselineLocation,
-                    weather = state.baselineWeather
-                        ?: parseWeatherCaption(state.weatherCaption),
+                    weather = state.composeWeather,
                     isAnalyzingImages = state.isAnalyzingImages,
                     momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
                     canDeleteFragment = state.editingFragmentId > 0,

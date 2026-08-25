@@ -12,6 +12,7 @@ import com.example.moment.domain.model.DiaryLocationPin
 import com.example.moment.domain.model.FragmentAiStory
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.anchoredFragmentIds
+import com.example.moment.domain.model.isNasGhostPlaceholder
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -791,14 +792,6 @@ class NasDiaryWebDavPackager @Inject constructor(
         remote: Map<String, Long>
     ): Map<String, Long> =
         cleanFragmentCreatedAtEpochMillis(local) + cleanFragmentCreatedAtEpochMillis(remote)
-
-    private fun LifeFragment.isNasGhostPlaceholder(): Boolean =
-        content.isBlank() &&
-            imageUris.isEmpty() &&
-            mood == null &&
-            tags.isEmpty() &&
-            location == null &&
-            weather == null
 
     private fun restoreFragmentImageUris(
         sourceStableIds: List<String>,

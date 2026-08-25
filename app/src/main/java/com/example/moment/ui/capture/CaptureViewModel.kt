@@ -8,6 +8,7 @@ import com.example.moment.data.location.FragmentLocationCapture
 import com.example.moment.data.weather.HomeWeatherRepository
 import com.example.moment.domain.weather.HomeWeatherCaption
 import com.example.moment.domain.weather.LoadCurrentWeather
+import com.example.moment.domain.weather.ResolveFragmentWeather
 import com.example.moment.domain.weather.parseWeatherCaption
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
@@ -225,6 +226,7 @@ class CaptureViewModel @Inject constructor(
                                     baselineLocation = fragment.location,
                                     locationOverride = null,
                                     baselineWeather = fragment.weather,
+                                    composeWeather = fragment.weather,
                                     errorMessage = null
                                 )
                             }
@@ -291,7 +293,14 @@ class CaptureViewModel @Inject constructor(
                 fetch = { lat, lng -> weatherRepository.fetchCurrent(lat, lng) }
             )
             if (generation != weatherGeneration) return@launch
-            _uiState.update { it.copy(weatherCaption = caption) }
+            val parsed = parseWeatherCaption(caption)
+            _uiState.update { state ->
+                val adoptHeader = state.editingFragmentId == 0L && state.locationOverride == null
+                state.copy(
+                    weatherCaption = caption,
+                    composeWeather = if (adoptHeader && parsed != null) parsed else state.composeWeather
+                )
+            }
         }
     }
 
@@ -342,7 +351,14 @@ class CaptureViewModel @Inject constructor(
         runCatching {
             Json.decodeFromString(FragmentLocation.serializer(), json)
         }.onSuccess { loc ->
-            _uiState.update { it.copy(locationOverride = loc, errorMessage = null) }
+            _uiState.update { it.copy(locationOverride = loc, composeWeather = null, errorMessage = null) }
+            viewModelScope.launch {
+                val weather = captureWeather(loc)
+                _uiState.update { state ->
+                    if (state.locationOverride != loc) state
+                    else state.copy(composeWeather = weather)
+                }
+            }
         }
     }
 
@@ -428,7 +444,8 @@ class CaptureViewModel @Inject constructor(
                             location = state.locationOverride ?: state.baselineLocation,
                             weather = resolveWeatherForSave(
                                 location = state.locationOverride ?: state.baselineLocation,
-                                existing = state.baselineWeather
+                                existing = state.baselineWeather,
+                                recordedAt = recordedAt
                             )
                         )
                     ) {
@@ -443,7 +460,11 @@ class CaptureViewModel @Inject constructor(
                 } else {
                     val location = state.locationOverride
                         ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
-                    val weather = resolveWeatherForSave(location = location, existing = null)
+                    val weather = resolveWeatherForSave(
+                        location = location,
+                        existing = null,
+                        recordedAt = recordedAt
+                    )
                     when (
                         addFragment(
                             content = state.content,
@@ -490,14 +511,28 @@ class CaptureViewModel @Inject constructor(
 
     private suspend fun resolveWeatherForSave(
         location: FragmentLocation?,
-        existing: FragmentWeather?
+        existing: FragmentWeather?,
+        recordedAt: java.time.Instant
     ): FragmentWeather? {
-        val locationChanged = location != null && location != _uiState.value.baselineLocation
-        if (existing != null && !locationChanged) return existing
-        if (!locationChanged) {
-            parseWeatherCaption(_uiState.value.weatherCaption)?.let { return it }
+        val state = _uiState.value
+        val placeChanged = state.locationOverride != null &&
+            state.locationOverride != state.baselineLocation
+        val recordedOnDifferentDay =
+            recordedAt.atZone(zoneId).toLocalDate() != clock.instant().atZone(zoneId).toLocalDate()
+        return when (
+            val decision = ResolveFragmentWeather.decide(
+                isEditing = state.editingFragmentId > 0L,
+                existing = existing,
+                placeChanged = placeChanged,
+                recordedOnDifferentDay = recordedOnDifferentDay,
+                headerWeather = parseWeatherCaption(state.weatherCaption),
+                fetchLocation = location
+            )
+        ) {
+            is ResolveFragmentWeather.Decision.Keep -> decision.weather
+            is ResolveFragmentWeather.Decision.Use -> decision.weather
+            is ResolveFragmentWeather.Decision.Fetch -> captureWeather(decision.location) ?: existing
         }
-        return captureWeather(location) ?: existing
     }
 
     private suspend fun captureWeather(location: FragmentLocation?): FragmentWeather? {
@@ -536,6 +571,7 @@ data class CaptureUiState(
     val baselineLocation: FragmentLocation? = null,
     val locationOverride: FragmentLocation? = null,
     val baselineWeather: FragmentWeather? = null,
+    val composeWeather: FragmentWeather? = null,
     val isAnalyzingImages: Boolean = false,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
