@@ -93,7 +93,6 @@ fun FragmentTimelineSection(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        TimelineHeader(count = displayItems.size)
         state.deleteErrorMessage?.let { message ->
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -189,37 +188,6 @@ fun FragmentTimelineSection(
                 }
             }
         )
-    }
-}
-
-@Composable
-private fun TimelineHeader(
-    count: Int
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 1.dp
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                "碎片时间线",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text(
-                if (count > 0) {
-                    "最新记录在最上方，共 $count 条内容。"
-                } else {
-                    "像刷时间线一样回看每一个生活碎片。"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.76f)
-            )
-        }
     }
 }
 
