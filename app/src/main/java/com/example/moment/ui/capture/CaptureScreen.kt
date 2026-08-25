@@ -71,7 +71,7 @@ import coil.compose.AsyncImage
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.Routes
-import com.example.moment.ui.common.WheelDateField
+import com.example.moment.ui.common.RecordedAtField
 import com.example.moment.ui.diary.DiarySummaryCard
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.theme.MomentHairline
@@ -656,19 +656,12 @@ private fun CaptureMomentExpandable(
                     placeholder = { Text("写下这一刻…") },
                     colors = fieldColors
                 )
-                WheelDateField(
+                RecordedAtField(
                     dateText = recordedDate,
                     onDateTextChange = onRecordedDateChange,
+                    timeText = recordedTime,
+                    onTimeTextChange = onRecordedTimeChange,
                     enabled = interactionsEnabled
-                )
-                TextField(
-                    value = recordedTime,
-                    onValueChange = onRecordedTimeChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("时间") },
-                    placeholder = { Text("22:30") },
-                    colors = fieldColors
                 )
                 if (isAnalyzingImages) {
                         Row(

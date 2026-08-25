@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -33,8 +34,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.YearMonth
@@ -51,34 +56,61 @@ private val WheelItemHeight = 40.dp
 private const val VisibleWheelItems = 5
 
 @Composable
-fun WheelDateField(
+fun RecordedAtField(
     dateText: String,
     onDateTextChange: (String) -> Unit,
+    timeText: String,
+    onTimeTextChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     today: LocalDate = LocalDate.now()
 ) {
     val selected = parseIsoDateOrNull(dateText) ?: today
     var showSheet by remember { mutableStateOf(false) }
+    val timeStyle = MaterialTheme.typography.bodyLarge.copy(
+        color = MaterialTheme.colorScheme.onSurface
+    )
 
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .clickable(enabled = enabled) { showSheet = true }
-            .padding(vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Text(
-            "日期",
+            "时间",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             selected.format(DateDisplayFormatter),
+            modifier = Modifier
+                .clip(MaterialTheme.shapes.small)
+                .clickable(enabled = enabled) { showSheet = true }
+                .padding(vertical = 8.dp),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary
+        )
+        BasicTextField(
+            value = timeText,
+            onValueChange = onTimeTextChange,
+            enabled = enabled,
+            singleLine = true,
+            textStyle = timeStyle,
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+            modifier = Modifier.widthIn(min = 56.dp),
+            decorationBox = { inner ->
+                Box {
+                    if (timeText.isBlank()) {
+                        Text(
+                            "22:30",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+                        )
+                    }
+                    inner()
+                }
+            }
         )
     }
 
