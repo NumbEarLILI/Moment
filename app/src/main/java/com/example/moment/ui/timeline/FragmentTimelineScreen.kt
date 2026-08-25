@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.model.fragmentContextLine
 import com.example.moment.ui.common.FullscreenImageViewer
 import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.QuietTextAction
@@ -323,11 +324,9 @@ private fun FragmentTimelineCard(
             MoodBadge(mood = mood)
         }
         TagLine(tags = fragment.tags)
-        fragment.location?.let { loc ->
-            val label = loc.label?.trim()?.takeIf { it.isNotEmpty() }
-                ?: String.format(Locale.CHINA, "约 %.4f，%.4f", loc.latitude, loc.longitude)
+        fragmentContextLine(fragment.weather, fragment.location)?.let { line ->
             Text(
-                label,
+                line,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,

@@ -12,5 +12,6 @@ data class LifeFragment(
     val tags: List<String>,
     val createdAt: Instant,
     val updatedAt: Instant,
-    val location: FragmentLocation? = null
+    val location: FragmentLocation? = null,
+    val weather: FragmentWeather? = null
 )

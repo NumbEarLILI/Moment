@@ -218,6 +218,15 @@ private fun DiaryPlogMomentCard(
                 }
             }
 
+            fragment.weather?.caption()?.let { weatherLine ->
+                Text(
+                    weatherLine,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             when {
                 locationPin != null && onLocationPinClick != null -> {
                     Text(

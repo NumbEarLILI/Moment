@@ -72,7 +72,10 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.example.moment.domain.model.FragmentLocation
+import com.example.moment.domain.model.FragmentWeather
 import com.example.moment.domain.model.NasArchiveConflictChoice
+import com.example.moment.domain.model.fragmentContextLine
+import com.example.moment.domain.weather.parseWeatherCaption
 import com.example.moment.ui.Routes
 import com.example.moment.ui.common.QuietTextAction
 import com.example.moment.ui.common.RecordedAtField
@@ -328,6 +331,8 @@ fun CaptureScreen(
                         }
                     },
                     location = state.locationOverride ?: state.baselineLocation,
+                    weather = state.baselineWeather
+                        ?: parseWeatherCaption(state.weatherCaption),
                     isAnalyzingImages = state.isAnalyzingImages,
                     momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
                     canDeleteFragment = state.editingFragmentId > 0,
@@ -530,6 +535,7 @@ private fun CaptureHeader(
     onGallery: () -> Unit,
     onPickPlace: () -> Unit,
     location: FragmentLocation?,
+    weather: FragmentWeather?,
     isAnalyzingImages: Boolean,
     momentInteractionsEnabled: Boolean,
     errorMessage: String?,
@@ -601,6 +607,7 @@ private fun CaptureHeader(
             onGallery = onGallery,
             onPickPlace = onPickPlace,
             location = location,
+            weather = weather,
             isAnalyzingImages = isAnalyzingImages,
             interactionsEnabled = momentInteractionsEnabled,
             errorMessage = errorMessage,
@@ -636,6 +643,7 @@ private fun CaptureMomentExpandable(
     onGallery: () -> Unit,
     onPickPlace: () -> Unit,
     location: FragmentLocation?,
+    weather: FragmentWeather?,
     isAnalyzingImages: Boolean,
     interactionsEnabled: Boolean,
     errorMessage: String?,
@@ -805,6 +813,13 @@ private fun CaptureMomentExpandable(
                                 loc.latitude,
                                 loc.longitude
                             ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    fragmentContextLine(weather = weather, location = null)?.let { line ->
+                        Text(
+                            line,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

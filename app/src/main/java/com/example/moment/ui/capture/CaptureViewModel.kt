@@ -8,8 +8,10 @@ import com.example.moment.data.location.FragmentLocationCapture
 import com.example.moment.data.weather.HomeWeatherRepository
 import com.example.moment.domain.weather.HomeWeatherCaption
 import com.example.moment.domain.weather.LoadCurrentWeather
+import com.example.moment.domain.weather.parseWeatherCaption
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
+import com.example.moment.domain.model.FragmentWeather
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.model.NasArchiveConflictChoice
@@ -222,6 +224,7 @@ class CaptureViewModel @Inject constructor(
                                     baselineRecordedAt = fragment.createdAt,
                                     baselineLocation = fragment.location,
                                     locationOverride = null,
+                                    baselineWeather = fragment.weather,
                                     errorMessage = null
                                 )
                             }
@@ -422,7 +425,11 @@ class CaptureViewModel @Inject constructor(
                             mood = state.mood,
                             tags = state.tags.csvValues(),
                             recordedAt = recordedAt,
-                            location = state.locationOverride ?: state.baselineLocation
+                            location = state.locationOverride ?: state.baselineLocation,
+                            weather = resolveWeatherForSave(
+                                location = state.locationOverride ?: state.baselineLocation,
+                                existing = state.baselineWeather
+                            )
                         )
                     ) {
                         UpdateFragmentResult.Empty -> _uiState.update {
@@ -436,6 +443,7 @@ class CaptureViewModel @Inject constructor(
                 } else {
                     val location = state.locationOverride
                         ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+                    val weather = resolveWeatherForSave(location = location, existing = null)
                     when (
                         addFragment(
                             content = state.content,
@@ -443,7 +451,8 @@ class CaptureViewModel @Inject constructor(
                             mood = state.mood,
                             tags = state.tags.csvValues(),
                             recordedAt = recordedAt,
-                            location = location
+                            location = location,
+                            weather = weather
                         )
                     ) {
                         AddFragmentResult.Empty -> _uiState.update {
@@ -479,6 +488,28 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
+    private suspend fun resolveWeatherForSave(
+        location: FragmentLocation?,
+        existing: FragmentWeather?
+    ): FragmentWeather? {
+        val locationChanged = location != null && location != _uiState.value.baselineLocation
+        if (existing != null && !locationChanged) return existing
+        if (!locationChanged) {
+            parseWeatherCaption(_uiState.value.weatherCaption)?.let { return it }
+        }
+        return captureWeather(location) ?: existing
+    }
+
+    private suspend fun captureWeather(location: FragmentLocation?): FragmentWeather? {
+        val coords = location
+            ?: runCatching { fragmentLocationCapture.captureLastKnownIfPermitted() }.getOrNull()
+            ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+            ?: return null
+        return runCatching { weatherRepository.fetchCurrent(coords.latitude, coords.longitude) }
+            .getOrNull()
+            ?.toFragmentWeather()
+    }
+
     private fun String.csvValues(): List<String> =
         split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -504,6 +535,7 @@ data class CaptureUiState(
     val baselineRecordedAt: java.time.Instant? = null,
     val baselineLocation: FragmentLocation? = null,
     val locationOverride: FragmentLocation? = null,
+    val baselineWeather: FragmentWeather? = null,
     val isAnalyzingImages: Boolean = false,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,

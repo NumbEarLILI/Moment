@@ -86,7 +86,9 @@ class FragmentRepositoryImpl @Inject constructor(
                     updatedAtEpochMillis = ms,
                     locationLatitude = null,
                     locationLongitude = null,
-                    locationLabel = null
+                    locationLabel = null,
+                    weatherCondition = null,
+                    weatherTemperatureCelsius = null
                 )
             )
         }

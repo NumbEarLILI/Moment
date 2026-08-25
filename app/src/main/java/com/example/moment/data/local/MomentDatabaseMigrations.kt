@@ -46,3 +46,10 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         )
     }
 }
+
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE fragments ADD COLUMN weatherCondition TEXT")
+        db.execSQL("ALTER TABLE fragments ADD COLUMN weatherTemperatureCelsius INTEGER")
+    }
+}

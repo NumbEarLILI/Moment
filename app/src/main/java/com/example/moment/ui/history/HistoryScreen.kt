@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.model.fragmentContextLine
 import com.example.moment.ui.common.MoodBadge
 import com.example.moment.ui.common.MonthCalendar
 import com.example.moment.ui.common.QuietTextAction
@@ -209,9 +210,7 @@ private fun FragmentCard(
         }
         fragment.mood?.let { MoodBadge(mood = it) }
         TagLine(tags = fragment.tags)
-        fragment.location?.let { loc ->
-            val line = loc.label ?: "${String.format(Locale.getDefault(), "%.4f", loc.latitude)}, " +
-                String.format(Locale.getDefault(), "%.4f", loc.longitude)
+        fragmentContextLine(fragment.weather, fragment.location)?.let { line ->
             Text(
                 line,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

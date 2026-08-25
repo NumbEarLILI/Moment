@@ -797,7 +797,8 @@ class NasDiaryWebDavPackager @Inject constructor(
             imageUris.isEmpty() &&
             mood == null &&
             tags.isEmpty() &&
-            location == null
+            location == null &&
+            weather == null
 
     private fun restoreFragmentImageUris(
         sourceStableIds: List<String>,
