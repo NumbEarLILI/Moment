@@ -19,9 +19,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +49,7 @@ import coil.request.ImageRequest
 import com.example.moment.domain.avatar.AvatarCropMath
 import com.example.moment.domain.avatar.AvatarCropState
 import java.io.File
-import kotlin.math.min
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -55,10 +59,26 @@ fun AvatarCropEditor(
     onCancel: () -> Unit,
     onConfirm: (AvatarCropState, Float) -> Unit
 ) {
-    val cropStateHolder = remember(session.previewPath) { mutableStateOf(AvatarCropState()) }
+    val cropStateHolder = rememberSaveable(
+        session.previewPath,
+        saver = avatarCropStateSaver
+    ) { mutableStateOf(AvatarCropState()) }
     var cropState by cropStateHolder
     var viewport by remember { mutableStateOf(IntSize.Zero) }
-    val cropDiameter = min(viewport.width, viewport.height) * 0.78f
+    var lastDiameter by rememberSaveable(session.previewPath) { mutableFloatStateOf(0f) }
+    val cropDiameter = AvatarCropMath.cropDiameter(viewport.width, viewport.height)
+    LaunchedEffect(cropDiameter, session.imageWidth, session.imageHeight) {
+        if (lastDiameter > 0f && cropDiameter > 0f && abs(lastDiameter - cropDiameter) > 0.5f) {
+            cropStateHolder.value = AvatarCropMath.remapDiameter(
+                state = cropStateHolder.value,
+                oldDiameter = lastDiameter,
+                newDiameter = cropDiameter,
+                imageWidth = session.imageWidth.toFloat(),
+                imageHeight = session.imageHeight.toFloat()
+            )
+        }
+        if (cropDiameter > 0f) lastDiameter = cropDiameter
+    }
 
     Column(
         modifier = Modifier
@@ -97,7 +117,7 @@ fun AvatarCropEditor(
                 .clipToBounds()
                 .onSizeChanged { viewport = it }
                 .pointerInput(session.previewPath, viewport) {
-                    val diameter = min(viewport.width, viewport.height) * 0.78f
+                    val diameter = AvatarCropMath.cropDiameter(viewport.width, viewport.height)
                     if (diameter <= 0f) return@pointerInput
                     detectTransformGestures { centroid, pan, zoom, _ ->
                         val imageW = session.imageWidth.toFloat()
@@ -211,3 +231,8 @@ private fun CropViewport(
         )
     }
 }
+
+private val avatarCropStateSaver = listSaver<androidx.compose.runtime.MutableState<AvatarCropState>, Float>(
+    save = { listOf(it.value.scale, it.value.offsetX, it.value.offsetY) },
+    restore = { mutableStateOf(AvatarCropState(it[0], it[1], it[2])) }
+)

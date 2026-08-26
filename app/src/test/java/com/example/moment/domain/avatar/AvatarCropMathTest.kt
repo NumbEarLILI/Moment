@@ -106,6 +106,61 @@ class AvatarCropMathTest {
     }
 
     @Test
+    fun zoomingAroundACentroidKeepsThatImagePointUnderTheFinger() {
+        val zoomed = AvatarCropMath.applyZoom(
+            state = AvatarCropState(),
+            zoom = 2f,
+            centroidX = 0f,
+            centroidY = 50f,
+            cropCenterX = 50f,
+            cropCenterY = 50f,
+            imageWidth = 400f,
+            imageHeight = 200f,
+            cropDiameter = 100f
+        )
+
+        assertEquals(2f, zoomed.scale, 0.01f)
+        assertEquals(50f, zoomed.offsetX, 0.01f)
+        assertEquals(0f, zoomed.offsetY, 0.01f)
+    }
+
+    @Test
+    fun remappingDiameterKeepsTheSameImageRegion() {
+        val panned = AvatarCropMath.applyPan(
+            state = AvatarCropState(scale = 2f),
+            dx = 40f,
+            dy = 0f,
+            imageWidth = 400f,
+            imageHeight = 200f,
+            cropDiameter = 100f
+        )
+        val before = AvatarCropMath.sourceRect(
+            state = panned,
+            imageWidth = 400f,
+            imageHeight = 200f,
+            cropDiameter = 100f
+        )
+        val remapped = AvatarCropMath.remapDiameter(
+            state = panned,
+            oldDiameter = 100f,
+            newDiameter = 200f,
+            imageWidth = 400f,
+            imageHeight = 200f
+        )
+        val after = AvatarCropMath.sourceRect(
+            state = remapped,
+            imageWidth = 400f,
+            imageHeight = 200f,
+            cropDiameter = 200f
+        )
+
+        assertEquals(2f, remapped.scale, 0.01f)
+        assertEquals(before.left, after.left, 0.01f)
+        assertEquals(before.top, after.top, 0.01f)
+        assertEquals(before.size, after.size, 0.01f)
+    }
+
+    @Test
     fun pixelRectStaysInsideTheBitmap() {
         val rect = AvatarCropMath.pixelRect(
             state = AvatarCropState(scale = AvatarCropMath.MAX_USER_SCALE, offsetX = -10_000f),

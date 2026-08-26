@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
+import com.example.moment.domain.avatar.AvatarCropIo
 import com.example.moment.domain.avatar.AvatarCropPixelRect
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -14,14 +15,19 @@ import kotlin.math.roundToInt
 class AvatarCropProcessor(
     private val filesDir: File
 ) {
-    fun previewFile(): File = File(File(filesDir, UserAvatarStore.DIR).apply { mkdirs() }, PREVIEW_FILE)
+    fun previewFile(sessionId: Long): File =
+        File(avatarDir(), "crop_preview_$sessionId.jpg")
 
-    fun preparePreview(openStream: () -> InputStream?): AvatarCropPreview {
-        val dest = previewFile()
-        val raw = File(dest.parentFile, RAW_FILE)
+    fun preparePreview(sessionId: Long, openStream: () -> InputStream?): AvatarCropPreview {
+        val dest = previewFile(sessionId)
+        val raw = rawFile(sessionId)
         try {
             val stream = openStream() ?: error("无法读取所选图片")
-            stream.use { input -> raw.outputStream().use { output -> input.copyTo(output) } }
+            stream.use { input ->
+                raw.outputStream().use { output ->
+                    AvatarCropIo.copyCapped(input, output)
+                }
+            }
             if (raw.length() == 0L) error("无法读取所选图片")
 
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -95,10 +101,26 @@ class AvatarCropProcessor(
         }
     }
 
-    fun clearPreview() {
-        previewFile().delete()
-        File(previewFile().parentFile, RAW_FILE).delete()
+    fun clearPreview(sessionId: Long) {
+        previewFile(sessionId).delete()
+        rawFile(sessionId).delete()
     }
+
+    fun clearAllPreviews() {
+        val dir = avatarDir()
+        dir.listFiles()?.forEach { file ->
+            val name = file.name
+            if (name.startsWith("crop_preview_") || name.startsWith("crop_raw_")) {
+                file.delete()
+            }
+        }
+        File(dir, PREVIEW_FILE).delete()
+        File(dir, RAW_FILE).delete()
+    }
+
+    private fun avatarDir(): File = File(filesDir, UserAvatarStore.DIR).apply { mkdirs() }
+
+    private fun rawFile(sessionId: Long): File = File(avatarDir(), "crop_raw_$sessionId.tmp")
 
     private fun readExifOrientation(file: File): Int =
         try {

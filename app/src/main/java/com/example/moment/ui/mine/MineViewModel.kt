@@ -18,6 +18,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class AvatarCropSession(
+    val sessionId: Long,
     val previewPath: String,
     val imageWidth: Int,
     val imageHeight: Int
@@ -56,40 +58,60 @@ class MineViewModel @Inject constructor(
     private val _cropBusy = MutableStateFlow(false)
     val cropBusy = _cropBusy.asStateFlow()
     private var cropJob: Job? = null
+    private var cropGeneration = 0L
+    @Volatile private var confirming = false
 
     fun beginAvatarCrop(uri: Uri) {
+        if (confirming) return
+        val sessionId = ++cropGeneration
         cropJob?.cancel()
         cropJob = viewModelScope.launch {
             _cropBusy.value = true
             try {
                 val preview = withContext(Dispatchers.IO) {
-                    cropProcessor.preparePreview {
+                    cropProcessor.preparePreview(sessionId) {
                         context.contentResolver.openInputStream(uri)
                     }
                 }
+                if (sessionId != cropGeneration) {
+                    withContext(NonCancellable + Dispatchers.IO) {
+                        cropProcessor.clearPreview(sessionId)
+                    }
+                    return@launch
+                }
                 _cropSession.value = AvatarCropSession(
+                    sessionId = sessionId,
                     previewPath = preview.file.absolutePath,
                     imageWidth = preview.width,
                     imageHeight = preview.height
                 )
             } catch (error: CancellationException) {
+                withContext(NonCancellable + Dispatchers.IO) {
+                    cropProcessor.clearPreview(sessionId)
+                }
                 throw error
             } catch (_: Exception) {
-                withContext(Dispatchers.IO) { cropProcessor.clearPreview() }
-                _cropSession.value = null
-                _userMessage.emit("无法设置头像")
+                withContext(NonCancellable + Dispatchers.IO) {
+                    cropProcessor.clearPreview(sessionId)
+                }
+                if (sessionId == cropGeneration) {
+                    _cropSession.value = null
+                    _userMessage.emit("无法设置头像")
+                }
             } finally {
-                _cropBusy.value = false
+                if (sessionId == cropGeneration && !confirming) {
+                    _cropBusy.value = false
+                }
             }
         }
     }
 
     fun confirmAvatarCrop(state: AvatarCropState, cropDiameter: Float) {
         val session = _cropSession.value ?: return
-        if (cropDiameter <= 0f || session.imageWidth <= 0 || session.imageHeight <= 0) return
-        cropJob?.cancel()
-        cropJob = viewModelScope.launch {
-            _cropBusy.value = true
+        if (confirming || cropDiameter <= 0f || session.imageWidth <= 0 || session.imageHeight <= 0) return
+        confirming = true
+        _cropBusy.value = true
+        viewModelScope.launch {
             try {
                 val file = withContext(Dispatchers.IO) {
                     val rect = AvatarCropMath.pixelRect(
@@ -100,7 +122,7 @@ class MineViewModel @Inject constructor(
                     )
                     val jpeg = cropProcessor.cropToJpeg(File(session.previewPath), rect)
                     val saved = avatarStore.import(ByteArrayInputStream(jpeg))
-                    cropProcessor.clearPreview()
+                    cropProcessor.clearPreview(session.sessionId)
                     saved
                 }
                 userPreferencesRepository.setAvatarImagePath(file.absolutePath)
@@ -110,15 +132,18 @@ class MineViewModel @Inject constructor(
             } catch (_: Exception) {
                 _userMessage.emit("无法设置头像")
             } finally {
+                confirming = false
                 _cropBusy.value = false
             }
         }
     }
 
     fun cancelAvatarCrop() {
+        if (confirming) return
+        cropGeneration++
         cropJob?.cancel()
         cropJob = viewModelScope.launch {
-            withContext(Dispatchers.IO) { cropProcessor.clearPreview() }
+            withContext(NonCancellable + Dispatchers.IO) { cropProcessor.clearAllPreviews() }
             _cropSession.value = null
             _cropBusy.value = false
         }
@@ -132,7 +157,7 @@ class MineViewModel @Inject constructor(
     }
 
     override fun onCleared() {
-        cropProcessor.clearPreview()
+        cropProcessor.clearAllPreviews()
         super.onCleared()
     }
 }

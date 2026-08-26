@@ -25,6 +25,7 @@ data class AvatarCropPixelRect(
 object AvatarCropMath {
     const val MIN_USER_SCALE = 1f
     const val MAX_USER_SCALE = 4f
+    const val VIEWPORT_FILL = 0.78f
 
     fun coverScale(imageWidth: Float, imageHeight: Float, cropDiameter: Float): Float {
         if (imageWidth <= 0f || imageHeight <= 0f || cropDiameter <= 0f) return 1f
@@ -153,5 +154,27 @@ object AvatarCropMath {
         val left = cropCenterX - imageWidth * drawScale / 2f + clamped.offsetX
         val top = cropCenterY - imageHeight * drawScale / 2f + clamped.offsetY
         return left to top
+    }
+
+    fun cropDiameter(viewportWidth: Int, viewportHeight: Int): Float =
+        min(viewportWidth, viewportHeight) * VIEWPORT_FILL
+
+    fun remapDiameter(
+        state: AvatarCropState,
+        oldDiameter: Float,
+        newDiameter: Float,
+        imageWidth: Float,
+        imageHeight: Float
+    ): AvatarCropState {
+        if (oldDiameter <= 0f || newDiameter <= 0f) {
+            return clamp(state, imageWidth, imageHeight, newDiameter.coerceAtLeast(0f))
+        }
+        val scale = newDiameter / oldDiameter
+        return clamp(
+            state.copy(offsetX = state.offsetX * scale, offsetY = state.offsetY * scale),
+            imageWidth,
+            imageHeight,
+            newDiameter
+        )
     }
 }

@@ -149,7 +149,7 @@ fun MineScreen(
         Dialog(
             onDismissRequest = { viewModel.cancelAvatarCrop() },
             properties = DialogProperties(
-                dismissOnBackPress = true,
+                dismissOnBackPress = cropSession == null || !cropBusy,
                 dismissOnClickOutside = false,
                 usePlatformDefaultWidth = false,
                 decorFitsSystemWindows = false
