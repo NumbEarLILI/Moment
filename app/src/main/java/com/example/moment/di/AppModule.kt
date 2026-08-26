@@ -2,6 +2,7 @@ package com.example.moment.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.moment.data.avatar.AvatarCropProcessor
 import com.example.moment.data.avatar.UserAvatarStore
 import com.example.moment.data.local.DiaryDao
 import com.example.moment.data.local.FragmentDao
@@ -100,6 +101,11 @@ object AppModule {
     @Singleton
     fun provideUserAvatarStore(@ApplicationContext context: Context): UserAvatarStore =
         UserAvatarStore(context.filesDir)
+
+    @Provides
+    @Singleton
+    fun provideAvatarCropProcessor(@ApplicationContext context: Context): AvatarCropProcessor =
+        AvatarCropProcessor(context.filesDir)
 
     @Provides
     @Singleton

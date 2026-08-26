@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -32,11 +34,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -54,13 +59,15 @@ fun MineScreen(
     viewModel: MineViewModel = hiltViewModel()
 ) {
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
+    val cropSession by viewModel.cropSession.collectAsStateWithLifecycle()
+    val cropBusy by viewModel.cropBusy.collectAsStateWithLifecycle()
     var showClearAvatarDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val avatarPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            viewModel.setAvatarFromUri(uri)
+            viewModel.beginAvatarCrop(uri)
         }
     }
     LaunchedEffect(Unit) {
@@ -138,6 +145,49 @@ fun MineScreen(
             }
         )
     }
+    if (cropSession != null || cropBusy) {
+        Dialog(
+            onDismissRequest = { viewModel.cancelAvatarCrop() },
+            properties = DialogProperties(
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                val session = cropSession
+                if (session != null) {
+                    AvatarCropEditor(
+                        session = session,
+                        busy = cropBusy,
+                        onCancel = viewModel::cancelAvatarCrop,
+                        onConfirm = viewModel::confirmAvatarCrop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0xFF111111))
+                    ) {
+                        TextButton(
+                            onClick = { viewModel.cancelAvatarCrop() },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .statusBarsPadding()
+                            .padding(8.dp)
+                        ) {
+                            Text("取消", color = Color.White)
+                        }
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -182,7 +232,7 @@ private fun AccountInfoRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = if (hasAvatar) "点击头像更换，长按清除" else "点击头像设置照片",
+                text = if (hasAvatar) "点击头像裁剪更换，长按清除" else "点击头像选图并裁剪",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
