@@ -7,10 +7,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +22,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -64,7 +64,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -97,8 +99,6 @@ import java.util.Locale
 private val ImageThumbSize = 88.dp
 private val HeaderDateFormatter: DateTimeFormatter =
     DateTimeFormatter.ofPattern("M月d日", Locale.CHINA)
-
-internal const val CAPTURE_MOMENT_EXPANDED_KEY = "captureMomentExpanded"
 
 @Composable
 fun CaptureScreen(
@@ -154,9 +154,7 @@ fun FragmentComposeScreen(
         .collectAsStateWithLifecycle()
     val forDate = backStackEntry.arguments?.getString("forDate")?.takeIf { it.isNotBlank() }
     val isTodayCreate = !isEditing && forDate.isNullOrBlank()
-    val momentExpanded by backStackEntry.savedStateHandle
-        .getStateFlow(CAPTURE_MOMENT_EXPANDED_KEY, !inlineOnHome)
-        .collectAsStateWithLifecycle()
+    var momentExpanded by rememberSaveable { mutableStateOf(!inlineOnHome) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var pendingSaveAfterLocationPermission by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
@@ -278,7 +276,7 @@ fun FragmentComposeScreen(
         if (!state.saved) return@LaunchedEffect
         if (inlineOnHome) {
             viewModel.beginNewCapture()
-            backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = false
+            momentExpanded = false
         } else {
             onClose()
         }
@@ -296,7 +294,7 @@ fun FragmentComposeScreen(
             viewModel.applyPickedLocationFromJson(pickJson)
             backStackEntry.savedStateHandle[MOMENT_PICK_LOCATION_JSON_KEY] = ""
             if (inlineOnHome) {
-                backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = true
+                momentExpanded = true
             }
         }
     }
@@ -304,10 +302,7 @@ fun FragmentComposeScreen(
     val composer: @Composable () -> Unit = {
         CaptureMomentExpandable(
             expanded = if (inlineOnHome) momentExpanded else true,
-            onToggleExpanded = {
-                val cur = backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] ?: false
-                backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = !cur
-            },
+            onToggleExpanded = { momentExpanded = !momentExpanded },
             showCollapseAction = inlineOnHome,
             content = state.content,
             onContentChange = viewModel::updateContent,
@@ -419,9 +414,7 @@ fun FragmentComposeScreen(
                     if (timelineViewModel != null) {
                         HomeFragmentTimeline(
                             timelineViewModel = timelineViewModel,
-                            onAddFragment = {
-                                backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = true
-                            },
+                            onAddFragment = { momentExpanded = true },
                             onEditFragment = onEditFragment
                         )
                     }
@@ -609,7 +602,6 @@ private fun CaptureHeader(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CaptureMomentExpandable(
     expanded: Boolean,
@@ -644,6 +636,11 @@ private fun CaptureMomentExpandable(
     isDeleting: Boolean,
     onRequestDelete: () -> Unit,
 ) {
+    var formMounted by remember { mutableStateOf(expanded) }
+    val showForm = expanded || formMounted
+    LaunchedEffect(expanded) {
+        if (expanded) formMounted = true
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -654,8 +651,11 @@ private fun CaptureMomentExpandable(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .clipToBounds()
+                .animateContentSize(
+                    animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                )
         ) {
             if (!expanded) {
                 val preview = content.trim().replace("\n", " ").let {
@@ -677,44 +677,47 @@ private fun CaptureMomentExpandable(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            AnimatedVisibility(
-                visible = expanded,
-                enter = fadeIn(animationSpec = tween(220)),
-                exit = fadeOut(animationSpec = tween(180))
-            ) {
-                CaptureMomentForm(
-                    content = content,
-                    onContentChange = onContentChange,
-                    recordedDate = recordedDate,
-                    onRecordedDateChange = onRecordedDateChange,
-                    recordedTime = recordedTime,
-                    onRecordedTimeChange = onRecordedTimeChange,
-                    tagList = tagList,
-                    onRemoveTag = onRemoveTag,
-                    newTagInput = newTagInput,
-                    onNewTagInputChange = onNewTagInputChange,
-                    onCommitNewTag = onCommitNewTag,
-                    imageUriList = imageUriList,
-                    onRemoveImage = onRemoveImage,
-                    onCamera = onCamera,
-                    onGallery = onGallery,
-                    onPickPlace = onPickPlace,
-                    location = location,
-                    isResolvingPlace = isResolvingPlace,
-                    weather = weather,
-                    isAnalyzingImages = isAnalyzingImages,
-                    interactionsEnabled = interactionsEnabled,
-                    errorMessage = errorMessage,
-                    saveLabel = saveLabel,
-                    onSave = onSave,
-                    saveEnabled = saveEnabled,
-                    canDeleteFragment = canDeleteFragment,
-                    isDeleting = isDeleting,
-                    onRequestDelete = onRequestDelete,
-                    showCollapseAction = showCollapseAction,
-                    onCollapse = onToggleExpanded,
-                    wrapInSurface = false
-                )
+            if (showForm) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (expanded) Modifier else Modifier.height(0.dp))
+                        .clipToBounds()
+                ) {
+                    CaptureMomentForm(
+                        content = content,
+                        onContentChange = onContentChange,
+                        recordedDate = recordedDate,
+                        onRecordedDateChange = onRecordedDateChange,
+                        recordedTime = recordedTime,
+                        onRecordedTimeChange = onRecordedTimeChange,
+                        tagList = tagList,
+                        onRemoveTag = onRemoveTag,
+                        newTagInput = newTagInput,
+                        onNewTagInputChange = onNewTagInputChange,
+                        onCommitNewTag = onCommitNewTag,
+                        imageUriList = imageUriList,
+                        onRemoveImage = onRemoveImage,
+                        onCamera = onCamera,
+                        onGallery = onGallery,
+                        onPickPlace = onPickPlace,
+                        location = location,
+                        isResolvingPlace = isResolvingPlace,
+                        weather = weather,
+                        isAnalyzingImages = isAnalyzingImages,
+                        interactionsEnabled = interactionsEnabled,
+                        errorMessage = errorMessage,
+                        saveLabel = saveLabel,
+                        onSave = onSave,
+                        saveEnabled = saveEnabled,
+                        canDeleteFragment = canDeleteFragment,
+                        isDeleting = isDeleting,
+                        onRequestDelete = onRequestDelete,
+                        showCollapseAction = showCollapseAction,
+                        onCollapse = onToggleExpanded,
+                        wrapInSurface = false
+                    )
+                }
             }
         }
     }

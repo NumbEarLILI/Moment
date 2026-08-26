@@ -46,6 +46,7 @@ import com.example.moment.ui.home.HomeScreen
 import com.example.moment.ui.mine.AccountSettingsScreen
 import com.example.moment.ui.mine.MineScreen
 import com.example.moment.ui.place.PlacePickScreen
+import com.example.moment.ui.settings.AboutScreen
 import com.example.moment.ui.settings.SettingsScreen
 import com.example.moment.ui.theme.appRootContainerColor
 import java.time.LocalDate
@@ -172,7 +173,13 @@ fun MomentApp() {
                 AccountSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.Settings) {
-                SettingsScreen(onBack = { navController.popBackStack() })
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenAbout = { navController.navigate(Routes.About) }
+                )
+            }
+            composable(Routes.About) {
+                AboutScreen(onBack = { navController.popBackStack() })
             }
             composable(
                 route = Routes.Detail,
@@ -301,6 +308,7 @@ object Routes {
     const val Mine = "mine"
     const val AccountSettings = "accountSettings"
     const val Settings = "settings"
+    const val About = "about"
     const val Detail = "detail/{id}"
     const val DiaryEdit = "edit/{id}"
     const val PlacePick = "placePick?lat={lat}&lng={lng}&hint={hint}&fragmentId={fragmentId}&diaryId={diaryId}"
