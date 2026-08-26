@@ -40,7 +40,9 @@ class HistoryViewModel @Inject constructor(
                 selectedDate = date,
                 visibleMonth = month,
                 fragments = fragments,
-                diaryEntries = entries,
+                datesWithSavedDiary = entries.map { it.date }.toSet(),
+                diaryEntries = entries.filter { it.date == date },
+                canGenerateDiary = fragments.isNotEmpty(),
                 isLoading = false
             )
         }.catch {
@@ -79,7 +81,9 @@ data class HistoryUiState(
     val selectedDate: LocalDate = LocalDate.now(),
     val visibleMonth: YearMonth = YearMonth.now(),
     val fragments: List<LifeFragment> = emptyList(),
+    val datesWithSavedDiary: Set<LocalDate> = emptySet(),
     val diaryEntries: List<DiaryEntry> = emptyList(),
+    val canGenerateDiary: Boolean = false,
     val isLoading: Boolean = true,
     val errorMessage: String? = null
 )

@@ -60,6 +60,53 @@ class HistoryViewModelTest {
         assertEquals(date, viewModel.uiState.first { !it.isLoading }.selectedDate)
     }
 
+    @Test
+    fun selectedDayShowsOnlyThatDaysDiaries() = runTest {
+        val selected = LocalDate.of(2026, 5, 20)
+        val other = LocalDate.of(2026, 5, 21)
+        val selectedDiary = diary(id = 7L, date = selected, title = "选中日手帐")
+        val otherDiary = diary(id = 8L, date = other, title = "另一日手帐")
+        val viewModel = historyViewModel(diaries = listOf(selectedDiary, otherDiary))
+
+        viewModel.onCalendarDayClick(selected)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.first { !it.isLoading }
+        assertEquals(setOf(selected, other), state.datesWithSavedDiary)
+        assertEquals(listOf(selectedDiary), state.diaryEntries)
+    }
+
+    @Test
+    fun canGenerateDiaryWhenSelectedDayHasFragments() = runTest {
+        val date = LocalDate.of(2026, 5, 20)
+        val viewModel = historyViewModel(
+            fragments = listOf(fragment(id = 1L, date = date)),
+            diaries = emptyList()
+        )
+
+        viewModel.onCalendarDayClick(date)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.first { !it.isLoading }
+        assertEquals(true, state.canGenerateDiary)
+    }
+
+    @Test
+    fun cannotGenerateDiaryWhenSelectedDayHasNoFragments() = runTest {
+        val date = LocalDate.of(2026, 5, 20)
+        val viewModel = historyViewModel(
+            fragments = listOf(fragment(id = 1L, date = date.minusDays(1))),
+            diaries = listOf(diary(date = date))
+        )
+
+        viewModel.onCalendarDayClick(date)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.first { !it.isLoading }
+        assertEquals(false, state.canGenerateDiary)
+        assertEquals(listOf(diary(date = date)), state.diaryEntries)
+    }
+
     private fun historyViewModel(
         fragments: List<LifeFragment> = emptyList(),
         diaries: List<DiaryEntry> = emptyList()
@@ -73,10 +120,14 @@ class HistoryViewModelTest {
         )
     }
 
-    private fun diary(date: LocalDate) = DiaryEntry(
-        id = 7L,
+    private fun diary(
+        date: LocalDate,
+        id: Long = 7L,
+        title: String = "已保存手帐"
+    ) = DiaryEntry(
+        id = id,
         date = date,
-        title = "已保存手帐",
+        title = title,
         body = "正文",
         highlights = emptyList(),
         moodSummary = null,
@@ -85,11 +136,26 @@ class HistoryViewModelTest {
         updatedAt = Instant.parse("2026-05-20T09:00:00Z")
     )
 
+    private fun fragment(id: Long, date: LocalDate) = LifeFragment(
+        id = id,
+        stableId = "fragment-$id",
+        content = "碎片 $id",
+        imageUris = emptyList(),
+        mood = null,
+        tags = emptyList(),
+        createdAt = date.atStartOfDay().toInstant(java.time.ZoneOffset.UTC).plusSeconds(id * 60),
+        updatedAt = date.atStartOfDay().toInstant(java.time.ZoneOffset.UTC)
+    )
+
     private class FakeFragmentRepository(
         private val fragments: List<LifeFragment>
     ) : FragmentRepository {
         override fun observeFragmentsForDate(date: LocalDate): Flow<List<LifeFragment>> =
-            MutableStateFlow(fragments)
+            MutableStateFlow(
+                fragments.filter {
+                    java.time.LocalDate.ofInstant(it.createdAt, java.time.ZoneOffset.UTC) == date
+                }
+            )
 
         override fun observeAllFragments(): Flow<List<LifeFragment>> =
             MutableStateFlow(fragments)

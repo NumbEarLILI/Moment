@@ -40,6 +40,7 @@ fun HistoryScreen(
     onAddFragmentForPastDay: (LocalDate) -> Unit,
     onContinueEditFragment: (Long) -> Unit,
     onOpenDiary: (Long) -> Unit,
+    onGenerateDiary: (LocalDate) -> Unit,
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -71,11 +72,18 @@ fun HistoryScreen(
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
-                        if (state.selectedDate != viewModel.today) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             QuietTextAction(
-                                text = "补记",
-                                onClick = { onAddFragmentForPastDay(state.selectedDate) }
+                                text = "生成手帐",
+                                onClick = { onGenerateDiary(state.selectedDate) },
+                                enabled = state.canGenerateDiary
                             )
+                            if (state.selectedDate != viewModel.today) {
+                                QuietTextAction(
+                                    text = "补记",
+                                    onClick = { onAddFragmentForPastDay(state.selectedDate) }
+                                )
+                            }
                         }
                     }
                     Text(
@@ -90,7 +98,7 @@ fun HistoryScreen(
                     visibleMonth = state.visibleMonth,
                     selectedDate = state.selectedDate,
                     today = viewModel.today,
-                    datesWithSavedDiary = state.diaryEntries.map { it.date }.toSet(),
+                    datesWithSavedDiary = state.datesWithSavedDiary,
                     onDayClick = viewModel::onCalendarDayClick,
                     onPreviousMonth = viewModel::previousMonth,
                     onNextMonth = viewModel::nextMonth
@@ -137,7 +145,7 @@ fun HistoryScreen(
             if (state.diaryEntries.isEmpty()) {
                 item {
                     Text(
-                        "还没有保存过日记。",
+                        "这一天还没有手帐。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

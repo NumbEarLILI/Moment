@@ -10,10 +10,8 @@ import com.example.moment.domain.weather.HomeWeatherCaption
 import com.example.moment.domain.weather.LoadCurrentWeather
 import com.example.moment.domain.weather.ResolveFragmentWeather
 import com.example.moment.domain.weather.parseWeatherCaption
-import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.FragmentWeather
-import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.domain.model.NasArchiveConflictInfo
@@ -27,8 +25,6 @@ import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.DeleteFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
-import com.example.moment.domain.usecase.ObserveDiaryEntriesUseCase
-import com.example.moment.domain.usecase.ObserveFragmentsForDateUseCase
 import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
 import com.example.moment.domain.time.resolveNewFragmentRecordedAt
 import com.example.moment.domain.usecase.UpdateFragmentResult
@@ -41,15 +37,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -67,8 +57,6 @@ class CaptureViewModel @Inject constructor(
     private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val nasArchiveRepository: NasArchiveRepository,
-    observeFragmentsForDate: ObserveFragmentsForDateUseCase,
-    observeDiaryEntries: ObserveDiaryEntriesUseCase,
     private val fragmentLocationCapture: FragmentLocationCapture,
     private val weatherRepository: HomeWeatherRepository,
     savedStateHandle: SavedStateHandle,
@@ -148,57 +136,7 @@ class CaptureViewModel @Inject constructor(
     private val newFragmentForDate: LocalDate? =
         savedStateHandle.get<String>(ARG_FOR_DATE)?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
 
-    private val contextDay = MutableStateFlow<LocalDate?>(
-        if ((savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L) > 0L) {
-            null
-        } else {
-            newFragmentForDate ?: clock.instant().atZone(zoneId).toLocalDate()
-        }
-    )
-
-    val uiState: StateFlow<CaptureUiState> = combine(
-        contextDay,
-        _uiState,
-        observeDiaryEntries()
-    ) { dayNullable, state, diaryEntries ->
-        Triple(dayNullable, state, diaryEntries)
-    }
-        // 必须用最新的 _uiState.value 合并碎片列表：仅 observeFragmentsForDate 发射时 combine 不会触发，
-        // 若沿用 flatMapLatest 闭包里旧的 state，会回滚用户正在输入的正文并造成光标异常。
-        .flatMapLatest { (dayNullable, _, diaryEntries) ->
-            val base = _uiState.value
-            // 根路由新建碎片：摘要日/「当天手帐」始终以 clock 为准，避免 contextDay 在午夜后仍停留在昨天。
-            val summaryDay: LocalDate? = when {
-                base.editingFragmentId > 0L -> dayNullable
-                newFragmentForDate != null -> newFragmentForDate
-                else -> clock.instant().atZone(zoneId).toLocalDate()
-            }
-            if (summaryDay == null) {
-                flowOf(
-                    base.copy(
-                        summaryCalendarDay = null,
-                        otherFragmentsOnDay = emptyList(),
-                        canGenerateDiary = false,
-                        savedDiaryEntries = emptyList()
-                    )
-                )
-            } else {
-                observeFragmentsForDate(summaryDay).map { fragments ->
-                    val s = _uiState.value
-                    s.copy(
-                        summaryCalendarDay = summaryDay,
-                        otherFragmentsOnDay = if (s.editingFragmentId > 0) {
-                            fragments.filter { it.id != s.editingFragmentId }
-                        } else {
-                            fragments
-                        },
-                        canGenerateDiary = fragments.isNotEmpty(),
-                        savedDiaryEntries = diaryEntries.filter { it.date == summaryDay }
-                    )
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CaptureUiState())
+    val uiState: StateFlow<CaptureUiState> = _uiState.asStateFlow()
 
     init {
         val id = savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L
@@ -208,7 +146,6 @@ class CaptureViewModel @Inject constructor(
                 runCatching { getFragmentById(id) }
                     .onSuccess { fragment ->
                         if (fragment != null) {
-                            contextDay.value = fragment.createdAt.atZone(zoneId).toLocalDate()
                             val recordedAtText = formatFragmentRecordedAtText(fragment.createdAt, zoneId)
                             _uiState.update {
                                 it.copy(
@@ -577,10 +514,6 @@ data class CaptureUiState(
     val isDeleting: Boolean = false,
     val saved: Boolean = false,
     val errorMessage: String? = null,
-    val summaryCalendarDay: LocalDate? = null,
-    val otherFragmentsOnDay: List<LifeFragment> = emptyList(),
-    val canGenerateDiary: Boolean = false,
-    val savedDiaryEntries: List<DiaryEntry> = emptyList(),
     val nasArchiveRefreshing: Boolean = false,
     val nasArchiveSyncMessage: String? = null,
     val weatherCaption: String = HomeWeatherCaption.LOADING
