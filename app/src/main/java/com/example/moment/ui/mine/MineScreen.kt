@@ -1,6 +1,5 @@
 package com.example.moment.ui.mine
 
-import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,9 +19,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,6 +45,7 @@ import com.example.moment.domain.model.UserAppPreferences
 import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import java.io.File
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun MineScreen(
@@ -51,25 +54,25 @@ fun MineScreen(
     viewModel: MineViewModel = hiltViewModel()
 ) {
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
-    val context = LocalContext.current
     var showClearAvatarDialog by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
     val avatarPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
             viewModel.setAvatarFromUri(uri)
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.userMessage.collectLatest { message ->
+            snackbarHostState.showSnackbar(message)
         }
     }
 
     Scaffold(
         containerColor = appScaffoldContainerColor(),
-        contentColor = MaterialTheme.colorScheme.onBackground
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -148,7 +151,8 @@ private fun AccountInfoRow(
         .ifBlank { preferences.nasMomentStorageUserId }
         .ifBlank { "未登录" }
     val avatarText = accountName.take(1).ifBlank { "M" }
-    val hasAvatar = preferences.avatarImagePath.isNotBlank()
+    val avatarFile = preferences.avatarImagePath.takeIf { it.isNotBlank() }?.let(::File)
+    val hasAvatar = avatarFile?.isFile == true
 
     Row(
         modifier = Modifier
@@ -215,7 +219,7 @@ private fun Avatar(
             ),
         contentAlignment = Alignment.Center
     ) {
-        if (imagePath.isNotBlank()) {
+        if (imagePath.isNotBlank() && File(imagePath).isFile) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(File(imagePath))

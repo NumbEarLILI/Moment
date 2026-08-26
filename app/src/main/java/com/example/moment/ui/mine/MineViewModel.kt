@@ -11,8 +11,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,6 +31,9 @@ class MineViewModel @Inject constructor(
         initialValue = UserAppPreferences()
     )
 
+    private val _userMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val userMessage = _userMessage.asSharedFlow()
+
     fun setAvatarFromUri(uri: Uri) {
         viewModelScope.launch {
             runCatching {
@@ -39,6 +44,8 @@ class MineViewModel @Inject constructor(
                 }
             }.onSuccess { file ->
                 userPreferencesRepository.setAvatarImagePath(file.absolutePath)
+            }.onFailure {
+                _userMessage.emit("无法设置头像")
             }
         }
     }
