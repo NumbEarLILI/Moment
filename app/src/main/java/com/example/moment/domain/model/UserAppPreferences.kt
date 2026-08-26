@@ -26,6 +26,10 @@ data class UserAppPreferences(
     val nasMomentStorageUserId: String = "",
     /** 当前已登录的 Moment 账户显示名（与远端 `MomentApp/account_registry.json` 中一致）。 */
     val nasMomentAccountUsername: String = "",
+    /** 本机头像文件路径；空则「我的」页显示名称首字。 */
+    val avatarImagePath: String = "",
+    /** 头像文件最近一次写入时间，用于刷新同路径图片缓存。 */
+    val avatarUpdatedAtEpochMs: Long = 0L,
     /**
      * 为 true 时：保存/刷新手帐后上传到 `MomentArchive/`，删除手帐时删除对应存档目录；
      * 仍可在设置中手动「从存档拉取」。不影响 `MomentBackup/runs/` 快照备份。

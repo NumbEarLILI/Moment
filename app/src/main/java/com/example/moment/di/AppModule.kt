@@ -2,6 +2,7 @@ package com.example.moment.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.moment.data.avatar.UserAvatarStore
 import com.example.moment.data.local.DiaryDao
 import com.example.moment.data.local.FragmentDao
 import com.example.moment.data.local.MIGRATION_1_2
@@ -94,6 +95,11 @@ object AppModule {
 
     @Provides
     fun provideDiaryGenerator(zoneId: ZoneId): DiaryGenerator = RuleBasedDiaryGenerator(zoneId)
+
+    @Provides
+    @Singleton
+    fun provideUserAvatarStore(@ApplicationContext context: Context): UserAvatarStore =
+        UserAvatarStore(context.filesDir)
 
     @Provides
     @Singleton
