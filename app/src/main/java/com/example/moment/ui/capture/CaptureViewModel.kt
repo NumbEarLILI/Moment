@@ -242,6 +242,19 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
+    fun beginNewCapture() {
+        val recordedAt = resolveNewFragmentRecordedAt(clock, zoneId, null) ?: clock.instant()
+        val recordedAtText = formatFragmentRecordedAtText(recordedAt, zoneId)
+        _uiState.update { state ->
+            state.forNewCapture(
+                recordedDate = recordedAtText.date,
+                recordedTime = recordedAtText.time,
+                recordedAt = recordedAt,
+                composeWeather = parseWeatherCaption(state.weatherCaption)
+            )
+        }
+    }
+
     fun updateContent(value: String) = _uiState.update { it.copy(content = value, errorMessage = null) }
     fun updateTags(value: String) = _uiState.update { it.copy(tags = value) }
     fun updateImageUris(value: String) = _uiState.update { it.copy(imageUris = value) }
@@ -525,4 +538,33 @@ data class CaptureUiState(
         } else {
             null
         }
+
+    fun forNewCapture(
+        recordedDate: String,
+        recordedTime: String,
+        recordedAt: java.time.Instant,
+        composeWeather: FragmentWeather?
+    ): CaptureUiState = copy(
+        editingFragmentId = 0L,
+        editingFragmentStableId = "",
+        isLoadingDraft = false,
+        content = "",
+        tags = "",
+        imageUris = "",
+        mood = null,
+        recordedDate = recordedDate,
+        recordedTime = recordedTime,
+        baselineRecordedDate = recordedDate,
+        baselineRecordedTime = recordedTime,
+        baselineRecordedAt = recordedAt,
+        baselineLocation = null,
+        locationOverride = null,
+        baselineWeather = null,
+        composeWeather = composeWeather,
+        isAnalyzingImages = false,
+        isSaving = false,
+        isDeleting = false,
+        saved = false,
+        errorMessage = null
+    )
 }

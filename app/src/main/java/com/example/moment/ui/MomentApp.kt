@@ -93,9 +93,10 @@ fun MomentApp() {
                 .padding(padding)
                 .consumeWindowInsets(padding)
         ) {
-            composable(Routes.Home) {
+            composable(Routes.Home) { entry ->
                 HomeScreen(
-                    onCreateFragment = { navController.navigate(Routes.capture(0L)) },
+                    navController = navController,
+                    backStackEntry = entry,
                     onEditFragment = { id -> navController.navigate(Routes.editFragment(id)) }
                 )
             }
