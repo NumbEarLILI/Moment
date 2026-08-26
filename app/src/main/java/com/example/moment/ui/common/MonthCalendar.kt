@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -138,7 +137,11 @@ private fun DayCell(
     val scheme = MaterialTheme.colorScheme
     val isSelected = date == selectedDate
     val isToday = date == today
-    val bg = if (isSelected) scheme.primary.copy(alpha = 0.16f) else Color.Transparent
+    val bg = when {
+        isSelected -> scheme.primary.copy(alpha = 0.28f)
+        hasRecord -> scheme.primaryContainer
+        else -> Color.Transparent
+    }
     Box(
         modifier = modifier
             .aspectRatio(1f)
@@ -153,18 +156,9 @@ private fun DayCell(
             fontWeight = if (isToday || isSelected || hasRecord) FontWeight.SemiBold else FontWeight.Normal,
             color = when {
                 isSelected || isToday -> scheme.primary
+                hasRecord -> scheme.onPrimaryContainer
                 else -> scheme.onSurface
             }
         )
-        if (hasRecord) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 5.dp)
-                    .size(5.dp)
-                    .clip(CircleShape)
-                    .background(scheme.primary)
-            )
-        }
     }
 }
