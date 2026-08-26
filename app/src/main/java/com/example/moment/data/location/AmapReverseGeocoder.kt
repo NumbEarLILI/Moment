@@ -81,18 +81,21 @@ class AmapReverseGeocoder @Inject constructor() {
             }
             val regeo = root.optJSONObject("regeocode")
                 ?: return AmapRegeoResult(null, "无 regeocode 节点")
+            val addressComponent = regeo.optJSONObject("addressComponent")
+            val adcode = addressComponent?.optString("adcode")?.trim()
+                ?.takeIf { it.isNotEmpty() && it != "[]" }
             regeo.optString("formatted_address").trim().takeIf { it.isNotEmpty() }?.let {
-                return AmapRegeoResult(it, null)
+                return AmapRegeoResult(it, null, adcode)
             }
-            humanFromAddressComponent(regeo.optJSONObject("addressComponent"))?.let {
-                return AmapRegeoResult(it, null)
+            humanFromAddressComponent(addressComponent)?.let {
+                return AmapRegeoResult(it, null, adcode)
             }
             val pois = regeo.optJSONArray("pois")
             if (pois != null && pois.length() > 0) {
                 val name = pois.getJSONObject(0).optString("name").trim()
-                if (name.isNotEmpty()) return AmapRegeoResult(name, null)
+                if (name.isNotEmpty()) return AmapRegeoResult(name, null, adcode)
             }
-            AmapRegeoResult(null, "formatted_address、addressComponent、pois 均无可用文本")
+            AmapRegeoResult(null, "formatted_address、addressComponent、pois 均无可用文本", adcode)
         } catch (e: Exception) {
             AmapRegeoResult(null, "JSON 解析失败: ${e.message} body=${body.take(200)}")
         }
@@ -141,4 +144,5 @@ class AmapReverseGeocoder @Inject constructor() {
 data class AmapRegeoResult(
     val label: String?,
     val failureDetail: String?,
+    val adcode: String? = null,
 )

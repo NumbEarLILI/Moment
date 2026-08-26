@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -34,14 +36,17 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.moment.R
 import com.example.moment.ui.capture.CaptureScreen
+import com.example.moment.ui.capture.EditFragmentScreen
 import com.example.moment.ui.diary.DiaryDetailScreen
 import com.example.moment.ui.diary.DiaryEditScreen
 import com.example.moment.ui.diary.DiaryPreviewScreen
 import com.example.moment.ui.history.HistoryScreen
 import com.example.moment.ui.history.HistoryViewModel
+import com.example.moment.ui.home.HomeScreen
 import com.example.moment.ui.mine.AccountSettingsScreen
 import com.example.moment.ui.mine.MineScreen
 import com.example.moment.ui.place.PlacePickScreen
+import com.example.moment.ui.settings.AboutScreen
 import com.example.moment.ui.settings.SettingsScreen
 import com.example.moment.ui.theme.appRootContainerColor
 import java.time.LocalDate
@@ -52,14 +57,13 @@ fun MomentApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val mainTabs = listOf(
-        MainTab(label = "首页", iconRes = R.drawable.ic_nav_home, route = Routes.RootCapture, selectedRoute = Routes.Capture),
+        MainTab(label = "首页", iconRes = R.drawable.ic_nav_home, route = Routes.Home, selectedRoute = Routes.Home),
         MainTab(label = "历史", iconRes = R.drawable.ic_nav_history, route = Routes.History, selectedRoute = Routes.History),
         MainTab(label = "我的", iconRes = R.drawable.ic_nav_mine, route = Routes.Mine, selectedRoute = Routes.Mine)
     )
-    val isRootCapture = currentRoute == Routes.Capture &&
-        (backStackEntry?.arguments?.getLong("fragmentId") ?: 0L) == 0L &&
-        backStackEntry?.arguments?.getString("forDate").isNullOrBlank()
-    val showBottomBar = isRootCapture || currentRoute == Routes.History || currentRoute == Routes.Mine
+    val showBottomBar = currentRoute == Routes.Home ||
+        currentRoute == Routes.History ||
+        currentRoute == Routes.Mine
 
     Scaffold(
         containerColor = appRootContainerColor(),
@@ -85,11 +89,18 @@ fun MomentApp() {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = Routes.RootCapture,
+            startDestination = Routes.Home,
             modifier = Modifier
                 .padding(padding)
                 .consumeWindowInsets(padding)
         ) {
+            composable(Routes.Home) { entry ->
+                HomeScreen(
+                    navController = navController,
+                    backStackEntry = entry,
+                    onEditFragment = { id -> navController.navigate(Routes.editFragment(id)) }
+                )
+            }
             composable(
                 route = Routes.Capture,
                 arguments = listOf(
@@ -102,13 +113,29 @@ fun MomentApp() {
                     backStackEntry = entry,
                     onClose = {
                         if (!navController.popBackStack()) {
-                            navController.navigate(Routes.RootCapture) {
+                            navController.navigate(Routes.Home) {
                                 popUpTo(navController.graph.startDestinationId) { inclusive = true }
                             }
                         }
-                    },
-                    onGenerateDiary = { date -> navController.navigate(Routes.preview(date, 0L)) },
-                    onOpenDiary = { id -> navController.navigate("detail/$id") }
+                    }
+                )
+            }
+            composable(
+                route = Routes.EditFragment,
+                arguments = listOf(
+                    navArgument("fragmentId") { type = NavType.LongType }
+                )
+            ) { entry ->
+                EditFragmentScreen(
+                    navController = navController,
+                    backStackEntry = entry,
+                    onClose = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(Routes.Home) {
+                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            }
+                        }
+                    }
                 )
             }
             composable(
@@ -130,8 +157,9 @@ fun MomentApp() {
                 val historyViewModel: HistoryViewModel = hiltViewModel()
                 HistoryScreen(
                     onAddFragmentForPastDay = { date -> navController.navigate(Routes.capture(0L, date)) },
-                    onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
+                    onContinueEditFragment = { id -> navController.navigate(Routes.editFragment(id)) },
                     onOpenDiary = { id -> navController.navigate("detail/$id") },
+                    onGenerateDiary = { date -> navController.navigate(Routes.preview(date, 0L)) },
                     viewModel = historyViewModel
                 )
             }
@@ -145,7 +173,13 @@ fun MomentApp() {
                 AccountSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.Settings) {
-                SettingsScreen(onBack = { navController.popBackStack() })
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenAbout = { navController.navigate(Routes.About) }
+                )
+            }
+            composable(Routes.About) {
+                AboutScreen(onBack = { navController.popBackStack() })
             }
             composable(
                 route = Routes.Detail,
@@ -196,13 +230,19 @@ private fun MomentBottomNavigation(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-        tonalElevation = 3.dp
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
-        Row(
+        Column(Modifier.fillMaxWidth()) {
+            HorizontalDivider(
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
+            )
+            Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .height(48.dp)
+                .height(56.dp)
                 .selectableGroup(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
@@ -212,20 +252,20 @@ private fun MomentBottomNavigation(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp)
+                        .height(56.dp)
                         .selectable(
                             selected = selected,
                             onClick = { onTabClick(tab) },
                             role = Role.Tab
                         )
-                        .padding(top = 6.dp),
+                        .padding(top = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     Icon(
                         painter = painterResource(tab.iconRes),
                         contentDescription = null,
-                        modifier = Modifier.height(20.dp),
+                        modifier = Modifier.height(22.dp),
                         tint = if (selected) {
                             MaterialTheme.colorScheme.primary
                         } else {
@@ -235,6 +275,7 @@ private fun MomentBottomNavigation(
                     Text(
                         text = tab.label,
                         style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                         color = if (selected) {
                             MaterialTheme.colorScheme.primary
                         } else {
@@ -242,6 +283,7 @@ private fun MomentBottomNavigation(
                         }
                     )
                 }
+            }
             }
         }
     }
@@ -255,8 +297,9 @@ private data class MainTab(
 )
 
 object Routes {
-    val RootCapture: String = capture(0L, null)
+    const val Home = "home"
     const val Capture = "capture?fragmentId={fragmentId}&forDate={forDate}"
+    const val EditFragment = "editFragment/{fragmentId}"
     const val Preview = "preview/{date}/{diaryId}"
 
     /** @param diaryId 已保存手帐的主键；无锚点手帐时用 0（须写入路径，query 在部分机型上不进 SavedStateHandle）。 */
@@ -265,19 +308,26 @@ object Routes {
     const val Mine = "mine"
     const val AccountSettings = "accountSettings"
     const val Settings = "settings"
+    const val About = "about"
     const val Detail = "detail/{id}"
     const val DiaryEdit = "edit/{id}"
     const val PlacePick = "placePick?lat={lat}&lng={lng}&hint={hint}&fragmentId={fragmentId}&diaryId={diaryId}"
 
     fun editDiary(id: Long): String = "edit/$id"
 
+    fun editFragment(id: Long): String = "editFragment/$id"
+
     fun capture(fragmentId: Long, forDate: LocalDate? = null): String =
-        buildString {
-            append("capture?fragmentId=$fragmentId")
-            if (fragmentId == 0L && forDate != null) {
-                append("&forDate=$forDate")
-            } else {
-                append("&forDate=")
+        if (fragmentId > 0L) {
+            editFragment(fragmentId)
+        } else {
+            buildString {
+                append("capture?fragmentId=0")
+                if (forDate != null) {
+                    append("&forDate=$forDate")
+                } else {
+                    append("&forDate=")
+                }
             }
         }
 

@@ -100,9 +100,21 @@ jobs:
           AMAP_WEB_SERVICE_SECRET: ${{ secrets.AMAP_WEB_SERVICE_SECRET }}
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
+      - name: Read app version
+        id: version
+        run: |
+          VERSION="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
+          if [ -z "$VERSION" ]; then
+            echo "Could not read versionName from app/build.gradle.kts" >&2
+            exit 1
+          fi
+          echo "name=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Uploading Moment-${VERSION}.apk"
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: Moment-${{ env.APP_VERSION }}
+          path: app/build/outputs/apk/debug/Moment-*.apk
           if-no-files-found: error

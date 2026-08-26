@@ -2,6 +2,8 @@ package com.example.moment.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.moment.data.avatar.AvatarCropProcessor
+import com.example.moment.data.avatar.UserAvatarStore
 import com.example.moment.data.local.DiaryDao
 import com.example.moment.data.local.FragmentDao
 import com.example.moment.data.local.MIGRATION_1_2
@@ -11,6 +13,7 @@ import com.example.moment.data.local.MIGRATION_4_5
 import com.example.moment.data.local.MIGRATION_5_6
 import com.example.moment.data.local.MIGRATION_6_7
 import com.example.moment.data.local.MIGRATION_7_8
+import com.example.moment.data.local.MIGRATION_8_9
 import com.example.moment.data.local.MomentDatabase
 import com.example.moment.data.repository.DiaryRepositoryImpl
 import com.example.moment.data.repository.FragmentRepositoryImpl
@@ -74,7 +77,8 @@ object AppModule {
                 MIGRATION_4_5,
                 MIGRATION_5_6,
                 MIGRATION_6_7,
-                MIGRATION_7_8
+                MIGRATION_7_8,
+                MIGRATION_8_9
             )
             .build()
 
@@ -92,6 +96,16 @@ object AppModule {
 
     @Provides
     fun provideDiaryGenerator(zoneId: ZoneId): DiaryGenerator = RuleBasedDiaryGenerator(zoneId)
+
+    @Provides
+    @Singleton
+    fun provideUserAvatarStore(@ApplicationContext context: Context): UserAvatarStore =
+        UserAvatarStore(context.filesDir)
+
+    @Provides
+    @Singleton
+    fun provideAvatarCropProcessor(@ApplicationContext context: Context): AvatarCropProcessor =
+        AvatarCropProcessor(context.filesDir)
 
     @Provides
     @Singleton

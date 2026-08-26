@@ -4,10 +4,15 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.preferences.UserPreferencesRepository
+import com.example.moment.data.location.CapturedPlaceResolver
 import com.example.moment.data.location.FragmentLocationCapture
-import com.example.moment.domain.model.DiaryEntry
+import com.example.moment.data.weather.HomeWeatherRepository
+import com.example.moment.domain.weather.HomeWeatherCaption
+import com.example.moment.domain.weather.LoadCurrentWeather
+import com.example.moment.domain.weather.ResolveFragmentWeather
+import com.example.moment.domain.weather.parseWeatherCaption
 import com.example.moment.domain.model.FragmentLocation
-import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.model.FragmentWeather
 import com.example.moment.domain.model.Mood
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.domain.model.NasArchiveConflictInfo
@@ -21,12 +26,11 @@ import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.DeleteFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
-import com.example.moment.domain.usecase.ObserveDiaryEntriesUseCase
-import com.example.moment.domain.usecase.ObserveFragmentsForDateUseCase
 import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
 import com.example.moment.domain.time.resolveNewFragmentRecordedAt
 import com.example.moment.domain.usecase.UpdateFragmentResult
 import com.example.moment.domain.usecase.UpdateFragmentUseCase
+import com.example.moment.ui.navigation.navArgLong
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -35,15 +39,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -61,9 +59,9 @@ class CaptureViewModel @Inject constructor(
     private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val nasArchiveRepository: NasArchiveRepository,
-    observeFragmentsForDate: ObserveFragmentsForDateUseCase,
-    observeDiaryEntries: ObserveDiaryEntriesUseCase,
     private val fragmentLocationCapture: FragmentLocationCapture,
+    private val capturedPlaceResolver: CapturedPlaceResolver,
+    private val weatherRepository: HomeWeatherRepository,
     savedStateHandle: SavedStateHandle,
     private val zoneId: ZoneId,
     private val clock: Clock
@@ -74,6 +72,9 @@ class CaptureViewModel @Inject constructor(
         _nasArchiveConflict.asStateFlow()
 
     private var nasArchiveConflictContinuation: CancellableContinuation<NasArchiveConflictChoice>? = null
+    private var weatherGeneration = 0
+    private var weatherLocationAutoRequested = false
+    private var placeGeneration = 0
 
     override fun onCleared() {
         nasArchiveConflictContinuation?.cancel()
@@ -139,67 +140,16 @@ class CaptureViewModel @Inject constructor(
     private val newFragmentForDate: LocalDate? =
         savedStateHandle.get<String>(ARG_FOR_DATE)?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
 
-    private val contextDay = MutableStateFlow<LocalDate?>(
-        if ((savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L) > 0L) {
-            null
-        } else {
-            newFragmentForDate ?: clock.instant().atZone(zoneId).toLocalDate()
-        }
-    )
-
-    val uiState: StateFlow<CaptureUiState> = combine(
-        contextDay,
-        _uiState,
-        observeDiaryEntries()
-    ) { dayNullable, state, diaryEntries ->
-        Triple(dayNullable, state, diaryEntries)
-    }
-        // 必须用最新的 _uiState.value 合并碎片列表：仅 observeFragmentsForDate 发射时 combine 不会触发，
-        // 若沿用 flatMapLatest 闭包里旧的 state，会回滚用户正在输入的正文并造成光标异常。
-        .flatMapLatest { (dayNullable, _, diaryEntries) ->
-            val base = _uiState.value
-            // 根路由新建碎片：摘要日/「当天手帐」始终以 clock 为准，避免 contextDay 在午夜后仍停留在昨天。
-            val summaryDay: LocalDate? = when {
-                base.editingFragmentId > 0L -> dayNullable
-                newFragmentForDate != null -> newFragmentForDate
-                else -> clock.instant().atZone(zoneId).toLocalDate()
-            }
-            if (summaryDay == null) {
-                flowOf(
-                    base.copy(
-                        summaryCalendarDay = null,
-                        otherFragmentsOnDay = emptyList(),
-                        canGenerateDiary = false,
-                        savedDiaryEntries = emptyList()
-                    )
-                )
-            } else {
-                observeFragmentsForDate(summaryDay).map { fragments ->
-                    val s = _uiState.value
-                    s.copy(
-                        summaryCalendarDay = summaryDay,
-                        otherFragmentsOnDay = if (s.editingFragmentId > 0) {
-                            fragments.filter { it.id != s.editingFragmentId }
-                        } else {
-                            fragments
-                        },
-                        canGenerateDiary = fragments.isNotEmpty(),
-                        savedDiaryEntries = diaryEntries.filter { it.date == summaryDay }
-                    )
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CaptureUiState())
+    val uiState: StateFlow<CaptureUiState> = _uiState.asStateFlow()
 
     init {
-        val id = savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L
+        val id = savedStateHandle.navArgLong(ARG_FRAGMENT_ID)
         if (id > 0) {
             _uiState.update { it.copy(editingFragmentId = id, editingFragmentStableId = "", isLoadingDraft = true) }
             viewModelScope.launch {
                 runCatching { getFragmentById(id) }
                     .onSuccess { fragment ->
                         if (fragment != null) {
-                            contextDay.value = fragment.createdAt.atZone(zoneId).toLocalDate()
                             val recordedAtText = formatFragmentRecordedAtText(fragment.createdAt, zoneId)
                             _uiState.update {
                                 it.copy(
@@ -216,6 +166,8 @@ class CaptureViewModel @Inject constructor(
                                     baselineRecordedAt = fragment.createdAt,
                                     baselineLocation = fragment.location,
                                     locationOverride = null,
+                                    baselineWeather = fragment.weather,
+                                    composeWeather = fragment.weather,
                                     errorMessage = null
                                 )
                             }
@@ -250,6 +202,79 @@ class CaptureViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun consumeAutoRequestWeatherLocation(): Boolean {
+        if (weatherLocationAutoRequested) return false
+        weatherLocationAutoRequested = true
+        return true
+    }
+
+    fun refreshCurrentPlace() {
+        val snapshot = _uiState.value
+        if (snapshot.editingFragmentId > 0L || snapshot.locationOverride != null) return
+        val generation = ++placeGeneration
+        viewModelScope.launch {
+            _uiState.update { it.copy(isResolvingPlace = true) }
+            val place = runCatching { capturedPlaceResolver.currentPlace() }.getOrNull()
+            if (generation != placeGeneration) return@launch
+            _uiState.update { state ->
+                if (state.editingFragmentId > 0L || state.locationOverride != null) {
+                    state.copy(isResolvingPlace = false)
+                } else {
+                    state.copy(baselineLocation = place, isResolvingPlace = false)
+                }
+            }
+        }
+    }
+
+    fun refreshWeather() {
+        val generation = ++weatherGeneration
+        viewModelScope.launch {
+            val previous = _uiState.value.weatherCaption
+            val showLoading = previous.isBlank() ||
+                previous == HomeWeatherCaption.LOADING ||
+                previous == HomeWeatherCaption.NEED_LOCATION ||
+                previous == HomeWeatherCaption.UNAVAILABLE
+            if (showLoading) {
+                _uiState.update { it.copy(weatherCaption = HomeWeatherCaption.LOADING) }
+            }
+            val hasPermission = fragmentLocationCapture.hasLocationPermission()
+            val loc = if (hasPermission) {
+                runCatching { fragmentLocationCapture.captureLastKnownIfPermitted() }.getOrNull()
+                    ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+            } else {
+                null
+            }
+            val caption = LoadCurrentWeather.caption(
+                hasPermission = hasPermission,
+                location = loc,
+                fetch = { lat, lng -> weatherRepository.fetchCurrent(lat, lng) }
+            )
+            if (generation != weatherGeneration) return@launch
+            val parsed = parseWeatherCaption(caption)
+            _uiState.update { state ->
+                val adoptHeader = state.editingFragmentId == 0L && state.locationOverride == null
+                state.copy(
+                    weatherCaption = caption,
+                    composeWeather = if (adoptHeader && parsed != null) parsed else state.composeWeather
+                )
+            }
+        }
+    }
+
+    fun beginNewCapture() {
+        val recordedAt = resolveNewFragmentRecordedAt(clock, zoneId, null) ?: clock.instant()
+        val recordedAtText = formatFragmentRecordedAtText(recordedAt, zoneId)
+        _uiState.update { state ->
+            state.forNewCapture(
+                recordedDate = recordedAtText.date,
+                recordedTime = recordedAtText.time,
+                recordedAt = recordedAt,
+                composeWeather = parseWeatherCaption(state.weatherCaption)
+            )
+        }
+        refreshCurrentPlace()
     }
 
     fun updateContent(value: String) = _uiState.update { it.copy(content = value, errorMessage = null) }
@@ -299,7 +324,14 @@ class CaptureViewModel @Inject constructor(
         runCatching {
             Json.decodeFromString(FragmentLocation.serializer(), json)
         }.onSuccess { loc ->
-            _uiState.update { it.copy(locationOverride = loc, errorMessage = null) }
+            _uiState.update { it.copy(locationOverride = loc, composeWeather = null, errorMessage = null) }
+            viewModelScope.launch {
+                val weather = captureWeather(loc)
+                _uiState.update { state ->
+                    if (state.locationOverride != loc) state
+                    else state.copy(composeWeather = weather)
+                }
+            }
         }
     }
 
@@ -382,7 +414,12 @@ class CaptureViewModel @Inject constructor(
                             mood = state.mood,
                             tags = state.tags.csvValues(),
                             recordedAt = recordedAt,
-                            location = state.locationOverride ?: state.baselineLocation
+                            location = state.locationOverride ?: state.baselineLocation,
+                            weather = resolveWeatherForSave(
+                                location = state.locationOverride ?: state.baselineLocation,
+                                existing = state.baselineWeather,
+                                recordedAt = recordedAt
+                            )
                         )
                     ) {
                         UpdateFragmentResult.Empty -> _uiState.update {
@@ -395,7 +432,13 @@ class CaptureViewModel @Inject constructor(
                     }
                 } else {
                     val location = state.locationOverride
+                        ?: state.baselineLocation
                         ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+                    val weather = resolveWeatherForSave(
+                        location = location,
+                        existing = null,
+                        recordedAt = recordedAt
+                    )
                     when (
                         addFragment(
                             content = state.content,
@@ -403,7 +446,8 @@ class CaptureViewModel @Inject constructor(
                             mood = state.mood,
                             tags = state.tags.csvValues(),
                             recordedAt = recordedAt,
-                            location = location
+                            location = location,
+                            weather = weather
                         )
                     ) {
                         AddFragmentResult.Empty -> _uiState.update {
@@ -439,6 +483,42 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
+    private suspend fun resolveWeatherForSave(
+        location: FragmentLocation?,
+        existing: FragmentWeather?,
+        recordedAt: java.time.Instant
+    ): FragmentWeather? {
+        val state = _uiState.value
+        val placeChanged = state.locationOverride != null &&
+            state.locationOverride != state.baselineLocation
+        val recordedOnDifferentDay =
+            recordedAt.atZone(zoneId).toLocalDate() != clock.instant().atZone(zoneId).toLocalDate()
+        return when (
+            val decision = ResolveFragmentWeather.decide(
+                isEditing = state.editingFragmentId > 0L,
+                existing = existing,
+                placeChanged = placeChanged,
+                recordedOnDifferentDay = recordedOnDifferentDay,
+                headerWeather = parseWeatherCaption(state.weatherCaption),
+                fetchLocation = location
+            )
+        ) {
+            is ResolveFragmentWeather.Decision.Keep -> decision.weather
+            is ResolveFragmentWeather.Decision.Use -> decision.weather
+            is ResolveFragmentWeather.Decision.Fetch -> captureWeather(decision.location) ?: existing
+        }
+    }
+
+    private suspend fun captureWeather(location: FragmentLocation?): FragmentWeather? {
+        val coords = location
+            ?: runCatching { fragmentLocationCapture.captureLastKnownIfPermitted() }.getOrNull()
+            ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+            ?: return null
+        return runCatching { weatherRepository.fetchCurrent(coords.latitude, coords.longitude) }
+            .getOrNull()
+            ?.toFragmentWeather()
+    }
+
     private fun String.csvValues(): List<String> =
         split(",").map { it.trim() }.filter { it.isNotEmpty() }
 
@@ -464,17 +544,17 @@ data class CaptureUiState(
     val baselineRecordedAt: java.time.Instant? = null,
     val baselineLocation: FragmentLocation? = null,
     val locationOverride: FragmentLocation? = null,
+    val isResolvingPlace: Boolean = false,
+    val baselineWeather: FragmentWeather? = null,
+    val composeWeather: FragmentWeather? = null,
     val isAnalyzingImages: Boolean = false,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
     val saved: Boolean = false,
     val errorMessage: String? = null,
-    val summaryCalendarDay: LocalDate? = null,
-    val otherFragmentsOnDay: List<LifeFragment> = emptyList(),
-    val canGenerateDiary: Boolean = false,
-    val savedDiaryEntries: List<DiaryEntry> = emptyList(),
     val nasArchiveRefreshing: Boolean = false,
-    val nasArchiveSyncMessage: String? = null
+    val nasArchiveSyncMessage: String? = null,
+    val weatherCaption: String = HomeWeatherCaption.LOADING
 ) {
     fun baselineRecordedText(): FragmentRecordedAtText? =
         if (baselineRecordedDate.isNotBlank() && baselineRecordedTime.isNotBlank()) {
@@ -482,4 +562,34 @@ data class CaptureUiState(
         } else {
             null
         }
+
+    fun forNewCapture(
+        recordedDate: String,
+        recordedTime: String,
+        recordedAt: java.time.Instant,
+        composeWeather: FragmentWeather?
+    ): CaptureUiState = copy(
+        editingFragmentId = 0L,
+        editingFragmentStableId = "",
+        isLoadingDraft = false,
+        content = "",
+        tags = "",
+        imageUris = "",
+        mood = null,
+        recordedDate = recordedDate,
+        recordedTime = recordedTime,
+        baselineRecordedDate = recordedDate,
+        baselineRecordedTime = recordedTime,
+        baselineRecordedAt = recordedAt,
+        baselineLocation = null,
+        locationOverride = null,
+        isResolvingPlace = false,
+        baselineWeather = null,
+        composeWeather = composeWeather,
+        isAnalyzingImages = false,
+        isSaving = false,
+        isDeleting = false,
+        saved = false,
+        errorMessage = null
+    )
 }

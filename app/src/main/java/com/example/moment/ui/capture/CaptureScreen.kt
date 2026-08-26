@@ -7,10 +7,9 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,17 +35,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,10 +62,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -71,10 +78,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.example.moment.R
 import com.example.moment.domain.model.FragmentLocation
+import com.example.moment.domain.model.FragmentWeather
 import com.example.moment.domain.model.NasArchiveConflictChoice
 import com.example.moment.ui.Routes
-import com.example.moment.ui.diary.DiarySummaryCard
+import com.example.moment.ui.common.FragmentWeatherAndPlace
+import com.example.moment.ui.common.QuietTextAction
+import com.example.moment.ui.common.RecordedAtField
+import com.example.moment.ui.common.TagChip
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.place.MOMENT_PICK_LOCATION_JSON_KEY
 import com.example.moment.ui.timeline.FragmentTimelineSection
@@ -86,24 +98,52 @@ import java.util.Locale
 
 private val ImageThumbSize = 88.dp
 private val HeaderDateFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)
+    DateTimeFormatter.ofPattern("M月d日", Locale.CHINA)
 
-private const val CAPTURE_MOMENT_EXPANDED_KEY = "captureMomentExpanded"
-
-@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun CaptureScreen(
     navController: NavHostController,
     backStackEntry: NavBackStackEntry,
     onClose: () -> Unit,
-    onGenerateDiary: (LocalDate) -> Unit,
-    onOpenDiary: (Long) -> Unit,
-    viewModel: CaptureViewModel = hiltViewModel(),
-    timelineViewModel: FragmentTimelineViewModel = hiltViewModel()
+    viewModel: CaptureViewModel = hiltViewModel()
+) {
+    FragmentComposeScreen(
+        navController = navController,
+        backStackEntry = backStackEntry,
+        onClose = onClose,
+        viewModel = viewModel
+    )
+}
+
+@Composable
+fun EditFragmentScreen(
+    navController: NavHostController,
+    backStackEntry: NavBackStackEntry,
+    onClose: () -> Unit,
+    viewModel: CaptureViewModel = hiltViewModel()
+) {
+    FragmentComposeScreen(
+        navController = navController,
+        backStackEntry = backStackEntry,
+        onClose = onClose,
+        viewModel = viewModel
+    )
+}
+
+@OptIn(ExperimentalMaterialApi::class)
+@Composable
+fun FragmentComposeScreen(
+    navController: NavHostController,
+    backStackEntry: NavBackStackEntry,
+    onClose: () -> Unit,
+    viewModel: CaptureViewModel,
+    inlineOnHome: Boolean = false,
+    onEditFragment: (Long) -> Unit = {},
+    timelineViewModel: FragmentTimelineViewModel? = null
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val timelineState by timelineViewModel.uiState.collectAsStateWithLifecycle()
+    val isEditing = state.editingFragmentId > 0L
     val nasArchiveConflict by viewModel.nasArchiveConflictInfo.collectAsStateWithLifecycle()
     val pullRefreshState = rememberPullRefreshState(
         refreshing = state.nasArchiveRefreshing,
@@ -112,10 +152,9 @@ fun CaptureScreen(
     val pickJson by backStackEntry.savedStateHandle
         .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
         .collectAsStateWithLifecycle()
-    val navFragmentId = backStackEntry.arguments?.getLong("fragmentId") ?: 0L
-    val momentExpanded by backStackEntry.savedStateHandle
-        .getStateFlow(CAPTURE_MOMENT_EXPANDED_KEY, navFragmentId > 0L)
-        .collectAsStateWithLifecycle()
+    val forDate = backStackEntry.arguments?.getString("forDate")?.takeIf { it.isNotBlank() }
+    val isTodayCreate = !isEditing && forDate.isNullOrBlank()
+    var momentExpanded by rememberSaveable { mutableStateOf(!inlineOnHome) }
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var pendingSaveAfterLocationPermission by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
@@ -136,6 +175,15 @@ fun CaptureScreen(
         viewModel.save()
     }
 
+    val weatherPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        viewModel.refreshCurrentPlace()
+        if (inlineOnHome || isTodayCreate) {
+            viewModel.refreshWeather()
+        }
+    }
+
     var showPlacePickPermissionDialog by remember { mutableStateOf(false) }
     var pendingPlacePickAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
@@ -145,6 +193,7 @@ fun CaptureScreen(
         val action = pendingPlacePickAction
         pendingPlacePickAction = null
         showPlacePickPermissionDialog = false
+        viewModel.refreshCurrentPlace()
         action?.invoke()
     }
 
@@ -174,6 +223,34 @@ fun CaptureScreen(
         }
     }
 
+    fun requestWeather() {
+        if (!inlineOnHome && !isTodayCreate) return
+        if (hasLocationPermission()) {
+            viewModel.refreshWeather()
+        } else {
+            weatherPermissionLauncher.launch(
+                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
+            )
+        }
+    }
+
+    LaunchedEffect(isEditing, inlineOnHome, isTodayCreate) {
+        if (isEditing) return@LaunchedEffect
+        if (hasLocationPermission()) {
+            viewModel.refreshCurrentPlace()
+            if (inlineOnHome || isTodayCreate) {
+                viewModel.refreshWeather()
+            }
+        } else if (viewModel.consumeAutoRequestWeatherLocation()) {
+            weatherPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
+            )
+        }
+    }
+
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
@@ -195,12 +272,18 @@ fun CaptureScreen(
         }
     }
 
-    LaunchedEffect(state.saved) {
-        if (state.saved) onClose()
+    LaunchedEffect(state.saved, inlineOnHome) {
+        if (!state.saved) return@LaunchedEffect
+        if (inlineOnHome) {
+            viewModel.beginNewCapture()
+            momentExpanded = false
+        } else {
+            onClose()
+        }
     }
 
-    LaunchedEffect(state.nasArchiveSyncMessage) {
-        if (state.nasArchiveSyncMessage != null) {
+    LaunchedEffect(state.nasArchiveSyncMessage, inlineOnHome) {
+        if (inlineOnHome && state.nasArchiveSyncMessage != null) {
             kotlinx.coroutines.delay(5000)
             viewModel.clearNasArchiveSyncMessage()
         }
@@ -210,27 +293,97 @@ fun CaptureScreen(
         if (pickJson.isNotBlank()) {
             viewModel.applyPickedLocationFromJson(pickJson)
             backStackEntry.savedStateHandle[MOMENT_PICK_LOCATION_JSON_KEY] = ""
-            backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = true
+            if (inlineOnHome) {
+                momentExpanded = true
+            }
         }
+    }
+
+    val composer: @Composable () -> Unit = {
+        CaptureMomentExpandable(
+            expanded = if (inlineOnHome) momentExpanded else true,
+            onToggleExpanded = { momentExpanded = !momentExpanded },
+            showCollapseAction = inlineOnHome,
+            content = state.content,
+            onContentChange = viewModel::updateContent,
+            recordedDate = state.recordedDate,
+            onRecordedDateChange = viewModel::updateRecordedDate,
+            recordedTime = state.recordedTime,
+            onRecordedTimeChange = viewModel::updateRecordedTime,
+            tagList = tagList,
+            onRemoveTag = viewModel::removeTag,
+            newTagInput = newTagInput,
+            onNewTagInputChange = { newTagInput = it },
+            onCommitNewTag = {
+                viewModel.addTag(newTagInput)
+                newTagInput = ""
+            },
+            imageUriList = imageUriList,
+            onRemoveImage = viewModel::removeImageUri,
+            onCamera = {
+                val uri = createCameraImageUri(context)
+                pendingCameraUri = uri
+                takePicture.launch(uri)
+            },
+            onGallery = { imagePicker.launch(arrayOf("image/*")) },
+            onPickPlace = {
+                fun navigateToPlacePick() {
+                    viewModel.requestPlacePickSeed { lat, lng, hint ->
+                        navController.navigate(
+                            Routes.placePick(
+                                lat,
+                                lng,
+                                hint,
+                                state.editingFragmentStableId,
+                                0L
+                            )
+                        )
+                    }
+                }
+                if (hasLocationPermission()) {
+                    navigateToPlacePick()
+                } else {
+                    pendingPlacePickAction = { navigateToPlacePick() }
+                    showPlacePickPermissionDialog = true
+                }
+            },
+            location = state.locationOverride ?: state.baselineLocation,
+            isResolvingPlace = state.isResolvingPlace,
+            weather = state.composeWeather,
+            isAnalyzingImages = state.isAnalyzingImages,
+            interactionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
+            errorMessage = state.errorMessage,
+            saveLabel = when {
+                state.isSaving -> "保存中..."
+                isEditing -> "保存修改"
+                else -> "保存碎片"
+            },
+            onSave = { requestSave() },
+            saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages && !state.isDeleting,
+            canDeleteFragment = isEditing && state.editingFragmentId > 0,
+            isDeleting = state.isDeleting,
+            onRequestDelete = { showDeleteConfirmDialog = true }
+        )
     }
 
     Box(
         Modifier
             .fillMaxSize()
-            .pullRefresh(pullRefreshState)
+            .then(if (inlineOnHome) Modifier.pullRefresh(pullRefreshState) else Modifier)
     ) {
-            Scaffold(
-                containerColor = appScaffoldContainerColor(),
-                contentColor = MaterialTheme.colorScheme.onBackground
-            ) { padding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(padding)
-                        .imePadding()
-                        .navigationBarsPadding()
-                        .verticalScroll(scrollState)
-                ) {
+        Scaffold(
+            containerColor = appScaffoldContainerColor(),
+            contentColor = MaterialTheme.colorScheme.onBackground
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(padding)
+                    .imePadding()
+                    .navigationBarsPadding()
+                    .verticalScroll(scrollState)
+            ) {
+                if (inlineOnHome) {
                     state.nasArchiveSyncMessage?.let { msg ->
                         Text(
                             text = msg,
@@ -239,158 +392,90 @@ fun CaptureScreen(
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                         )
                     }
-                    CaptureHeader(
-                    selectedDate = state.summaryCalendarDay,
-                    canGenerateDiary = state.canGenerateDiary,
-                    onGenerateDiary = { state.summaryCalendarDay?.let(onGenerateDiary) },
-                    momentExpanded = momentExpanded,
-                    onToggleMomentExpanded = {
-                        val cur = backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] ?: false
-                        backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = !cur
-                    },
-                    momentContent = state.content,
-                    onMomentContentChange = viewModel::updateContent,
-                    recordedDate = state.recordedDate,
-                    onRecordedDateChange = viewModel::updateRecordedDate,
-                    recordedTime = state.recordedTime,
-                    onRecordedTimeChange = viewModel::updateRecordedTime,
-                    tagList = tagList,
-                    onRemoveTag = viewModel::removeTag,
-                    newTagInput = newTagInput,
-                    onNewTagInputChange = { newTagInput = it },
-                    onCommitNewTag = {
-                        viewModel.addTag(newTagInput)
-                        newTagInput = ""
-                    },
-                    imageUriList = imageUriList,
-                    onRemoveImage = viewModel::removeImageUri,
-                    onCamera = {
-                        val uri = createCameraImageUri(context)
-                        pendingCameraUri = uri
-                        takePicture.launch(uri)
-                    },
-                    onGallery = { imagePicker.launch(arrayOf("image/*")) },
-                    onPickPlace = {
-                        fun navigateToPlacePick() {
-                            viewModel.requestPlacePickSeed { lat, lng, hint ->
-                                navController.navigate(
-                                    Routes.placePick(
-                                        lat,
-                                        lng,
-                                        hint,
-                                        state.editingFragmentStableId,
-                                        0L
-                                    )
-                                )
-                            }
-                        }
-                        if (hasLocationPermission()) {
-                            navigateToPlacePick()
-                        } else {
-                            pendingPlacePickAction = { navigateToPlacePick() }
-                            showPlacePickPermissionDialog = true
-                        }
-                    },
-                    location = state.locationOverride ?: state.baselineLocation,
-                    isAnalyzingImages = state.isAnalyzingImages,
-                    momentInteractionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
-                    canDeleteFragment = state.editingFragmentId > 0,
-                    isDeleting = state.isDeleting,
-                    onRequestDelete = { showDeleteConfirmDialog = true },
-                    errorMessage = state.errorMessage,
-                    saveLabel = when {
-                        state.isSaving -> "保存中..."
-                        state.editingFragmentId > 0 -> "保存修改"
-                        else -> "保存碎片"
-                    },
-                    onSave = { requestSave() },
-                    saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages && !state.isDeleting
-                )
-                when {
-                    state.isLoadingDraft ->
-                        CircularProgressIndicator(Modifier.padding(20.dp))
-                    else ->
-                        Column(
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = state.weatherCaption,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 20.dp)
-                                .padding(top = 16.dp, bottom = 28.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                        if (state.savedDiaryEntries.isNotEmpty()) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Text(
-                                    "当天手帐",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                state.savedDiaryEntries.forEach { entry ->
-                                    key(entry.id) {
-                                        DiarySummaryCard(
-                                            entry = entry,
-                                            onClick = { onOpenDiary(entry.id) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        FragmentTimelineSection(
-                            state = timelineState,
-                            onAddFragment = {
-                                backStackEntry.savedStateHandle[CAPTURE_MOMENT_EXPANDED_KEY] = true
-                            },
-                            onContinueEditFragment = { id -> navController.navigate(Routes.capture(id)) },
-                            onOpenDiary = onOpenDiary,
-                            onDeleteFragment = timelineViewModel::delete,
-                            onClearDeleteError = timelineViewModel::clearDeleteError,
-                            hiddenFragmentId = state.editingFragmentId.takeIf { it > 0L },
-                            hiddenDiaryFallbackDate = state.summaryCalendarDay
+                                .clickable(role = Role.Button, onClick = { requestWeather() }),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        composer()
+                    }
+                    if (timelineViewModel != null) {
+                        HomeFragmentTimeline(
+                            timelineViewModel = timelineViewModel,
+                            onAddFragment = { momentExpanded = true },
+                            onEditFragment = onEditFragment
                         )
                     }
-                }
+                } else {
+                    CaptureHeader(
+                        title = when {
+                            isEditing -> "编辑碎片"
+                            forDate != null -> {
+                                runCatching { LocalDate.parse(forDate).format(HeaderDateFormatter) }
+                                    .getOrDefault("补记")
+                            }
+                            else -> "记下这一刻"
+                        },
+                        onBack = onClose,
+                        isLoadingDraft = state.isLoadingDraft,
+                        composer = composer
+                    )
                 }
             }
-        PullRefreshIndicator(
-            refreshing = state.nasArchiveRefreshing,
-            state = pullRefreshState,
-            modifier = Modifier.align(Alignment.TopCenter)
-        )
+        }
+        if (inlineOnHome) {
+            PullRefreshIndicator(
+                refreshing = state.nasArchiveRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+        }
     }
-    nasArchiveConflict?.let { conflict ->
-        AlertDialog(
-            onDismissRequest = {
-                viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.KEEP_LOCAL)
-            },
-            title = { Text("NAS 存档冲突") },
-            text = {
-                Text(
-                    "「${conflict.date}」手帐：本机修改时间更新，但与 NAS 正文不一致。\n\n" +
-                        "本机标题：${conflict.localTitle}\nNAS 标题：${conflict.remoteTitle}\n\n保留本机还是用 NAS 覆盖？"
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.USE_REMOTE)
+    if (inlineOnHome) {
+        nasArchiveConflict?.let { conflict ->
+            AlertDialog(
+                onDismissRequest = {
+                    viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.KEEP_LOCAL)
+                },
+                title = { Text("NAS 存档冲突") },
+                text = {
+                    Text(
+                        "「${conflict.date}」手帐：本机修改时间更新，但与 NAS 正文不一致。\n\n" +
+                            "本机标题：${conflict.localTitle}\nNAS 标题：${conflict.remoteTitle}\n\n保留本机还是用 NAS 覆盖？"
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.USE_REMOTE)
+                        }
+                    ) {
+                        Text("使用 NAS")
                     }
-                ) {
-                    Text("使用 NAS")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.KEEP_LOCAL)
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            viewModel.resolveNasArchiveConflict(NasArchiveConflictChoice.KEEP_LOCAL)
+                        }
+                    ) {
+                        Text("保留本地")
                     }
-                ) {
-                    Text("保留本地")
                 }
-            }
-        )
+            )
+        }
     }
     if (showPlacePickPermissionDialog) {
         AlertDialog(
@@ -462,123 +547,66 @@ fun CaptureScreen(
 }
 
 @Composable
-private fun CaptureHeader(
-    selectedDate: LocalDate?,
-    canGenerateDiary: Boolean,
-    onGenerateDiary: () -> Unit,
-    momentExpanded: Boolean,
-    onToggleMomentExpanded: () -> Unit,
-    momentContent: String,
-    onMomentContentChange: (String) -> Unit,
-    recordedDate: String,
-    onRecordedDateChange: (String) -> Unit,
-    recordedTime: String,
-    onRecordedTimeChange: (String) -> Unit,
-    tagList: List<String>,
-    onRemoveTag: (String) -> Unit,
-    newTagInput: String,
-    onNewTagInputChange: (String) -> Unit,
-    onCommitNewTag: () -> Unit,
-    imageUriList: List<String>,
-    onRemoveImage: (String) -> Unit,
-    onCamera: () -> Unit,
-    onGallery: () -> Unit,
-    onPickPlace: () -> Unit,
-    location: FragmentLocation?,
-    isAnalyzingImages: Boolean,
-    momentInteractionsEnabled: Boolean,
-    errorMessage: String?,
-    saveLabel: String,
-    onSave: () -> Unit,
-    saveEnabled: Boolean,
-    canDeleteFragment: Boolean,
-    isDeleting: Boolean,
-    onRequestDelete: () -> Unit,
+private fun HomeFragmentTimeline(
+    timelineViewModel: FragmentTimelineViewModel,
+    onAddFragment: () -> Unit,
+    onEditFragment: (Long) -> Unit
 ) {
-    val subtitle = selectedDate?.let { "${it.format(HeaderDateFormatter)} · 把这天整理成一页手帐" }
-        ?: "随手记下文字、照片与地点"
+    val timelineState by timelineViewModel.uiState.collectAsStateWithLifecycle()
+    FragmentTimelineSection(
+        state = timelineState,
+        onAddFragment = onAddFragment,
+        onContinueEditFragment = onEditFragment,
+        onDeleteFragment = timelineViewModel::delete,
+        onClearDeleteError = timelineViewModel::clearDeleteError,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+    )
+}
 
-    Surface(
+@Composable
+private fun CaptureHeader(
+    title: String,
+    onBack: () -> Unit,
+    isLoadingDraft: Boolean,
+    composer: @Composable () -> Unit
+) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.36f),
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+            .padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    "Moment",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.72f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+            TextButton(onClick = onBack) {
+                Text("返回", color = MaterialTheme.colorScheme.primary)
             }
-            CaptureMomentExpandable(
-                expanded = momentExpanded,
-                onToggleExpanded = onToggleMomentExpanded,
-                content = momentContent,
-                onContentChange = onMomentContentChange,
-                recordedDate = recordedDate,
-                onRecordedDateChange = onRecordedDateChange,
-                recordedTime = recordedTime,
-                onRecordedTimeChange = onRecordedTimeChange,
-                tagList = tagList,
-                onRemoveTag = onRemoveTag,
-                newTagInput = newTagInput,
-                onNewTagInputChange = onNewTagInputChange,
-                onCommitNewTag = onCommitNewTag,
-                imageUriList = imageUriList,
-                onRemoveImage = onRemoveImage,
-                onCamera = onCamera,
-                onGallery = onGallery,
-                onPickPlace = onPickPlace,
-                location = location,
-                isAnalyzingImages = isAnalyzingImages,
-                interactionsEnabled = momentInteractionsEnabled,
-                errorMessage = errorMessage,
-                saveLabel = saveLabel,
-                onSave = onSave,
-                saveEnabled = saveEnabled,
-                canDeleteFragment = canDeleteFragment,
-                isDeleting = isDeleting,
-                onRequestDelete = onRequestDelete
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            Button(
-                onClick = onGenerateDiary,
-                enabled = canGenerateDiary,
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large
-            ) {
-                Text("生成手帐")
-            }
+        }
+        if (isLoadingDraft) {
+            CircularProgressIndicator(Modifier.padding(vertical = 12.dp))
+        } else {
+            composer()
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CaptureMomentExpandable(
     expanded: Boolean,
     onToggleExpanded: () -> Unit,
+    showCollapseAction: Boolean,
     content: String,
     onContentChange: (String) -> Unit,
     recordedDate: String,
@@ -596,6 +624,8 @@ private fun CaptureMomentExpandable(
     onGallery: () -> Unit,
     onPickPlace: () -> Unit,
     location: FragmentLocation?,
+    isResolvingPlace: Boolean,
+    weather: FragmentWeather?,
     isAnalyzingImages: Boolean,
     interactionsEnabled: Boolean,
     errorMessage: String?,
@@ -606,152 +636,195 @@ private fun CaptureMomentExpandable(
     isDeleting: Boolean,
     onRequestDelete: () -> Unit,
 ) {
-    val corner = RoundedCornerShape(14.dp)
+    var formMounted by remember { mutableStateOf(expanded) }
+    val showForm = expanded || formMounted
+    LaunchedEffect(expanded) {
+        if (expanded) formMounted = true
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+                .clipToBounds()
+                .animateContentSize(
+                    animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                )
+        ) {
+            if (!expanded) {
+                val preview = content.trim().replace("\n", " ").let {
+                    if (it.length > 56) it.take(56) + "…" else it
+                }
+                Text(
+                    text = if (content.isNotBlank()) preview else "写下这一刻…",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = interactionsEnabled, onClick = onToggleExpanded)
+                        .padding(vertical = 6.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (content.isNotBlank()) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    },
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (showForm) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (expanded) Modifier else Modifier.height(0.dp))
+                        .clipToBounds()
+                ) {
+                    CaptureMomentForm(
+                        content = content,
+                        onContentChange = onContentChange,
+                        recordedDate = recordedDate,
+                        onRecordedDateChange = onRecordedDateChange,
+                        recordedTime = recordedTime,
+                        onRecordedTimeChange = onRecordedTimeChange,
+                        tagList = tagList,
+                        onRemoveTag = onRemoveTag,
+                        newTagInput = newTagInput,
+                        onNewTagInputChange = onNewTagInputChange,
+                        onCommitNewTag = onCommitNewTag,
+                        imageUriList = imageUriList,
+                        onRemoveImage = onRemoveImage,
+                        onCamera = onCamera,
+                        onGallery = onGallery,
+                        onPickPlace = onPickPlace,
+                        location = location,
+                        isResolvingPlace = isResolvingPlace,
+                        weather = weather,
+                        isAnalyzingImages = isAnalyzingImages,
+                        interactionsEnabled = interactionsEnabled,
+                        errorMessage = errorMessage,
+                        saveLabel = saveLabel,
+                        onSave = onSave,
+                        saveEnabled = saveEnabled,
+                        canDeleteFragment = canDeleteFragment,
+                        isDeleting = isDeleting,
+                        onRequestDelete = onRequestDelete,
+                        showCollapseAction = showCollapseAction,
+                        onCollapse = onToggleExpanded,
+                        wrapInSurface = false
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun CaptureMomentForm(
+    content: String,
+    onContentChange: (String) -> Unit,
+    recordedDate: String,
+    onRecordedDateChange: (String) -> Unit,
+    recordedTime: String,
+    onRecordedTimeChange: (String) -> Unit,
+    tagList: List<String>,
+    onRemoveTag: (String) -> Unit,
+    newTagInput: String,
+    onNewTagInputChange: (String) -> Unit,
+    onCommitNewTag: () -> Unit,
+    imageUriList: List<String>,
+    onRemoveImage: (String) -> Unit,
+    onCamera: () -> Unit,
+    onGallery: () -> Unit,
+    onPickPlace: () -> Unit,
+    location: FragmentLocation?,
+    isResolvingPlace: Boolean,
+    weather: FragmentWeather?,
+    isAnalyzingImages: Boolean,
+    interactionsEnabled: Boolean,
+    errorMessage: String?,
+    saveLabel: String,
+    onSave: () -> Unit,
+    saveEnabled: Boolean,
+    canDeleteFragment: Boolean,
+    isDeleting: Boolean,
+    onRequestDelete: () -> Unit,
+    showCollapseAction: Boolean = false,
+    onCollapse: () -> Unit = {},
+    wrapInSurface: Boolean = true,
+) {
     var contentFieldValue by remember {
         mutableStateOf(TextFieldValue(content, selection = TextRange(content.length)))
     }
+    var showPhotoSourceSheet by remember { mutableStateOf(false) }
+    val photoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(content) {
         if (content != contentFieldValue.text) {
             contentFieldValue = TextFieldValue(content, selection = TextRange(content.length))
         }
     }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                shape = corner
-            ),
-        shape = corner,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 0.dp,
-        shadowElevation = 0.dp
-    ) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+    val contentTextStyle = MaterialTheme.typography.bodyLarge.copy(
+        color = MaterialTheme.colorScheme.onSurface
+    )
+    val thumbRowScroll = rememberScrollState()
+    val fields: @Composable () -> Unit = {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (wrapInSurface) Modifier.padding(horizontal = 16.dp, vertical = 14.dp)
+                    else Modifier
+                ),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(corner)
-                    .clickable(enabled = interactionsEnabled, onClick = onToggleExpanded)
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "发生了什么？",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    when {
-                        expanded -> Text(
-                            "点按标题栏可收起",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
-                        )
-                        content.isNotBlank() -> Text(
-                            text = content.trim().replace("\n", " ").let {
-                                if (it.length > 56) it.take(56) + "…" else it
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        else -> Text(
-                            "点按展开，添加文字、照片、地点与标签",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                            maxLines = 2
-                        )
-                    }
-                }
-                Text(
-                    if (expanded) "收起" else "展开",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            AnimatedVisibility(
-                visible = expanded,
-                enter = fadeIn(animationSpec = tween(220)),
-                exit = fadeOut(animationSpec = tween(180))
-            ) {
-                val thumbRowScroll = rememberScrollState()
-                Column(
+                BasicTextField(
+                    value = contentFieldValue,
+                    onValueChange = { value ->
+                        contentFieldValue = value
+                        if (value.text != content) onContentChange(value.text)
+                    },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedTextField(
-                        value = contentFieldValue,
-                        onValueChange = { value ->
-                            contentFieldValue = value
-                            if (value.text != content) onContentChange(value.text)
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(132.dp),
-                        placeholder = { Text("写下这一刻…") },
-                        shape = MaterialTheme.shapes.medium,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                            cursorColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
-                    Text(
-                        "记录时间",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = recordedDate,
-                            onValueChange = onRecordedDateChange,
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            label = { Text("日期") },
-                            placeholder = { Text("2026-05-13") },
-                            shape = MaterialTheme.shapes.medium,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                                cursorColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                        OutlinedTextField(
-                            value = recordedTime,
-                            onValueChange = onRecordedTimeChange,
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            label = { Text("时间") },
-                            placeholder = { Text("22:30") },
-                            shape = MaterialTheme.shapes.medium,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                                cursorColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
+                        .weight(1f)
+                        .heightIn(min = 96.dp),
+                    textStyle = contentTextStyle,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { inner ->
+                        Box {
+                            if (contentFieldValue.text.isEmpty()) {
+                                Text(
+                                    "写下这一刻…",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                                )
+                            }
+                            inner()
+                        }
                     }
-                    Text(
-                        "保存后会按这个时间进入当天碎片、手帐时间线和生成文案。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (showCollapseAction) {
+                    QuietTextAction(
+                        text = "收起",
+                        onClick = onCollapse,
+                        enabled = interactionsEnabled
                     )
-                    Text(
-                        "图片",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
+                }
+            }
+            RecordedAtField(
+                        dateText = recordedDate,
+                        onDateTextChange = onRecordedDateChange,
+                        timeText = recordedTime,
+                        onTimeTextChange = onRecordedTimeChange,
+                        enabled = interactionsEnabled
                     )
                     if (isAnalyzingImages) {
                         Row(
@@ -763,88 +836,48 @@ private fun CaptureMomentExpandable(
                                 strokeWidth = 2.dp
                             )
                             Text(
-                                "正在自动识别图片并生成标签",
+                                "正在识别图片…",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
-                    if (imageUriList.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(thumbRowScroll)
-                                .height(ImageThumbSize),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            imageUriList.forEach { uri ->
-                                key(uri) {
-                                    ImageThumbnail(
-                                        uri = uri,
-                                        onRemove = { onRemoveImage(uri) }
-                                    )
-                                }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(thumbRowScroll),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        imageUriList.forEach { uri ->
+                            key(uri) {
+                                ImageThumbnail(
+                                    uri = uri,
+                                    onRemove = { onRemoveImage(uri) }
+                                )
                             }
                         }
-                    } else {
-                        Text(
-                            "使用相机或相册添加照片，添加后会自动识别并生成标签",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        AddPhotoTile(
+                            enabled = interactionsEnabled && !isAnalyzingImages,
+                            onClick = { showPhotoSourceSheet = true }
                         )
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TextButton(
-                            onClick = onCamera,
-                            enabled = interactionsEnabled && !isAnalyzingImages
-                        ) {
-                            Text("相机拍照")
-                        }
-                        TextButton(
-                            onClick = onGallery,
-                            enabled = interactionsEnabled && !isAnalyzingImages
-                        ) {
-                            Text("从相册选择")
-                        }
-                    }
-                    Text(
-                        "地点",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    location?.let { loc ->
-                        Text(
-                            "当前：${loc.label.orEmpty()}（${
-                                String.format(
-                                    Locale.CHINA,
-                                    "%.4f，%.4f",
-                                    loc.latitude,
-                                    loc.longitude
-                                )
-                            }）",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    TextButton(
-                        onClick = onPickPlace,
-                        enabled = interactionsEnabled
-                    ) {
-                        Text("在地图上选择地点名称")
-                    }
-                    Text(
-                        "标签",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
+                    FragmentWeatherAndPlace(
+                        weather = weather,
+                        location = location,
+                        onPlaceClick = if (interactionsEnabled) onPickPlace else null,
+                        placePlaceholder = when {
+                            location != null -> null
+                            isResolvingPlace -> "正在获取地点…"
+                            else -> "点击选择地点"
+                        },
+                        isPlaceLoading = isResolvingPlace && location == null
                     )
                     if (tagList.isNotEmpty()) {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             tagList.forEach { tag ->
                                 key(tag) {
@@ -856,27 +889,36 @@ private fun CaptureMomentExpandable(
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        OutlinedTextField(
+                        BasicTextField(
                             value = newTagInput,
                             onValueChange = onNewTagInputChange,
-                            modifier = Modifier.weight(1f),
+                            enabled = interactionsEnabled,
                             singleLine = true,
-                            placeholder = { Text("自定义标签") },
-                            shape = MaterialTheme.shapes.large,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.38f),
-                                cursorColor = MaterialTheme.colorScheme.primary
-                            )
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.weight(1f),
+                            decorationBox = { inner ->
+                                Box {
+                                    if (newTagInput.isBlank()) {
+                                        Text(
+                                            "添加标签",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                    inner()
+                                }
+                            }
                         )
-                        TextButton(
+                        QuietTextAction(
+                            text = "添加",
                             onClick = onCommitNewTag,
                             enabled = interactionsEnabled && newTagInput.trim().isNotEmpty()
-                        ) {
-                            Text("添加")
-                        }
+                        )
                     }
                     errorMessage?.let { msg ->
                         Text(
@@ -894,17 +936,65 @@ private fun CaptureMomentExpandable(
                         Text(saveLabel)
                     }
                     if (canDeleteFragment) {
-                        TextButton(
+                        QuietTextAction(
+                            text = if (isDeleting) "删除中…" else "删除碎片",
                             onClick = onRequestDelete,
                             enabled = interactionsEnabled && !isDeleting && !isAnalyzingImages,
+                            color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = if (isDeleting) "删除中…" else "删除碎片",
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
+                        )
                     }
+        }
+    }
+    if (wrapInSurface) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+            tonalElevation = 0.dp,
+            shadowElevation = 0.dp
+        ) {
+            fields()
+        }
+    } else {
+        fields()
+    }
+    if (showPhotoSourceSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPhotoSourceSheet = false },
+            sheetState = photoSheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "添加照片",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                TextButton(
+                    onClick = {
+                        showPhotoSourceSheet = false
+                        onCamera()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("拍照", modifier = Modifier.fillMaxWidth())
+                }
+                TextButton(
+                    onClick = {
+                        showPhotoSourceSheet = false
+                        onGallery()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("从相册选择", modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -916,30 +1006,44 @@ private fun TagCapsule(
     text: String,
     onRemove: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .heightIn(min = 32.dp)
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f))
-            .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+    TagChip(text = text) {
         Text(
             "×",
             modifier = Modifier
-                .clip(CircleShape)
                 .clickable(onClick = onRemove)
-                .padding(horizontal = 6.dp, vertical = 2.dp),
+                .padding(horizontal = 4.dp, vertical = 2.dp),
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun AddPhotoTile(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 0.45f else 0.22f)
+    val iconColor = if (enabled) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+    }
+    Box(
+        modifier = Modifier
+            .size(ImageThumbSize)
+            .clip(shape)
+            .border(width = 1.dp, color = borderColor, shape = shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_add_photo),
+            contentDescription = "添加照片",
+            modifier = Modifier.size(22.dp),
+            tint = iconColor
         )
     }
 }

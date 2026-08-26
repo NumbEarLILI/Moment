@@ -11,6 +11,7 @@ import com.example.moment.domain.repository.FragmentRepository
 import com.example.moment.domain.usecase.DiaryGenerationMode
 import com.example.moment.domain.usecase.GenerateDiaryDraftUseCase
 import com.example.moment.domain.usecase.SaveDiaryUseCase
+import com.example.moment.ui.navigation.navArgLong
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.ZoneId
@@ -146,13 +147,4 @@ class DiaryPreviewViewModel @Inject constructor(
     }
 }
 
-/** Navigation 有时把数字参数放进 Bundle 为 String；统一转成 Long，避免锚点日记 id 丢失导致合并乱套。 */
-private fun SavedStateHandle.navArgLong(key: String): Long {
-    val raw = get<Any>(key) ?: return 0L
-    return when (raw) {
-        is Long -> raw
-        is Int -> raw.toLong()
-        is String -> raw.trim().toLongOrNull() ?: 0L
-        else -> 0L
-    }
-}
+

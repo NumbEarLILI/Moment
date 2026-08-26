@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.moment.domain.model.AppThemeMode
@@ -49,6 +50,8 @@ class UserPreferencesRepository @Inject constructor(
             nasWebdavTrustSelfSignedCertificates = prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] ?: false,
             nasMomentStorageUserId = prefs[Keys.NAS_MOMENT_STORAGE_USER_ID].orEmpty(),
             nasMomentAccountUsername = prefs[Keys.NAS_MOMENT_ACCOUNT_USERNAME].orEmpty(),
+            avatarImagePath = prefs[Keys.AVATAR_IMAGE_PATH].orEmpty(),
+            avatarUpdatedAtEpochMs = prefs[Keys.AVATAR_UPDATED_AT_EPOCH_MS] ?: 0L,
             nasArchiveSyncEnabled = prefs[Keys.NAS_ARCHIVE_SYNC_ENABLED] ?: false,
             uploadOriginalImagesToNas = prefs[Keys.UPLOAD_ORIGINAL_IMAGES_TO_NAS] ?: false
         )
@@ -86,6 +89,15 @@ class UserPreferencesRepository @Inject constructor(
             prefs[Keys.NAS_WEBDAV_USERNAME] = username.trim()
             prefs[Keys.NAS_WEBDAV_PASSWORD] = securePreferenceCipher.encrypt(password)
             prefs[Keys.NAS_WEBDAV_TRUST_SELF_SIGNED] = trustSelfSignedCertificates
+        }
+    }
+
+    suspend fun setAvatarImagePath(path: String) {
+        val trimmed = path.trim()
+        dataStore.edit { prefs ->
+            prefs[Keys.AVATAR_IMAGE_PATH] = trimmed
+            prefs[Keys.AVATAR_UPDATED_AT_EPOCH_MS] =
+                if (trimmed.isBlank()) 0L else System.currentTimeMillis()
         }
     }
 
@@ -144,5 +156,7 @@ class UserPreferencesRepository @Inject constructor(
         val UPLOAD_ORIGINAL_IMAGES_TO_NAS = booleanPreferencesKey("upload_original_images_to_nas")
         val NAS_MOMENT_STORAGE_USER_ID = stringPreferencesKey("nas_moment_storage_user_id")
         val NAS_MOMENT_ACCOUNT_USERNAME = stringPreferencesKey("nas_moment_account_username")
+        val AVATAR_IMAGE_PATH = stringPreferencesKey("avatar_image_path")
+        val AVATAR_UPDATED_AT_EPOCH_MS = longPreferencesKey("avatar_updated_at_epoch_ms")
     }
 }

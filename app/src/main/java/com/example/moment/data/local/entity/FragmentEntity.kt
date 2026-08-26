@@ -16,5 +16,7 @@ data class FragmentEntity(
     val updatedAtEpochMillis: Long,
     val locationLatitude: Double? = null,
     val locationLongitude: Double? = null,
-    val locationLabel: String? = null
+    val locationLabel: String? = null,
+    val weatherCondition: String? = null,
+    val weatherTemperatureCelsius: Int? = null
 )

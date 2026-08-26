@@ -2,15 +2,11 @@ package com.example.moment.ui.timeline
 
 import com.example.moment.domain.model.DiaryEntry
 import com.example.moment.domain.model.LifeFragment
-import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import com.example.moment.domain.usecase.DeleteFragmentUseCase
 import com.example.moment.domain.usecase.ObserveAllFragmentsUseCase
-import com.example.moment.domain.usecase.ObserveDiaryEntriesUseCase
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -86,111 +82,39 @@ class FragmentTimelineViewModelTest {
     }
 
     @Test
-    fun uiStateShowsDiaryWhenThatDayHasNoFragments() = runTest {
+    fun uiStateShowsOnlyFragments() = runTest {
         val fragment = fragment(
             id = 1L,
             stableId = "fragment",
             content = "5月13日碎片",
             createdAt = Instant.parse("2026-05-13T10:00:00Z")
         )
-        val diary = diary(
-            id = 7L,
-            date = LocalDate.of(2026, 5, 12),
-            title = "5月12日手帐",
-            body = "这一天只有手帐内容"
-        )
         val viewModel = timelineViewModel(
-            fragmentRepository = FakeFragmentRepository(listOf(fragment)),
-            diaryRepository = FakeDiaryRepository(listOf(diary))
+            fragmentRepository = FakeFragmentRepository(listOf(fragment))
         )
 
         advanceUntilIdle()
 
         val state = viewModel.uiState.first { !it.isLoading }
-        assertEquals(
-            listOf(
-                FragmentTimelineItem.Fragment(fragment),
-                FragmentTimelineItem.DiaryFallback(diary)
-            ),
-            state.items
-        )
+        assertEquals(listOf(FragmentTimelineItem.Fragment(fragment)), state.items)
     }
 
     @Test
-    fun uiStateDoesNotShowDiaryFallbackWhenThatDayHasFragments() = runTest {
-        val fragment = fragment(
+    fun uiStateSortsFragmentsNewestFirst() = runTest {
+        val older = fragment(
             id = 1L,
-            stableId = "fragment",
-            content = "当天碎片",
+            stableId = "older",
+            content = "较早碎片",
             createdAt = Instant.parse("2026-05-12T10:00:00Z")
         )
-        val diary = diary(
-            id = 7L,
-            date = LocalDate.of(2026, 5, 12),
-            title = "当天手帐",
-            body = "当天已有碎片时不重复显示"
-        )
-        val viewModel = timelineViewModel(
-            fragmentRepository = FakeFragmentRepository(listOf(fragment)),
-            diaryRepository = FakeDiaryRepository(listOf(diary))
-        )
-
-        advanceUntilIdle()
-
-        val state = viewModel.uiState.first { !it.isLoading }
-        assertEquals(listOf(FragmentTimelineItem.Fragment(fragment)), state.items)
-    }
-
-    @Test
-    fun uiStateUsesLocalDateWhenSuppressingDiaryFallback() = runTest {
-        val zoneId = ZoneId.of("Asia/Shanghai")
-        val fragment = fragment(
-            id = 1L,
-            stableId = "fragment",
-            content = "本地 5月13日碎片",
-            createdAt = Instant.parse("2026-05-12T16:30:00Z")
-        )
-        val diary = diary(
-            id = 7L,
-            date = LocalDate.of(2026, 5, 13),
-            title = "5月13日手帐",
-            body = "UTC 仍是前一天，但本地日期已有碎片"
-        )
-        val viewModel = timelineViewModel(
-            fragmentRepository = FakeFragmentRepository(listOf(fragment)),
-            diaryRepository = FakeDiaryRepository(listOf(diary)),
-            zoneId = zoneId
-        )
-
-        advanceUntilIdle()
-
-        val state = viewModel.uiState.first { !it.isLoading }
-        assertEquals(listOf(FragmentTimelineItem.Fragment(fragment)), state.items)
-    }
-
-    @Test
-    fun uiStateSortsFragmentsAndDiaryFallbacksNewestFirst() = runTest {
-        val fragment = fragment(
-            id = 1L,
-            stableId = "fragment",
-            content = "5月13日碎片",
+        val newer = fragment(
+            id = 2L,
+            stableId = "newer",
+            content = "较新碎片",
             createdAt = Instant.parse("2026-05-13T10:00:00Z")
         )
-        val newerDiary = diary(
-            id = 8L,
-            date = LocalDate.of(2026, 5, 14),
-            title = "5月14日手帐",
-            body = "较新的无碎片日期"
-        )
-        val olderDiary = diary(
-            id = 7L,
-            date = LocalDate.of(2026, 5, 12),
-            title = "5月12日手帐",
-            body = "较早的无碎片日期"
-        )
         val viewModel = timelineViewModel(
-            fragmentRepository = FakeFragmentRepository(listOf(fragment)),
-            diaryRepository = FakeDiaryRepository(listOf(olderDiary, newerDiary))
+            fragmentRepository = FakeFragmentRepository(listOf(older, newer))
         )
 
         advanceUntilIdle()
@@ -198,24 +122,19 @@ class FragmentTimelineViewModelTest {
         val state = viewModel.uiState.first { !it.isLoading }
         assertEquals(
             listOf(
-                FragmentTimelineItem.DiaryFallback(newerDiary),
-                FragmentTimelineItem.Fragment(fragment),
-                FragmentTimelineItem.DiaryFallback(olderDiary)
+                FragmentTimelineItem.Fragment(newer),
+                FragmentTimelineItem.Fragment(older)
             ),
             state.items
         )
     }
 
     private fun timelineViewModel(
-        fragmentRepository: FakeFragmentRepository,
-        diaryRepository: FakeDiaryRepository = FakeDiaryRepository(),
-        zoneId: ZoneId = ZoneOffset.UTC
+        fragmentRepository: FakeFragmentRepository
     ): FragmentTimelineViewModel =
         FragmentTimelineViewModel(
             observeAllFragments = ObserveAllFragmentsUseCase(fragmentRepository),
-            observeDiaryEntries = ObserveDiaryEntriesUseCase(diaryRepository),
-            deleteFragment = DeleteFragmentUseCase(fragmentRepository),
-            zoneId = zoneId
+            deleteFragment = DeleteFragmentUseCase(fragmentRepository)
         )
 
     private fun fragment(
@@ -232,23 +151,6 @@ class FragmentTimelineViewModelTest {
         tags = emptyList(),
         createdAt = createdAt,
         updatedAt = createdAt
-    )
-
-    private fun diary(
-        id: Long,
-        date: LocalDate,
-        title: String,
-        body: String
-    ) = DiaryEntry(
-        id = id,
-        date = date,
-        title = title,
-        body = body,
-        highlights = emptyList(),
-        moodSummary = null,
-        sourceFragmentStableIds = emptyList(),
-        createdAt = date.atStartOfDay().toInstant(ZoneOffset.UTC),
-        updatedAt = date.atStartOfDay().toInstant(ZoneOffset.UTC)
     )
 
     private class FakeFragmentRepository(
@@ -282,28 +184,5 @@ class FragmentTimelineViewModelTest {
         }
 
         override suspend fun ensureGhostPlaceholderFragmentsForDiary(entry: DiaryEntry) = Unit
-    }
-
-    private class FakeDiaryRepository(
-        diaries: List<DiaryEntry> = emptyList()
-    ) : DiaryRepository {
-        private val state = MutableStateFlow(diaries)
-
-        override fun observeDiaries(): Flow<List<DiaryEntry>> = state
-
-        override fun observeDiary(id: Long): Flow<DiaryEntry?> =
-            MutableStateFlow(state.value.find { it.id == id })
-
-        override suspend fun getDiaryForDate(date: LocalDate): DiaryEntry? =
-            state.value.find { it.date == date }
-
-        override suspend fun getDiaryById(id: Long): DiaryEntry? =
-            state.value.find { it.id == id }
-
-        override suspend fun getAllDiaries(): List<DiaryEntry> = state.value
-
-        override suspend fun saveDiary(entry: DiaryEntry): Long = entry.id
-
-        override suspend fun deleteDiaryById(id: Long) = Unit
     }
 }

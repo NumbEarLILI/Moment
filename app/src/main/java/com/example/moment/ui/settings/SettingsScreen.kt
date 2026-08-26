@@ -2,6 +2,7 @@ package com.example.moment.ui.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -55,6 +56,7 @@ import kotlinx.coroutines.flow.collectLatest
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onOpenAbout: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val prefs by viewModel.preferences.collectAsStateWithLifecycle()
@@ -111,7 +113,8 @@ fun SettingsScreen(
             onWallpaperTransparencyChange = { wallpaperTransparency = it },
             onWallpaperTransparencyPersist = {
                 viewModel.persistWallpaperOverlayAlpha(1f - wallpaperTransparency)
-            }
+            },
+            onOpenAbout = onOpenAbout
         )
     }
 }
@@ -135,7 +138,8 @@ private fun SettingsScaffold(
     onShowDeleteNasConfirmChange: (Boolean) -> Unit,
     wallpaperTransparency: Float,
     onWallpaperTransparencyChange: (Float) -> Unit,
-    onWallpaperTransparencyPersist: () -> Unit
+    onWallpaperTransparencyPersist: () -> Unit,
+    onOpenAbout: () -> Unit
 ) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -487,6 +491,27 @@ private fun SettingsScaffold(
                     text = msg,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenAbout)
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "关于",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    "›",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                 )
             }
         }
