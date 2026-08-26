@@ -35,15 +35,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.runtime.Composable
@@ -63,6 +67,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -71,6 +76,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
+import com.example.moment.R
 import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.FragmentWeather
 import com.example.moment.domain.model.NasArchiveConflictChoice
@@ -174,7 +180,10 @@ fun FragmentComposeScreen(
     val weatherPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) {
-        viewModel.refreshWeather()
+        viewModel.refreshCurrentPlace()
+        if (inlineOnHome || isTodayCreate) {
+            viewModel.refreshWeather()
+        }
     }
 
     var showPlacePickPermissionDialog by remember { mutableStateOf(false) }
@@ -186,6 +195,7 @@ fun FragmentComposeScreen(
         val action = pendingPlacePickAction
         pendingPlacePickAction = null
         showPlacePickPermissionDialog = false
+        viewModel.refreshCurrentPlace()
         action?.invoke()
     }
 
@@ -226,13 +236,19 @@ fun FragmentComposeScreen(
         }
     }
 
-    LaunchedEffect(inlineOnHome, isTodayCreate) {
-        if (!inlineOnHome && !isTodayCreate) return@LaunchedEffect
+    LaunchedEffect(isEditing, inlineOnHome, isTodayCreate) {
+        if (isEditing) return@LaunchedEffect
         if (hasLocationPermission()) {
-            viewModel.refreshWeather()
+            viewModel.refreshCurrentPlace()
+            if (inlineOnHome || isTodayCreate) {
+                viewModel.refreshWeather()
+            }
         } else if (viewModel.consumeAutoRequestWeatherLocation()) {
             weatherPermissionLauncher.launch(
-                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION)
+                arrayOf(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                )
             )
         }
     }
@@ -337,6 +353,7 @@ fun FragmentComposeScreen(
                 }
             },
             location = state.locationOverride ?: state.baselineLocation,
+            isResolvingPlace = state.isResolvingPlace,
             weather = state.composeWeather,
             isAnalyzingImages = state.isAnalyzingImages,
             interactionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
@@ -615,6 +632,7 @@ private fun CaptureMomentExpandable(
     onGallery: () -> Unit,
     onPickPlace: () -> Unit,
     location: FragmentLocation?,
+    isResolvingPlace: Boolean,
     weather: FragmentWeather?,
     isAnalyzingImages: Boolean,
     interactionsEnabled: Boolean,
@@ -682,6 +700,7 @@ private fun CaptureMomentExpandable(
                     onGallery = onGallery,
                     onPickPlace = onPickPlace,
                     location = location,
+                    isResolvingPlace = isResolvingPlace,
                     weather = weather,
                     isAnalyzingImages = isAnalyzingImages,
                     interactionsEnabled = interactionsEnabled,
@@ -701,7 +720,7 @@ private fun CaptureMomentExpandable(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun CaptureMomentForm(
     content: String,
@@ -721,6 +740,7 @@ private fun CaptureMomentForm(
     onGallery: () -> Unit,
     onPickPlace: () -> Unit,
     location: FragmentLocation?,
+    isResolvingPlace: Boolean,
     weather: FragmentWeather?,
     isAnalyzingImages: Boolean,
     interactionsEnabled: Boolean,
@@ -738,6 +758,8 @@ private fun CaptureMomentForm(
     var contentFieldValue by remember {
         mutableStateOf(TextFieldValue(content, selection = TextRange(content.length)))
     }
+    var showPhotoSourceSheet by remember { mutableStateOf(false) }
+    val photoSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     LaunchedEffect(content) {
         if (content != contentFieldValue.text) {
             contentFieldValue = TextFieldValue(content, selection = TextRange(content.length))
@@ -837,29 +859,41 @@ private fun CaptureMomentForm(
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
-                        QuietTextAction(
-                            text = "相机",
-                            onClick = onCamera,
-                            enabled = interactionsEnabled && !isAnalyzingImages
+                        Icon(
+                            painter = painterResource(R.drawable.ic_add_photo),
+                            contentDescription = "添加照片",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable(
+                                    enabled = interactionsEnabled && !isAnalyzingImages,
+                                    onClick = { showPhotoSourceSheet = true }
+                                )
+                                .padding(6.dp),
+                            tint = if (interactionsEnabled && !isAnalyzingImages) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+                            }
                         )
-                        QuietTextAction(
-                            text = "相册",
-                            onClick = onGallery,
-                            enabled = interactionsEnabled && !isAnalyzingImages
-                        )
-                        QuietTextAction(
-                            text = "地点",
-                            onClick = onPickPlace,
-                            enabled = interactionsEnabled
+                        FragmentWeatherAndPlace(
+                            weather = weather,
+                            location = location,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(top = 8.dp),
+                            onPlaceClick = if (interactionsEnabled) onPickPlace else null,
+                            placePlaceholder = when {
+                                location != null -> null
+                                isResolvingPlace -> "正在获取地点…"
+                                else -> "点击选择地点"
+                            },
+                            isPlaceLoading = isResolvingPlace && location == null
                         )
                     }
-                    FragmentWeatherAndPlace(
-                        weather = weather,
-                        location = location
-                    )
                     if (tagList.isNotEmpty()) {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
@@ -945,6 +979,46 @@ private fun CaptureMomentForm(
         }
     } else {
         fields()
+    }
+    if (showPhotoSourceSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showPhotoSourceSheet = false },
+            sheetState = photoSheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "添加照片",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                TextButton(
+                    onClick = {
+                        showPhotoSourceSheet = false
+                        onCamera()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("拍照", modifier = Modifier.fillMaxWidth())
+                }
+                TextButton(
+                    onClick = {
+                        showPhotoSourceSheet = false
+                        onGallery()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("从相册选择", modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
     }
 }
 

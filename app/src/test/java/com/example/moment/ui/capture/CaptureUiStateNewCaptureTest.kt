@@ -1,5 +1,6 @@
 package com.example.moment.ui.capture
 
+import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.FragmentWeather
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -43,5 +44,26 @@ class CaptureUiStateNewCaptureTest {
         assertEquals("2026-08-26", next.recordedDate)
         assertEquals("09:30", next.recordedTime)
         assertEquals(recordedAt, next.baselineRecordedAt)
+        assertNull(next.locationOverride)
+        assertNull(next.baselineLocation)
+        assertFalse(next.isResolvingPlace)
+    }
+
+    @Test
+    fun forNewCaptureClearsPreviouslyPickedPlace() {
+        val previous = CaptureUiState(
+            locationOverride = FragmentLocation(30.0, 120.0, "西湖"),
+            baselineLocation = FragmentLocation(31.0, 121.0, "外滩"),
+            isResolvingPlace = true
+        )
+        val next = previous.forNewCapture(
+            recordedDate = "2026-08-26",
+            recordedTime = "09:30",
+            recordedAt = Instant.parse("2026-08-26T01:30:00Z"),
+            composeWeather = null
+        )
+        assertNull(next.locationOverride)
+        assertNull(next.baselineLocation)
+        assertFalse(next.isResolvingPlace)
     }
 }

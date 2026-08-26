@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.preferences.UserPreferencesRepository
+import com.example.moment.data.location.CapturedPlaceResolver
 import com.example.moment.data.location.FragmentLocationCapture
 import com.example.moment.data.weather.HomeWeatherRepository
 import com.example.moment.domain.weather.HomeWeatherCaption
@@ -59,6 +60,7 @@ class CaptureViewModel @Inject constructor(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val nasArchiveRepository: NasArchiveRepository,
     private val fragmentLocationCapture: FragmentLocationCapture,
+    private val capturedPlaceResolver: CapturedPlaceResolver,
     private val weatherRepository: HomeWeatherRepository,
     savedStateHandle: SavedStateHandle,
     private val zoneId: ZoneId,
@@ -72,6 +74,7 @@ class CaptureViewModel @Inject constructor(
     private var nasArchiveConflictContinuation: CancellableContinuation<NasArchiveConflictChoice>? = null
     private var weatherGeneration = 0
     private var weatherLocationAutoRequested = false
+    private var placeGeneration = 0
 
     override fun onCleared() {
         nasArchiveConflictContinuation?.cancel()
@@ -207,6 +210,24 @@ class CaptureViewModel @Inject constructor(
         return true
     }
 
+    fun refreshCurrentPlace() {
+        val snapshot = _uiState.value
+        if (snapshot.editingFragmentId > 0L || snapshot.locationOverride != null) return
+        val generation = ++placeGeneration
+        viewModelScope.launch {
+            _uiState.update { it.copy(isResolvingPlace = true) }
+            val place = runCatching { capturedPlaceResolver.currentPlace() }.getOrNull()
+            if (generation != placeGeneration) return@launch
+            _uiState.update { state ->
+                if (state.editingFragmentId > 0L || state.locationOverride != null) {
+                    state.copy(isResolvingPlace = false)
+                } else {
+                    state.copy(baselineLocation = place, isResolvingPlace = false)
+                }
+            }
+        }
+    }
+
     fun refreshWeather() {
         val generation = ++weatherGeneration
         viewModelScope.launch {
@@ -253,6 +274,7 @@ class CaptureViewModel @Inject constructor(
                 composeWeather = parseWeatherCaption(state.weatherCaption)
             )
         }
+        refreshCurrentPlace()
     }
 
     fun updateContent(value: String) = _uiState.update { it.copy(content = value, errorMessage = null) }
@@ -410,6 +432,7 @@ class CaptureViewModel @Inject constructor(
                     }
                 } else {
                     val location = state.locationOverride
+                        ?: state.baselineLocation
                         ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
                     val weather = resolveWeatherForSave(
                         location = location,
@@ -521,6 +544,7 @@ data class CaptureUiState(
     val baselineRecordedAt: java.time.Instant? = null,
     val baselineLocation: FragmentLocation? = null,
     val locationOverride: FragmentLocation? = null,
+    val isResolvingPlace: Boolean = false,
     val baselineWeather: FragmentWeather? = null,
     val composeWeather: FragmentWeather? = null,
     val isAnalyzingImages: Boolean = false,
@@ -559,6 +583,7 @@ data class CaptureUiState(
         baselineRecordedAt = recordedAt,
         baselineLocation = null,
         locationOverride = null,
+        isResolvingPlace = false,
         baselineWeather = null,
         composeWeather = composeWeather,
         isAnalyzingImages = false,

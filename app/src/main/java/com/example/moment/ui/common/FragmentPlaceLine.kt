@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,9 +25,16 @@ fun FragmentWeatherAndPlace(
     weather: FragmentWeather?,
     location: FragmentLocation?,
     modifier: Modifier = Modifier,
-    onPlaceClick: (() -> Unit)? = null
+    onPlaceClick: (() -> Unit)? = null,
+    placePlaceholder: String? = null,
+    isPlaceLoading: Boolean = false
 ) {
-    if (weather == null && location == null) return
+    val placeText = when {
+        location != null -> fragmentPlaceLabel(location)
+        !placePlaceholder.isNullOrBlank() -> placePlaceholder
+        else -> null
+    }
+    if (weather == null && placeText == null) return
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -40,10 +48,11 @@ fun FragmentWeatherAndPlace(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        location?.let { loc ->
+        if (placeText != null) {
             FragmentPlaceLine(
-                location = loc,
-                onClick = onPlaceClick
+                placeLabel = placeText,
+                onClick = onPlaceClick,
+                isLoading = isPlaceLoading && location == null
             )
         }
     }
@@ -56,6 +65,22 @@ fun FragmentPlaceLine(
     placeLabel: String = fragmentPlaceLabel(location),
     onClick: (() -> Unit)? = null,
     maxLines: Int = 2
+) {
+    FragmentPlaceLine(
+        placeLabel = placeLabel,
+        modifier = modifier,
+        onClick = onClick,
+        maxLines = maxLines
+    )
+}
+
+@Composable
+fun FragmentPlaceLine(
+    placeLabel: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    maxLines: Int = 2,
+    isLoading: Boolean = false
 ) {
     val color = if (onClick != null) {
         MaterialTheme.colorScheme.primary
@@ -79,10 +104,18 @@ fun FragmentPlaceLine(
         )
         Text(
             placeLabel,
+            modifier = Modifier.weight(1f, fill = false),
             style = MaterialTheme.typography.bodySmall,
             color = color,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis
         )
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(12.dp),
+                strokeWidth = 1.5.dp,
+                color = color
+            )
+        }
     }
 }
