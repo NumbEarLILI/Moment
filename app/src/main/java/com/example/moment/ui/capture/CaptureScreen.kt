@@ -91,7 +91,6 @@ fun CaptureScreen(
         navController = navController,
         backStackEntry = backStackEntry,
         onClose = onClose,
-        isEditing = false,
         viewModel = viewModel
     )
 }
@@ -107,7 +106,6 @@ fun EditFragmentScreen(
         navController = navController,
         backStackEntry = backStackEntry,
         onClose = onClose,
-        isEditing = true,
         viewModel = viewModel
     )
 }
@@ -117,11 +115,11 @@ private fun FragmentComposeScreen(
     navController: NavHostController,
     backStackEntry: NavBackStackEntry,
     onClose: () -> Unit,
-    isEditing: Boolean,
     viewModel: CaptureViewModel
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val isEditing = state.editingFragmentId > 0L
     val pickJson by backStackEntry.savedStateHandle
         .getStateFlow(MOMENT_PICK_LOCATION_JSON_KEY, "")
         .collectAsStateWithLifecycle()

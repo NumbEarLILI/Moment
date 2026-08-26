@@ -127,7 +127,13 @@ fun MomentApp() {
                 EditFragmentScreen(
                     navController = navController,
                     backStackEntry = entry,
-                    onClose = { navController.popBackStack() }
+                    onClose = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(Routes.Home) {
+                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                            }
+                        }
+                    }
                 )
             }
             composable(

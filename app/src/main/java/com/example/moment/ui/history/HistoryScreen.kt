@@ -72,25 +72,29 @@ fun HistoryScreen(
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (state.selectedDate != viewModel.today) {
                             QuietTextAction(
-                                text = "生成手帐",
-                                onClick = { onGenerateDiary(state.selectedDate) },
-                                enabled = state.canGenerateDiary
+                                text = "补记",
+                                onClick = { onAddFragmentForPastDay(state.selectedDate) }
                             )
-                            if (state.selectedDate != viewModel.today) {
-                                QuietTextAction(
-                                    text = "补记",
-                                    onClick = { onAddFragmentForPastDay(state.selectedDate) }
-                                )
-                            }
                         }
                     }
-                    Text(
-                        state.selectedDate.format(DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            state.selectedDate.format(DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        QuietTextAction(
+                            text = "生成手帐",
+                            onClick = { onGenerateDiary(state.selectedDate) },
+                            enabled = state.canGenerateDiary
+                        )
+                    }
                 }
             }
             item {

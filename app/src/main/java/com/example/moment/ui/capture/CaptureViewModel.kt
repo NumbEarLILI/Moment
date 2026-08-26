@@ -29,6 +29,7 @@ import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
 import com.example.moment.domain.time.resolveNewFragmentRecordedAt
 import com.example.moment.domain.usecase.UpdateFragmentResult
 import com.example.moment.domain.usecase.UpdateFragmentUseCase
+import com.example.moment.ui.navigation.navArgLong
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -139,7 +140,7 @@ class CaptureViewModel @Inject constructor(
     val uiState: StateFlow<CaptureUiState> = _uiState.asStateFlow()
 
     init {
-        val id = savedStateHandle.get<Long>(ARG_FRAGMENT_ID) ?: 0L
+        val id = savedStateHandle.navArgLong(ARG_FRAGMENT_ID)
         if (id > 0) {
             _uiState.update { it.copy(editingFragmentId = id, editingFragmentStableId = "", isLoadingDraft = true) }
             viewModelScope.launch {
