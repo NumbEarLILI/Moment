@@ -2,8 +2,10 @@ package com.example.moment.ui.common
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -20,6 +22,7 @@ import com.example.moment.domain.model.FragmentLocation
 import com.example.moment.domain.model.FragmentWeather
 import com.example.moment.domain.model.fragmentPlaceLabel
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FragmentWeatherAndPlace(
     weather: FragmentWeather?,
@@ -34,12 +37,15 @@ fun FragmentWeatherAndPlace(
         !placePlaceholder.isNullOrBlank() -> placePlaceholder
         else -> null
     }
-    if (weather == null && placeText == null) return
-    Column(
+    val weatherText = weather?.caption()
+    if (weatherText == null && placeText == null) return
+    FlowRow(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically
     ) {
-        weather?.caption()?.let { caption ->
+        weatherText?.let { caption ->
             Text(
                 caption,
                 style = MaterialTheme.typography.bodySmall,
@@ -48,11 +54,19 @@ fun FragmentWeatherAndPlace(
                 overflow = TextOverflow.Ellipsis
             )
         }
+        if (weatherText != null && placeText != null) {
+            Text(
+                "·",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+            )
+        }
         if (placeText != null) {
             FragmentPlaceLine(
                 placeLabel = placeText,
                 onClick = onPlaceClick,
-                isLoading = isPlaceLoading && location == null
+                isLoading = isPlaceLoading && location == null,
+                maxLines = 1
             )
         }
     }
@@ -89,7 +103,9 @@ fun FragmentPlaceLine(
     }
     Row(
         modifier = if (onClick != null) {
-            modifier.clickable(onClick = onClick)
+            modifier
+                .clickable(onClick = onClick)
+                .padding(vertical = 2.dp)
         } else {
             modifier
         },
@@ -99,7 +115,7 @@ fun FragmentPlaceLine(
         Icon(
             painter = painterResource(R.drawable.ic_place),
             contentDescription = "地点",
-            modifier = Modifier.size(14.dp),
+            modifier = Modifier.size(15.dp),
             tint = color
         )
         Text(

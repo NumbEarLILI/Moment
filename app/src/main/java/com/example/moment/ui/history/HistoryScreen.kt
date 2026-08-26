@@ -220,12 +220,6 @@ private fun FragmentCard(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        fragment.mood?.let { MoodBadge(mood = it) }
-        TagLine(tags = fragment.tags)
-        FragmentWeatherAndPlace(
-            weather = fragment.weather,
-            location = fragment.location
-        )
         if (fragment.imageUris.isNotEmpty()) {
             Text(
                 "${fragment.imageUris.size} 张图片",
@@ -233,6 +227,12 @@ private fun FragmentCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        FragmentWeatherAndPlace(
+            weather = fragment.weather,
+            location = fragment.location
+        )
+        fragment.mood?.let { MoodBadge(mood = it) }
+        TagLine(tags = fragment.tags)
     }
 }
 

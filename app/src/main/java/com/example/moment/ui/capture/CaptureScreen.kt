@@ -12,6 +12,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -839,61 +839,37 @@ private fun CaptureMomentForm(
                             )
                         }
                     }
-                    if (imageUriList.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(thumbRowScroll)
-                                .height(ImageThumbSize),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            imageUriList.forEach { uri ->
-                                key(uri) {
-                                    ImageThumbnail(
-                                        uri = uri,
-                                        onRemove = { onRemoveImage(uri) }
-                                    )
-                                }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(thumbRowScroll),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        imageUriList.forEach { uri ->
+                            key(uri) {
+                                ImageThumbnail(
+                                    uri = uri,
+                                    onRemove = { onRemoveImage(uri) }
+                                )
                             }
                         }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_add_photo),
-                            contentDescription = "添加照片",
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(MaterialTheme.shapes.small)
-                                .clickable(
-                                    enabled = interactionsEnabled && !isAnalyzingImages,
-                                    onClick = { showPhotoSourceSheet = true }
-                                )
-                                .padding(6.dp),
-                            tint = if (interactionsEnabled && !isAnalyzingImages) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
-                            }
-                        )
-                        FragmentWeatherAndPlace(
-                            weather = weather,
-                            location = location,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(top = 8.dp),
-                            onPlaceClick = if (interactionsEnabled) onPickPlace else null,
-                            placePlaceholder = when {
-                                location != null -> null
-                                isResolvingPlace -> "正在获取地点…"
-                                else -> "点击选择地点"
-                            },
-                            isPlaceLoading = isResolvingPlace && location == null
+                        AddPhotoTile(
+                            enabled = interactionsEnabled && !isAnalyzingImages,
+                            onClick = { showPhotoSourceSheet = true }
                         )
                     }
+                    FragmentWeatherAndPlace(
+                        weather = weather,
+                        location = location,
+                        onPlaceClick = if (interactionsEnabled) onPickPlace else null,
+                        placePlaceholder = when {
+                            location != null -> null
+                            isResolvingPlace -> "正在获取地点…"
+                            else -> "点击选择地点"
+                        },
+                        isPlaceLoading = isResolvingPlace && location == null
+                    )
                     if (tagList.isNotEmpty()) {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
@@ -1035,6 +1011,36 @@ private fun TagCapsule(
                 .padding(horizontal = 4.dp, vertical = 2.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun AddPhotoTile(
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 0.45f else 0.22f)
+    val iconColor = if (enabled) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.38f)
+    }
+    Box(
+        modifier = Modifier
+            .size(ImageThumbSize)
+            .clip(shape)
+            .border(width = 1.dp, color = borderColor, shape = shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_add_photo),
+            contentDescription = "添加照片",
+            modifier = Modifier.size(22.dp),
+            tint = iconColor
         )
     }
 }

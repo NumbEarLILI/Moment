@@ -272,6 +272,10 @@ private fun FragmentTimelineCard(
                 onImageClick = onImageClick
             )
         }
+        FragmentWeatherAndPlace(
+            weather = fragment.weather,
+            location = fragment.location
+        )
 
         when {
             content.isNotEmpty() -> {
@@ -295,10 +299,6 @@ private fun FragmentTimelineCard(
             MoodBadge(mood = mood)
         }
         TagLine(tags = fragment.tags)
-        FragmentWeatherAndPlace(
-            weather = fragment.weather,
-            location = fragment.location
-        )
     }
 }
 
