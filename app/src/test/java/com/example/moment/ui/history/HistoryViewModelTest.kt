@@ -5,6 +5,7 @@ import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.repository.DiaryRepository
 import com.example.moment.domain.repository.FragmentRepository
 import com.example.moment.domain.usecase.DeleteFragmentUseCase
+import com.example.moment.domain.usecase.ObserveAllFragmentsUseCase
 import com.example.moment.domain.usecase.ObserveDiaryEntriesUseCase
 import com.example.moment.domain.usecase.ObserveFragmentsForDateUseCase
 import java.time.Instant
@@ -72,8 +73,43 @@ class HistoryViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.first { !it.isLoading }
-        assertEquals(setOf(selected, other), state.datesWithSavedDiary)
+        assertEquals(setOf(selected, other), state.datesWithRecords)
         assertEquals(listOf(selectedDiary), state.diaryEntries)
+    }
+
+    @Test
+    fun calendarMarksFragmentDaysEvenWithoutDiary() = runTest {
+        val fragmentDay = LocalDate.of(2026, 5, 18)
+        val diaryDay = LocalDate.of(2026, 5, 20)
+        val viewModel = historyViewModel(
+            fragments = listOf(fragment(id = 1L, date = fragmentDay)),
+            diaries = listOf(diary(date = diaryDay))
+        )
+
+        viewModel.onCalendarDayClick(diaryDay)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.first { !it.isLoading }
+        assertEquals(setOf(fragmentDay, diaryDay), state.datesWithRecords)
+    }
+
+    @Test
+    fun calendarUsesLocalDateWhenMarkingFragmentDays() = runTest {
+        val zoneId = java.time.ZoneId.of("Asia/Shanghai")
+        val fragment = fragment(
+            id = 1L,
+            date = LocalDate.of(2026, 5, 12)
+        ).copy(createdAt = Instant.parse("2026-05-12T16:30:00Z"))
+        val viewModel = historyViewModel(
+            fragments = listOf(fragment),
+            zoneId = zoneId
+        )
+
+        viewModel.onCalendarDayClick(LocalDate.of(2026, 5, 13))
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.first { !it.isLoading }
+        assertEquals(setOf(LocalDate.of(2026, 5, 13)), state.datesWithRecords)
     }
 
     @Test
@@ -109,14 +145,17 @@ class HistoryViewModelTest {
 
     private fun historyViewModel(
         fragments: List<LifeFragment> = emptyList(),
-        diaries: List<DiaryEntry> = emptyList()
+        diaries: List<DiaryEntry> = emptyList(),
+        zoneId: java.time.ZoneId = java.time.ZoneOffset.UTC
     ): HistoryViewModel {
         val fragmentRepository = FakeFragmentRepository(fragments)
         val diaryRepository = FakeDiaryRepository(diaries)
         return HistoryViewModel(
             observeFragmentsForDate = ObserveFragmentsForDateUseCase(fragmentRepository),
+            observeAllFragments = ObserveAllFragmentsUseCase(fragmentRepository),
             deleteFragment = DeleteFragmentUseCase(fragmentRepository),
-            observeDiaryEntries = ObserveDiaryEntriesUseCase(diaryRepository)
+            observeDiaryEntries = ObserveDiaryEntriesUseCase(diaryRepository),
+            zoneId = zoneId
         )
     }
 

@@ -102,7 +102,7 @@ fun HistoryScreen(
                     visibleMonth = state.visibleMonth,
                     selectedDate = state.selectedDate,
                     today = viewModel.today,
-                    datesWithSavedDiary = state.datesWithSavedDiary,
+                    datesWithRecords = state.datesWithRecords,
                     onDayClick = viewModel::onCalendarDayClick,
                     onPreviousMonth = viewModel::previousMonth,
                     onNextMonth = viewModel::nextMonth

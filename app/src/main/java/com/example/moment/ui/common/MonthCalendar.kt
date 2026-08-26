@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -34,7 +35,7 @@ fun MonthCalendar(
     visibleMonth: YearMonth,
     selectedDate: LocalDate,
     today: LocalDate,
-    datesWithSavedDiary: Set<LocalDate> = emptySet(),
+    datesWithRecords: Set<LocalDate> = emptySet(),
     onDayClick: (LocalDate) -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
@@ -96,7 +97,7 @@ fun MonthCalendar(
                         date = date,
                         selectedDate = selectedDate,
                         today = today,
-                        hasSavedDiary = date != null && date in datesWithSavedDiary,
+                        hasRecord = date != null && date in datesWithRecords,
                         onClick = onDayClick,
                         modifier = Modifier.weight(1f)
                     )
@@ -126,7 +127,7 @@ private fun DayCell(
     date: LocalDate?,
     selectedDate: LocalDate,
     today: LocalDate,
-    hasSavedDiary: Boolean,
+    hasRecord: Boolean,
     onClick: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -149,11 +150,21 @@ private fun DayCell(
         Text(
             text = "${date.dayOfMonth}",
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isToday || isSelected || hasSavedDiary) FontWeight.SemiBold else FontWeight.Normal,
+            fontWeight = if (isToday || isSelected || hasRecord) FontWeight.SemiBold else FontWeight.Normal,
             color = when {
                 isSelected || isToday -> scheme.primary
                 else -> scheme.onSurface
             }
         )
+        if (hasRecord) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 5.dp)
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(scheme.primary)
+            )
+        }
     }
 }
