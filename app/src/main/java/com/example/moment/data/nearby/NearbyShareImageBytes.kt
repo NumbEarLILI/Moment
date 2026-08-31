@@ -18,8 +18,7 @@ object NearbyShareImageBytes {
     fun fromAny(path: String, resolver: ContentResolver): ByteArray {
         val trimmed = path.trim()
         if (trimmed.isBlank()) return byteArrayOf()
-        val raw = readRaw(trimmed, resolver) ?: return byteArrayOf()
-        return fit(raw)
+        return readRaw(trimmed, resolver) ?: byteArrayOf()
     }
 
     fun fromFile(file: File): ByteArray {
@@ -40,33 +39,40 @@ object NearbyShareImageBytes {
 
     private fun readRaw(path: String, resolver: ContentResolver): ByteArray? {
         if (path.startsWith("content:", ignoreCase = true)) {
-            return resolver.openInputStream(Uri.parse(path))?.use { readCapped(it) }
+            return resolver.openInputStream(Uri.parse(path))?.use { fromStream(it) }
         }
         if (path.startsWith("file:", ignoreCase = true)) {
             val uri = Uri.parse(path)
             val file = uri.path?.let(::File)
             if (file != null && file.isFile) return fromFile(file)
-            return resolver.openInputStream(uri)?.use { readCapped(it) }
+            return resolver.openInputStream(uri)?.use { fromStream(it) }
         }
         val file = File(path)
         if (file.isFile) return fromFile(file)
         return runCatching {
-            resolver.openInputStream(Uri.parse(path))?.use { readCapped(it) }
+            resolver.openInputStream(Uri.parse(path))?.use { fromStream(it) }
         }.getOrNull()
     }
 
-    private fun readCapped(input: InputStream, maxBytes: Int = MAX_SOURCE_BYTES): ByteArray? {
-        val out = ByteArrayOutputStream()
-        val buf = ByteArray(16 * 1024)
-        var total = 0
-        while (true) {
-            val read = input.read(buf)
-            if (read < 0) break
-            total += read
-            if (total > maxBytes) break
-            out.write(buf, 0, read)
+    private fun fromStream(input: InputStream): ByteArray? {
+        val tmp = File.createTempFile("moment-share-", ".img")
+        try {
+            tmp.outputStream().use { output ->
+                val buf = ByteArray(16 * 1024)
+                var total = 0
+                while (total < MAX_SOURCE_BYTES) {
+                    val toRead = minOf(buf.size, MAX_SOURCE_BYTES - total)
+                    val read = input.read(buf, 0, toRead)
+                    if (read < 0) break
+                    output.write(buf, 0, read)
+                    total += read
+                }
+            }
+            if (!tmp.isFile || tmp.length() <= 0L) return null
+            return fromFile(tmp)
+        } finally {
+            tmp.delete()
         }
-        return out.toByteArray().takeIf { it.isNotEmpty() }
     }
 
     private fun recompressFile(file: File): ByteArray? {
@@ -187,4 +193,4 @@ object NearbyShareImageBytes {
     }
 }
 
-private const val MAX_SOURCE_BYTES = 16 * 1024 * 1024
+private const val MAX_SOURCE_BYTES = 32 * 1024 * 1024

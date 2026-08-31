@@ -13,7 +13,8 @@ import kotlinx.serialization.json.Json
 
 @Singleton
 class NearbyChatStore @Inject constructor(
-    private val dao: NearbyChatDao
+    private val dao: NearbyChatDao,
+    private val shareImages: NearbyShareImageStore
 ) {
     fun observe(transport: NearbyTransport): Flow<List<NearbyChatMessage>> =
         dao.observeByTransport(transport.name).map { rows ->
@@ -24,7 +25,11 @@ class NearbyChatStore @Inject constructor(
     suspend fun save(message: NearbyChatMessage, transport: NearbyTransport) {
         dao.insert(message.toEntity(transport))
         val extra = dao.countByTransport(transport.name) - KEEP
-        if (extra > 0) dao.deleteOldestByTransport(transport.name, extra)
+        if (extra > 0) {
+            val doomed = dao.oldestByTransport(transport.name, extra)
+            dao.deleteOldestByTransport(transport.name, extra)
+            doomed.forEach { shareImages.deleteIfManaged(it.imagePath) }
+        }
     }
 
     private companion object {

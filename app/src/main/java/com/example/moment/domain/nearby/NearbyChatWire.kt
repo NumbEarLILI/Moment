@@ -45,6 +45,7 @@ sealed interface NearbyChatFrame {
     @SerialName("avatar")
     data class Avatar(
         val nodeId: String,
+        @Serializable(with = NearbyWireJpegSerializer::class)
         val jpeg: ByteArray,
         val updatedAtEpochMillis: Long
     ) : NearbyChatFrame
@@ -59,6 +60,7 @@ sealed interface NearbyChatFrame {
         val sentAtEpochMillis: Long,
         val ttl: Int,
         val card: SharedFragmentCard,
+        @Serializable(with = NearbyWireJpegSerializer::class)
         val jpeg: ByteArray = byteArrayOf()
     ) : NearbyChatFrame
 }

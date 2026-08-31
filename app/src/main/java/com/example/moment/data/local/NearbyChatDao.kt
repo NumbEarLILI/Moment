@@ -26,6 +26,16 @@ interface NearbyChatDao {
 
     @Query(
         """
+        SELECT * FROM nearby_chat_messages
+        WHERE transport = :transport
+        ORDER BY sentAtEpochMillis ASC, messageId ASC
+        LIMIT :overflow
+        """
+    )
+    suspend fun oldestByTransport(transport: String, overflow: Int): List<NearbyChatMessageEntity>
+
+    @Query(
+        """
         DELETE FROM nearby_chat_messages WHERE messageId IN (
             SELECT messageId FROM nearby_chat_messages
             WHERE transport = :transport

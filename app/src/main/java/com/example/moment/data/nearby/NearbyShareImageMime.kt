@@ -18,11 +18,24 @@ object NearbyShareImageMime {
         ) {
             return MIME_PNG
         }
+        if (bytes.size >= 12 &&
+            bytes[0] == RIFF_0 &&
+            bytes[1] == RIFF_1 &&
+            bytes[2] == RIFF_2 &&
+            bytes[3] == RIFF_3 &&
+            bytes[8] == WEBP_0 &&
+            bytes[9] == WEBP_1 &&
+            bytes[10] == WEBP_2 &&
+            bytes[11] == WEBP_3
+        ) {
+            return MIME_WEBP
+        }
         return MIME_JPEG
     }
 
     fun fileExtension(mime: String): String = when (mime) {
         MIME_PNG -> "png"
+        MIME_WEBP -> "webp"
         else -> "jpg"
     }
 
@@ -33,6 +46,7 @@ object NearbyShareImageMime {
 
     private const val MIME_JPEG = "image/jpeg"
     private const val MIME_PNG = "image/png"
+    private const val MIME_WEBP = "image/webp"
     private val JPEG_SOI_0 = 0xFF.toByte()
     private val JPEG_SOI_1 = 0xD8.toByte()
     private val JPEG_SOI_2 = 0xFF.toByte()
@@ -40,4 +54,12 @@ object NearbyShareImageMime {
     private val PNG_1 = 0x50.toByte()
     private val PNG_2 = 0x4E.toByte()
     private val PNG_3 = 0x47.toByte()
+    private val RIFF_0 = 0x52.toByte()
+    private val RIFF_1 = 0x49.toByte()
+    private val RIFF_2 = 0x46.toByte()
+    private val RIFF_3 = 0x46.toByte()
+    private val WEBP_0 = 0x57.toByte()
+    private val WEBP_1 = 0x45.toByte()
+    private val WEBP_2 = 0x42.toByte()
+    private val WEBP_3 = 0x50.toByte()
 }

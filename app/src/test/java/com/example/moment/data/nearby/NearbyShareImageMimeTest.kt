@@ -25,6 +25,17 @@ class NearbyShareImageMimeTest {
     }
 
     @Test
+    fun `sniffs webp from the riff header`() {
+        val header = byteArrayOf(
+            0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0,
+            0x57, 0x45, 0x42, 0x50
+        )
+
+        assertEquals("image/webp", NearbyShareImageMime.fromBytes(header))
+        assertEquals("webp", NearbyShareImageMime.fileExtension("image/webp"))
+    }
+
+    @Test
     fun `unknown bytes default to jpeg so a save still works`() {
         assertEquals("image/jpeg", NearbyShareImageMime.fromBytes(byteArrayOf(1, 2, 3)))
         assertEquals("image/jpeg", NearbyShareImageMime.fromBytes(byteArrayOf()))

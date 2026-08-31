@@ -317,9 +317,9 @@ class NearbyChatViewModel @Inject constructor(
     /** 把本机一条碎片发到聊天里。对方看到卡片，不会写进对方的碎片库。 */
     fun shareFragment(fragment: LifeFragment) {
         val currentNode = node ?: return
+        val transport = _uiState.value.transport
         if (_uiState.value.stage != NearbyChatStage.InRoom) return
         viewModelScope.launch {
-            val transport = _uiState.value.transport
             val card = fragment.toSharedFragmentCard()
             val localImage = fragment.imageUris.firstOrNull { it.isNotBlank() }.orEmpty()
             val jpeg = if (NearbyFragmentSharePolicy.includeImage(transport)) {
@@ -331,6 +331,7 @@ class NearbyChatViewModel @Inject constructor(
             } else {
                 byteArrayOf()
             }
+            if (node !== currentNode) return@launch
             val frame = router.composeFragment(
                 messageId = UUID.randomUUID().toString(),
                 displayName = displayName,
@@ -352,9 +353,10 @@ class NearbyChatViewModel @Inject constructor(
                         localPath = localImage,
                         attachedJpeg = jpeg
                     )
-                )
+                ),
+                transport
             )
-            if (_uiState.value.stage == NearbyChatStage.InRoom) {
+            if (node === currentNode && _uiState.value.stage == NearbyChatStage.InRoom) {
                 currentNode.broadcast(frame)
             }
         }
@@ -603,9 +605,12 @@ class NearbyChatViewModel @Inject constructor(
         wifiDirectController.removeGroup()
     }
 
-    private fun appendMessage(message: NearbyChatMessage) {
+    private fun appendMessage(
+        message: NearbyChatMessage,
+        transport: NearbyTransport = _uiState.value.transport
+    ) {
         viewModelScope.launch {
-            chatStore.save(message, _uiState.value.transport)
+            chatStore.save(message, transport)
         }
     }
 

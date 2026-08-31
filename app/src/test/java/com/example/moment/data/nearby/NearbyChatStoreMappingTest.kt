@@ -2,6 +2,7 @@ package com.example.moment.data.nearby
 
 import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyTransport
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -102,8 +103,24 @@ class NearbyShareImageStoreTest {
             assertTrue(saved.isFile)
             assertEquals(byteArrayOf(9, 8, 7).toList(), saved.readBytes().toList())
             assertEquals(store.fileFor("f-1").absolutePath, saved.absolutePath)
+            store.deleteIfManaged(saved.absolutePath)
+            assertTrue(!saved.exists())
         } finally {
             dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `does not delete files outside the share directory`() {
+        val dir = createTempDir(prefix = "moment-shares")
+        val outsider = File.createTempFile("moment-outside", ".jpg")
+        try {
+            outsider.writeBytes(byteArrayOf(1))
+            NearbyShareImageStore(dir).deleteIfManaged(outsider.absolutePath)
+            assertTrue(outsider.isFile)
+        } finally {
+            dir.deleteRecursively()
+            outsider.delete()
         }
     }
 }

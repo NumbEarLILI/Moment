@@ -17,6 +17,16 @@ class NearbyShareImageStore(private val filesDir: File) {
         return dest
     }
 
+    fun deleteIfManaged(path: String) {
+        val trimmed = path.trim()
+        if (trimmed.isEmpty()) return
+        val file = File(trimmed)
+        val dir = runCatching { directory().canonicalFile }.getOrNull() ?: return
+        val canonical = runCatching { file.canonicalFile }.getOrNull() ?: return
+        if (canonical == dir || !canonical.path.startsWith(dir.path + File.separator)) return
+        if (canonical.isFile) canonical.delete()
+    }
+
     private fun sanitize(messageId: String): String =
         messageId.filter { it.isLetterOrDigit() || it == '-' }.ifBlank { "share" }
 

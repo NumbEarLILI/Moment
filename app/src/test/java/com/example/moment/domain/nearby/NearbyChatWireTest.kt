@@ -81,6 +81,43 @@ class NearbyChatWireTest {
         assertEquals(frame.card, decoded.card)
         assertTrue(frame.jpeg.contentEquals(decoded.jpeg))
         assertTrue(NearbyChatWire.encode(frame).length < NearbyChatWire.MAX_FRAME_CHARS)
+        assertTrue(
+            "jpeg 必须走 Base64 字符串，数字数组会把原图撑爆 Wi-Fi 帧上限",
+            NearbyChatWire.encode(frame).contains("\"jpeg\":\"")
+        )
+    }
+
+    @Test
+    fun `a high-entropy original photo still fits the wifi frame as base64`() {
+        val jpeg = ByteArray(3 * 1024 * 1024) { 100 }
+        val frame = NearbyChatFrame.FragmentShare(
+            messageId = "m-f1",
+            senderId = "node-a",
+            senderName = "阿七",
+            sentAtEpochMillis = 9L,
+            ttl = 8,
+            card = SharedFragmentCard(
+                stableId = "sid-3",
+                content = "出门散步",
+                createdAtEpochMillis = 1L
+            ),
+            jpeg = jpeg
+        )
+        val encoded = NearbyChatWire.encode(frame)
+        val decoded = NearbyChatWire.decode(encoded) as NearbyChatFrame.FragmentShare
+
+        assertTrue(encoded.contains("\"jpeg\":\""))
+        assertTrue(!encoded.contains("\"jpeg\":["))
+        assertTrue(encoded.length < NearbyChatWire.WIFI_MAX_FRAME_CHARS)
+        assertTrue(jpeg.contentEquals(decoded.jpeg))
+    }
+
+    @Test
+    fun `still reads jpeg arrays sent by older peers`() {
+        val line = """{"type":"fragment","messageId":"m-f1","senderId":"node-a","senderName":"阿七","sentAtEpochMillis":9,"ttl":8,"card":{"stableId":"sid","content":"出门散步","mood":"","tags":[],"place":"","weather":"","createdAtEpochMillis":1},"jpeg":[1,2,255]}"""
+        val decoded = NearbyChatWire.decode(line) as NearbyChatFrame.FragmentShare
+
+        assertTrue(byteArrayOf(1, 2, 0xFF.toByte()).contentEquals(decoded.jpeg))
     }
 
     @Test
