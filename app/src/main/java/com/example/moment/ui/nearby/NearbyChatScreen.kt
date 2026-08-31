@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -29,14 +28,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +46,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -66,7 +68,7 @@ import com.example.moment.domain.nearby.NearbyPermissions
 import com.example.moment.domain.nearby.NearbyTransport
 import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.appScaffoldContainerColor
-import com.example.moment.ui.theme.momentTransparentTextFieldColors
+import com.example.moment.ui.theme.positionAwareImePadding
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
@@ -76,6 +78,7 @@ private val MessageTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatter
 
 @Composable
 fun NearbyChatScreen(
+    onInputFocusChange: (Boolean) -> Unit = {},
     viewModel: NearbyChatViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -123,19 +126,26 @@ fun NearbyChatScreen(
 
     val isBluetooth = transport == NearbyTransport.Bluetooth
 
+    DisposableEffect(Unit) {
+        onDispose { onInputFocusChange(false) }
+    }
+
     Scaffold(
         containerColor = appScaffoldContainerColor(),
         contentColor = MaterialTheme.colorScheme.onBackground,
-        // 默认 safeDrawing 已含 IME；再套 imePadding 会空出一整块键盘高度。
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .imePadding()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 12.dp)
+            ) {
             Text(
                 "聊天",
                 style = MaterialTheme.typography.headlineSmall,
@@ -218,12 +228,21 @@ fun NearbyChatScreen(
 
             ConversationBlock(
                 state = state,
-                draft = draft,
-                onDraftChange = viewModel::onDraftChange,
-                onSend = viewModel::sendDraft,
                 onLeave = viewModel::leaveRoom,
                 showLeave = !isBluetooth && state.showsConversation,
                 modifier = Modifier.weight(1f)
+            )
+            }
+            ChatComposer(
+                draft = draft,
+                canSend = state.canSend,
+                onDraftChange = viewModel::onDraftChange,
+                onSend = viewModel::sendDraft,
+                onInputFocusChange = onInputFocusChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .positionAwareImePadding()
+                    .padding(horizontal = 20.dp)
             )
         }
     }
@@ -377,9 +396,6 @@ private fun PeerRow(
 @Composable
 private fun ConversationBlock(
     state: NearbyChatUiState,
-    draft: String,
-    onDraftChange: (String) -> Unit,
-    onSend: () -> Unit,
     onLeave: () -> Unit,
     showLeave: Boolean,
     modifier: Modifier = Modifier
@@ -463,26 +479,55 @@ private fun ConversationBlock(
                 }
             }
         }
+    }
+}
 
-        MomentHairline(Modifier.padding(top = 8.dp))
+@Composable
+private fun ChatComposer(
+    draft: String,
+    canSend: Boolean,
+    onDraftChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onInputFocusChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val placeholder = if (canSend) "说点什么…" else "已离开聊天室"
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val hintColor = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(modifier = modifier) {
+        MomentHairline()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 4.dp),
+                .padding(vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextField(
+            BasicTextField(
                 value = draft,
                 onValueChange = onDraftChange,
-                modifier = Modifier.weight(1f),
-                enabled = state.canSend,
-                placeholder = { Text(if (state.canSend) "说点什么…" else "已离开聊天室") },
-                colors = momentTransparentTextFieldColors(),
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { onInputFocusChange(it.isFocused) },
+                enabled = canSend,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 maxLines = 4,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { onSend() })
+                keyboardActions = KeyboardActions(onSend = { onSend() }),
+                decorationBox = { inner ->
+                    Box {
+                        if (draft.isEmpty()) {
+                            Text(
+                                placeholder,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = hintColor
+                            )
+                        }
+                        inner()
+                    }
+                }
             )
-            TextButton(onClick = onSend, enabled = state.canSend && draft.isNotBlank()) {
+            TextButton(onClick = onSend, enabled = canSend && draft.isNotBlank()) {
                 Text("发送")
             }
         }

@@ -21,6 +21,13 @@ class MomentBottomBarTest {
     }
 
     @Test
+    fun hidesWhenComposerIsFocusedEvenIfImeInsetsAreZero() {
+        assertFalse(
+            showMomentBottomBar(Routes.Chat, imeVisible = false, composerFocused = true)
+        )
+    }
+
+    @Test
     fun hidesOnNestedScreens() {
         assertFalse(showMomentBottomBar(Routes.Settings, imeVisible = false))
         assertFalse(showMomentBottomBar(null, imeVisible = false))
