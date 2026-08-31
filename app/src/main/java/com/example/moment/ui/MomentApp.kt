@@ -45,6 +45,7 @@ import com.example.moment.ui.history.HistoryViewModel
 import com.example.moment.ui.home.HomeScreen
 import com.example.moment.ui.mine.AccountSettingsScreen
 import com.example.moment.ui.mine.MineScreen
+import com.example.moment.ui.nearby.NearbyChatScreen
 import com.example.moment.ui.place.PlacePickScreen
 import com.example.moment.ui.settings.AboutScreen
 import com.example.moment.ui.settings.SettingsScreen
@@ -166,11 +167,15 @@ fun MomentApp() {
             composable(Routes.Mine) {
                 MineScreen(
                     onOpenAccountSettings = { navController.navigate(Routes.AccountSettings) },
+                    onOpenNearbyChat = { navController.navigate(Routes.NearbyChat) },
                     onOpenSettings = { navController.navigate(Routes.Settings) }
                 )
             }
             composable(Routes.AccountSettings) {
                 AccountSettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable(Routes.NearbyChat) {
+                NearbyChatScreen(onBack = { navController.popBackStack() })
             }
             composable(Routes.Settings) {
                 SettingsScreen(
@@ -307,6 +312,7 @@ object Routes {
     const val History = "history"
     const val Mine = "mine"
     const val AccountSettings = "accountSettings"
+    const val NearbyChat = "nearbyChat"
     const val Settings = "settings"
     const val About = "about"
     const val Detail = "detail/{id}"

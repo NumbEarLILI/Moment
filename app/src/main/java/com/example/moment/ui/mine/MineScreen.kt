@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.collectLatest
 @Composable
 fun MineScreen(
     onOpenAccountSettings: () -> Unit,
+    onOpenNearbyChat: () -> Unit,
     onOpenSettings: () -> Unit,
     viewModel: MineViewModel = hiltViewModel()
 ) {
@@ -102,25 +103,13 @@ fun MineScreen(
                 onClearAvatar = { showClearAvatarDialog = true }
             )
             MomentHairline()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenSettings)
-                    .padding(vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "设置",
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    "›",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                )
-            }
+            EntryRow(
+                title = "面对面聊天",
+                subtitle = "Wi-Fi 直连身边的设备，不联网也能聊",
+                onClick = onOpenNearbyChat
+            )
+            MomentHairline()
+            EntryRow(title = "设置", onClick = onOpenSettings)
         }
     }
     if (showClearAvatarDialog) {
@@ -187,6 +176,44 @@ fun MineScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun EntryRow(
+    title: String,
+    onClick: () -> Unit,
+    subtitle: String? = null
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Text(
+            "›",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+        )
     }
 }
 
