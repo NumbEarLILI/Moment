@@ -4,10 +4,12 @@ import com.example.moment.data.local.NearbyChatDao
 import com.example.moment.data.local.entity.NearbyChatMessageEntity
 import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyTransport
+import com.example.moment.domain.nearby.SharedFragmentCard
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
 
 @Singleton
 class NearbyChatStore @Inject constructor(
@@ -30,13 +32,22 @@ class NearbyChatStore @Inject constructor(
     }
 }
 
+private val cardJson = Json {
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+}
+
 internal fun NearbyChatMessageEntity.toDomain(): NearbyChatMessage = NearbyChatMessage(
     messageId = messageId,
     senderId = senderId,
     senderName = senderName,
     text = text,
     fromMe = fromMe,
-    sentAtEpochMillis = sentAtEpochMillis
+    sentAtEpochMillis = sentAtEpochMillis,
+    fragment = fragmentJson.takeIf { it.isNotBlank() }?.let {
+        runCatching { cardJson.decodeFromString<SharedFragmentCard>(it) }.getOrNull()
+    },
+    imagePath = imagePath
 )
 
 internal fun NearbyChatMessage.toEntity(transport: NearbyTransport): NearbyChatMessageEntity =
@@ -47,5 +58,7 @@ internal fun NearbyChatMessage.toEntity(transport: NearbyTransport): NearbyChatM
         text = text,
         fromMe = fromMe,
         sentAtEpochMillis = sentAtEpochMillis,
-        transport = transport.name
+        transport = transport.name,
+        fragmentJson = fragment?.let { cardJson.encodeToString(SharedFragmentCard.serializer(), it) }.orEmpty(),
+        imagePath = imagePath
     )

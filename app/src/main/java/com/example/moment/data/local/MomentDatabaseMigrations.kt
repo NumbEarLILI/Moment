@@ -74,3 +74,14 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
         )
     }
 }
+
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE nearby_chat_messages ADD COLUMN fragmentJson TEXT NOT NULL DEFAULT ''"
+        )
+        db.execSQL(
+            "ALTER TABLE nearby_chat_messages ADD COLUMN imagePath TEXT NOT NULL DEFAULT ''"
+        )
+    }
+}

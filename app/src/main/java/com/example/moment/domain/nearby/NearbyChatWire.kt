@@ -48,6 +48,19 @@ sealed interface NearbyChatFrame {
         val jpeg: ByteArray,
         val updatedAtEpochMillis: Long
     ) : NearbyChatFrame
+
+    /** 分享一条本机碎片。走和消息一样的去重 + TTL 洪泛。 */
+    @Serializable
+    @SerialName("fragment")
+    data class FragmentShare(
+        val messageId: String,
+        val senderId: String,
+        val senderName: String,
+        val sentAtEpochMillis: Long,
+        val ttl: Int,
+        val card: SharedFragmentCard,
+        val jpeg: ByteArray = byteArrayOf()
+    ) : NearbyChatFrame
 }
 
 /**

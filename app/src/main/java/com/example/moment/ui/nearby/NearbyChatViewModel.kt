@@ -1,18 +1,21 @@
 package com.example.moment.ui.nearby
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.moment.data.nearby.BleMeshController
 import com.example.moment.data.nearby.MeshRole
+import com.example.moment.data.nearby.NearbyAvatarThumbnail
 import com.example.moment.data.nearby.NearbyChatConnector
+import com.example.moment.data.nearby.NearbyChatStore
 import com.example.moment.data.nearby.NearbyMeshNode
+import com.example.moment.data.nearby.NearbyShareImageStore
+import com.example.moment.data.nearby.PeerAvatarStore
 import com.example.moment.data.nearby.WifiDirectController
 import com.example.moment.data.nearby.WifiDirectEvent
 import com.example.moment.data.nearby.WifiDirectGroup
-import com.example.moment.data.nearby.NearbyAvatarThumbnail
-import com.example.moment.data.nearby.NearbyChatStore
-import com.example.moment.data.nearby.PeerAvatarStore
 import com.example.moment.data.preferences.UserPreferencesRepository
+import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.nearby.MeshMember
 import com.example.moment.domain.nearby.NearbyChatFrame
 import com.example.moment.domain.nearby.NearbyChatMessage
@@ -21,17 +24,23 @@ import com.example.moment.domain.nearby.NearbyChatWire
 import com.example.moment.domain.nearby.NearbyMeshRouter
 import com.example.moment.domain.nearby.NearbyPeer
 import com.example.moment.domain.nearby.NearbyTransport
+import com.example.moment.domain.nearby.shareCaption
+import com.example.moment.domain.nearby.toSharedFragmentCard
+import com.example.moment.domain.repository.FragmentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.time.Clock
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -56,6 +65,7 @@ data class NearbyChatUiState(
     val myAvatarPath: String = "",
     val myAvatarUpdatedAtEpochMs: Long = 0L,
     val peerAvatarPaths: Map<String, String> = emptyMap(),
+    val shareableFragments: List<LifeFragment> = emptyList(),
     val statusText: String = ""
 ) {
     /** 聊天区是否该占据整屏（刚断开时也还要看得到消息）。 */
@@ -72,11 +82,14 @@ data class NearbyChatUiState(
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
 class NearbyChatViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val wifiDirectController: WifiDirectController,
     private val bleMeshController: BleMeshController,
     private val connector: NearbyChatConnector,
     private val chatStore: NearbyChatStore,
+    private val shareImageStore: NearbyShareImageStore,
     private val peerAvatarStore: PeerAvatarStore,
+    private val fragmentRepository: FragmentRepository,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val clock: Clock
 ) : ViewModel() {
@@ -119,6 +132,11 @@ class NearbyChatViewModel @Inject constructor(
                         myAvatarUpdatedAtEpochMs = prefs.avatarUpdatedAtEpochMs
                     )
                 }
+            }
+        }
+        viewModelScope.launch {
+            fragmentRepository.observeAllFragments().collect { fragments ->
+                _uiState.update { it.copy(shareableFragments = fragments.take(SHAREABLE_LIMIT)) }
             }
         }
         _uiState.update { it.copy(peerAvatarPaths = peerAvatarStore.snapshot()) }
@@ -292,6 +310,43 @@ class NearbyChatViewModel @Inject constructor(
             )
         )
         viewModelScope.launch { currentNode.broadcast(frame) }
+    }
+
+    /** 把本机一条碎片发到聊天里。对方看到卡片，不会写进对方的碎片库。 */
+    fun shareFragment(fragment: LifeFragment) {
+        val currentNode = node ?: return
+        if (_uiState.value.stage != NearbyChatStage.InRoom) return
+        viewModelScope.launch {
+            val card = fragment.toSharedFragmentCard()
+            val localImage = fragment.imageUris.firstOrNull { it.isNotBlank() }.orEmpty()
+            val jpeg = withContext(Dispatchers.IO) {
+                localImage.takeIf { it.isNotBlank() }
+                    ?.let { NearbyAvatarThumbnail.fromAny(it, appContext.contentResolver) }
+                    ?: byteArrayOf()
+            }
+            val frame = router.composeFragment(
+                messageId = UUID.randomUUID().toString(),
+                displayName = displayName,
+                atEpochMillis = clock.millis(),
+                card = card,
+                jpeg = jpeg
+            )
+            appendMessage(
+                NearbyChatMessage(
+                    messageId = frame.messageId,
+                    senderId = frame.senderId,
+                    senderName = frame.senderName,
+                    text = fragment.shareCaption(),
+                    fromMe = true,
+                    sentAtEpochMillis = frame.sentAtEpochMillis,
+                    fragment = card,
+                    imagePath = localImage
+                )
+            )
+            if (_uiState.value.stage == NearbyChatStage.InRoom) {
+                currentNode.broadcast(frame)
+            }
+        }
     }
 
     /** 断开当前组网，聊天记录留在本地。 */
@@ -505,6 +560,7 @@ class NearbyChatViewModel @Inject constructor(
                         )
                     )
                 }
+                outcome.fragmentShare?.let { rememberSharedFragment(it) }
                 outcome.forward.forEach { frame ->
                     meshNode.broadcast(frame, exceptNeighborId = event.neighborId)
                 }
@@ -550,6 +606,31 @@ class NearbyChatViewModel @Inject constructor(
             nodeId = resolvedSelfNodeId(),
             jpeg = jpeg,
             updatedAtEpochMillis = _uiState.value.myAvatarUpdatedAtEpochMs
+        )
+    }
+
+    private suspend fun rememberSharedFragment(share: NearbyChatFrame.FragmentShare) {
+        val imagePath = if (share.jpeg.isNotEmpty()) {
+            withContext(Dispatchers.IO) {
+                runCatching { shareImageStore.save(share.messageId, share.jpeg).absolutePath }
+                    .getOrDefault("")
+            }
+        } else {
+            ""
+        }
+        appendMessage(
+            NearbyChatMessage(
+                messageId = share.messageId,
+                senderId = share.senderId,
+                senderName = router.displayNameOf(share.senderId) ?: share.senderName,
+                text = share.card.content.ifBlank {
+                    share.card.contextLine().ifBlank { "分享了一条碎片" }
+                },
+                fromMe = false,
+                sentAtEpochMillis = share.sentAtEpochMillis,
+                fragment = share.card,
+                imagePath = imagePath
+            )
         )
     }
 
@@ -602,5 +683,6 @@ class NearbyChatViewModel @Inject constructor(
     private companion object {
         /** 组建立后到链路打开的最长等待；对方可能还在弹「接受邀请」。 */
         const val LINK_TIMEOUT_MILLIS = 25_000L
+        const val SHAREABLE_LIMIT = 40
     }
 }

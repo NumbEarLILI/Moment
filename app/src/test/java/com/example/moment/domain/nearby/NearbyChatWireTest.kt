@@ -57,6 +57,33 @@ class NearbyChatWireTest {
     }
 
     @Test
+    fun `encodes and decodes a fragment share`() {
+        val frame = NearbyChatFrame.FragmentShare(
+            messageId = "m-f1",
+            senderId = "node-a",
+            senderName = "阿七",
+            sentAtEpochMillis = 9L,
+            ttl = 8,
+            card = SharedFragmentCard(
+                stableId = "sid-3",
+                content = "出门散步",
+                mood = "平静",
+                tags = listOf("散步"),
+                place = "上海",
+                weather = "晴  26°",
+                createdAtEpochMillis = 1_700_000_000_000L
+            ),
+            jpeg = byteArrayOf(1, 2, 3, 4)
+        )
+        val decoded = NearbyChatWire.decode(NearbyChatWire.encode(frame)) as NearbyChatFrame.FragmentShare
+
+        assertEquals(frame.messageId, decoded.messageId)
+        assertEquals(frame.card, decoded.card)
+        assertTrue(frame.jpeg.contentEquals(decoded.jpeg))
+        assertTrue(NearbyChatWire.encode(frame).length < NearbyChatWire.MAX_FRAME_CHARS)
+    }
+
+    @Test
     fun `keeps a multi-line body on a single wire line`() {
         val frame = NearbyChatFrame.Message(
             messageId = "m-2",

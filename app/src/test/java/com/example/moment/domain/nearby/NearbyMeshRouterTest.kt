@@ -183,6 +183,45 @@ class NearbyMeshRouterTest {
         assertTrue(outcome.forward.isEmpty())
     }
 
+    @Test
+    fun `delivers a fragment share and forwards it with one less hop`() {
+        val frame = fragmentShare(id = "f-1", from = "node-a", ttl = 8)
+
+        val outcome = router.receive(frame)
+
+        assertEquals("出门散步", outcome.fragmentShare?.card?.content)
+        assertEquals(listOf(7), outcome.forward.map { (it as NearbyChatFrame.FragmentShare).ttl })
+    }
+
+    @Test
+    fun `drops a fragment share it has already seen`() {
+        val frame = fragmentShare(id = "f-1", from = "node-a", ttl = 8)
+        router.receive(frame)
+
+        val second = router.receive(frame.copy(ttl = 6))
+
+        assertNull(second.fragmentShare)
+        assertTrue(second.forward.isEmpty())
+    }
+
+    @Test
+    fun `does not show a fragment share it composed itself`() {
+        val sent = router.composeFragment(
+            messageId = "f-1",
+            displayName = "我",
+            atEpochMillis = 100L,
+            card = SharedFragmentCard(
+                stableId = "sid",
+                content = "出门散步",
+                createdAtEpochMillis = 100L
+            )
+        )
+
+        val echoed = router.receive(sent.copy(ttl = sent.ttl - 1))
+
+        assertNull(echoed.fragmentShare)
+    }
+
     private fun message(id: String, from: String, ttl: Int) = NearbyChatFrame.Message(
         messageId = id,
         senderId = from,
@@ -190,6 +229,19 @@ class NearbyMeshRouterTest {
         body = "大家好",
         sentAtEpochMillis = 1L,
         ttl = ttl
+    )
+
+    private fun fragmentShare(id: String, from: String, ttl: Int) = NearbyChatFrame.FragmentShare(
+        messageId = id,
+        senderId = from,
+        senderName = "阿七",
+        sentAtEpochMillis = 1L,
+        ttl = ttl,
+        card = SharedFragmentCard(
+            stableId = "sid",
+            content = "出门散步",
+            createdAtEpochMillis = 1L
+        )
     )
 
     private fun member(

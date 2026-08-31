@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -31,10 +33,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,11 +64,13 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyChatStage
 import com.example.moment.domain.nearby.NearbyPeer
 import com.example.moment.domain.nearby.NearbyPermissions
 import com.example.moment.domain.nearby.NearbyTransport
+import com.example.moment.domain.nearby.SharedFragmentCard
 import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.theme.positionAwareImePadding
@@ -73,6 +80,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val MessageTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+private val FragmentShareTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("M月d日 HH:mm")
 
 @Composable
 fun NearbyChatScreen(
@@ -122,6 +130,7 @@ fun NearbyChatScreen(
     }
 
     val isBluetooth = transport == NearbyTransport.Bluetooth
+    var showFragmentPicker by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = appScaffoldContainerColor(),
@@ -214,12 +223,24 @@ fun NearbyChatScreen(
                 canSend = state.canSend,
                 onDraftChange = viewModel::onDraftChange,
                 onSend = viewModel::sendDraft,
+                onShareFragment = { showFragmentPicker = true },
                 modifier = Modifier
                     .fillMaxWidth()
                     .positionAwareImePadding()
                     .padding(horizontal = 20.dp)
             )
         }
+    }
+
+    if (showFragmentPicker) {
+        FragmentSharePickerSheet(
+            fragments = state.shareableFragments,
+            onPick = { fragment ->
+                showFragmentPicker = false
+                viewModel.shareFragment(fragment)
+            },
+            onDismiss = { showFragmentPicker = false }
+        )
     }
 }
 
@@ -465,6 +486,7 @@ private fun ChatComposer(
     canSend: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
+    onShareFragment: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val placeholder = if (canSend) "说点什么…" else "已离开聊天室"
@@ -501,6 +523,9 @@ private fun ChatComposer(
                     }
                 }
             )
+            TextButton(onClick = onShareFragment, enabled = canSend) {
+                Text("碎片")
+            }
             TextButton(onClick = onSend, enabled = canSend && draft.isNotBlank()) {
                 Text("发送")
             }
@@ -556,11 +581,16 @@ private fun MessageBubble(
                     )
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                Text(
-                    message.text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                val card = message.fragment
+                if (card != null) {
+                    SharedFragmentBubble(card = card, imagePath = message.imagePath)
+                } else {
+                    Text(
+                        message.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
         if (message.fromMe) {
@@ -568,6 +598,156 @@ private fun MessageBubble(
                 name = name,
                 imagePath = avatarPath,
                 imageUpdatedAtEpochMs = avatarUpdatedAtEpochMs
+            )
+        }
+    }
+}
+
+@Composable
+private fun SharedFragmentBubble(
+    card: SharedFragmentCard,
+    imagePath: String
+) {
+    val created = remember(card.createdAtEpochMillis) {
+        FragmentShareTimeFormatter.format(
+            Instant.ofEpochMilli(card.createdAtEpochMillis).atZone(ZoneId.systemDefault())
+        )
+    }
+    val contextLine = card.contextLine()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            "碎片",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        if (imagePath.isNotBlank()) {
+            AsyncImage(
+                model = imagePath,
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop
+            )
+        }
+        if (card.content.isNotBlank()) {
+            Text(
+                card.content,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        if (contextLine.isNotBlank()) {
+            Text(
+                contextLine,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            created,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FragmentSharePickerSheet(
+    fragments: List<LifeFragment>,
+    onPick: (LifeFragment) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp)
+        ) {
+            Text(
+                "分享一条碎片",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            if (fragments.isEmpty()) {
+                Text(
+                    "还没有碎片可分享",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 24.dp)
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(fragments, key = { it.stableId.ifBlank { it.id.toString() } }) { fragment ->
+                        FragmentSharePickerRow(
+                            fragment = fragment,
+                            onClick = { onPick(fragment) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FragmentSharePickerRow(
+    fragment: LifeFragment,
+    onClick: () -> Unit
+) {
+    val preview = remember(fragment.content, fragment.imageUris) {
+        fragment.content.trim().ifBlank {
+            if (fragment.imageUris.any { it.isNotBlank() }) "一张照片" else "一条碎片"
+        }
+    }
+    val time = remember(fragment.createdAt) {
+        FragmentShareTimeFormatter.format(fragment.createdAt.atZone(ZoneId.systemDefault()))
+    }
+    val thumb = fragment.imageUris.firstOrNull { it.isNotBlank() }.orEmpty()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (thumb.isNotBlank()) {
+            AsyncImage(
+                model = thumb,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                preview,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                time,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }

@@ -15,5 +15,7 @@ data class NearbyChatMessageEntity(
     val text: String,
     val fromMe: Boolean,
     val sentAtEpochMillis: Long,
-    val transport: String
+    val transport: String,
+    val fragmentJson: String = "",
+    val imagePath: String = ""
 )

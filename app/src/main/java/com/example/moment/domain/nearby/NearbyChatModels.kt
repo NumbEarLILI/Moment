@@ -32,7 +32,9 @@ data class NearbyChatMessage(
     val senderName: String,
     val text: String,
     val fromMe: Boolean,
-    val sentAtEpochMillis: Long
+    val sentAtEpochMillis: Long,
+    val fragment: SharedFragmentCard? = null,
+    val imagePath: String = ""
 )
 
 enum class NearbyChatStage {

@@ -65,7 +65,8 @@ data class MeshOutcome(
     val rosterChanged: Boolean = false,
     /** Hello 帧带来的邻居身份，用于把链路和节点对应起来。 */
     val learnedNodeId: String? = null,
-    val avatar: NearbyChatFrame.Avatar? = null
+    val avatar: NearbyChatFrame.Avatar? = null,
+    val fragmentShare: NearbyChatFrame.FragmentShare? = null
 )
 
 /**
@@ -129,6 +130,25 @@ class NearbyMeshRouter(
         )
     }
 
+    fun composeFragment(
+        messageId: String,
+        displayName: String,
+        atEpochMillis: Long,
+        card: SharedFragmentCard,
+        jpeg: ByteArray = byteArrayOf()
+    ): NearbyChatFrame.FragmentShare {
+        seen.markSeen(messageId)
+        return NearbyChatFrame.FragmentShare(
+            messageId = messageId,
+            senderId = selfNodeId,
+            senderName = displayName,
+            sentAtEpochMillis = atEpochMillis,
+            ttl = DEFAULT_TTL,
+            card = card,
+            jpeg = jpeg
+        )
+    }
+
     fun receive(frame: NearbyChatFrame): MeshOutcome = when (frame) {
         is NearbyChatFrame.Hello -> {
             val changed = applySelfSafe(frame.self)
@@ -160,6 +180,14 @@ class NearbyMeshRouter(
                 MeshOutcome()
             } else {
                 MeshOutcome(deliver = frame, forward = listOfNotNull(forwarded(frame)))
+            }
+        }
+
+        is NearbyChatFrame.FragmentShare -> {
+            if (frame.senderId == selfNodeId || !seen.markSeen(frame.messageId)) {
+                MeshOutcome()
+            } else {
+                MeshOutcome(fragmentShare = frame, forward = listOfNotNull(forwarded(frame)))
             }
         }
 
@@ -197,6 +225,11 @@ class NearbyMeshRouter(
     private fun forwarded(message: NearbyChatFrame.Message): NearbyChatFrame.Message? {
         val ttl = message.ttl - 1
         return if (ttl >= 1) message.copy(ttl = ttl) else null
+    }
+
+    private fun forwarded(share: NearbyChatFrame.FragmentShare): NearbyChatFrame.FragmentShare? {
+        val ttl = share.ttl - 1
+        return if (ttl >= 1) share.copy(ttl = ttl) else null
     }
 
     companion object {

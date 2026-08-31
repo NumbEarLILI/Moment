@@ -9,7 +9,7 @@ import com.example.moment.data.local.entity.NearbyChatMessageEntity
 
 @Database(
     entities = [FragmentEntity::class, DiaryEntity::class, NearbyChatMessageEntity::class],
-    version = 10,
+    version = 11,
     exportSchema = true
 )
 @TypeConverters(StringListConverter::class)
