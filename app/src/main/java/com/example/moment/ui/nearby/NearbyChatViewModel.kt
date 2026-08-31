@@ -87,11 +87,16 @@ class NearbyChatViewModel @Inject constructor(
                 }
             }
             wifiDirectController.discoverPeers().onFailure { error ->
+                // 搜索是后台动作，失败不该把已经聊上的会话打回列表。
                 _uiState.update {
-                    it.copy(
-                        stage = NearbyChatStage.Idle,
-                        statusText = error.message ?: "搜索失败，请重试"
-                    )
+                    if (it.stage == NearbyChatStage.Discovering) {
+                        it.copy(
+                            stage = NearbyChatStage.Idle,
+                            statusText = error.message ?: "搜索失败，请重试"
+                        )
+                    } else {
+                        it
+                    }
                 }
             }
         }
@@ -121,7 +126,7 @@ class NearbyChatViewModel @Inject constructor(
     fun cancelConnecting() {
         viewModelScope.launch {
             wifiDirectController.cancelConnect()
-            wifiDirectController.removeGroup()
+            releaseGroup()
             _uiState.update {
                 it.copy(stage = NearbyChatStage.Discovering, statusText = "已取消邀请")
             }
@@ -164,7 +169,7 @@ class NearbyChatViewModel @Inject constructor(
     fun leaveChat() {
         viewModelScope.launch {
             closeSession(sayBye = true)
-            wifiDirectController.removeGroup()
+            releaseGroup()
             _uiState.update {
                 it.copy(
                     stage = NearbyChatStage.Discovering,
@@ -249,21 +254,31 @@ class NearbyChatViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(stage = NearbyChatStage.Closed, statusText = "对方已断开连接")
                 }
+                releaseGroup()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
+                val reason = error.message?.let { "通道未能建立：$it" } ?: "通道未能建立"
+                // 一条消息都没聊成的话，退回设备列表比停在空聊天页更有用。
                 _uiState.update {
-                    it.copy(
-                        stage = NearbyChatStage.Closed,
-                        statusText = error.message?.let { reason -> "通道未能建立：$reason" }
-                            ?: "通道未能建立"
-                    )
+                    if (it.messages.isEmpty()) {
+                        it.copy(stage = NearbyChatStage.Discovering, statusText = reason)
+                    } else {
+                        it.copy(stage = NearbyChatStage.Closed, statusText = reason)
+                    }
                 }
+                releaseGroup()
             } finally {
                 opened?.close()
                 if (link === opened) link = null
             }
         }
+    }
+
+    /** 释放 Wi-Fi Direct 组，并先清掉 [activeGroup]，让随之而来的断开广播不再重复处理。 */
+    private suspend fun releaseGroup() {
+        activeGroup = null
+        wifiDirectController.removeGroup()
     }
 
     private fun onFrame(frame: NearbyChatFrame) {
@@ -325,8 +340,11 @@ class NearbyChatViewModel @Inject constructor(
 
     override fun onCleared() {
         sessionJob?.cancel()
+        // 阻塞读只有关掉 socket 才会退出，取消协程本身拦不住它。
         link?.close()
         link = null
+        activeGroup = null
+        wifiDirectController.releaseQuietly()
         super.onCleared()
     }
 

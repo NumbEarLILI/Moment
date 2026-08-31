@@ -2,6 +2,7 @@ package com.example.moment.ui.nearby
 
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,15 +25,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +44,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyChatStage
@@ -71,10 +75,13 @@ fun NearbyChatScreen(
     }
 
     var granted by remember { mutableStateOf(permissionsGranted()) }
-    var asked by remember { mutableStateOf(false) }
+    var asked by rememberSaveable { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted = permissionsGranted() }
+
+    // 用户可能是去系统设置里授的权，回到前台时要重新读一次。
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { granted = permissionsGranted() }
 
     LaunchedEffect(granted) {
         if (granted) {
@@ -115,7 +122,15 @@ fun NearbyChatScreen(
                 !state.supported -> Notice("这台设备不支持 Wi-Fi 直连，无法使用面对面聊天。")
 
                 !granted -> PermissionBlock(
-                    onRequest = { permissionLauncher.launch(requiredPermissions.toTypedArray()) }
+                    onRequest = { permissionLauncher.launch(requiredPermissions.toTypedArray()) },
+                    onOpenAppSettings = {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", context.packageName, null)
+                            )
+                        )
+                    }
                 )
 
                 state.showsConversation -> ConversationBlock(
@@ -143,11 +158,20 @@ fun NearbyChatScreen(
 }
 
 @Composable
-private fun PermissionBlock(onRequest: () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun PermissionBlock(
+    onRequest: () -> Unit,
+    onOpenAppSettings: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Notice(NearbyPermissions.rationale(Build.VERSION.SDK_INT))
-        TextButton(onClick = onRequest, modifier = Modifier.padding(0.dp)) {
-            Text("授予权限")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onRequest, modifier = Modifier.padding(0.dp)) {
+                Text("授予权限")
+            }
+            // 多次拒绝后系统弹窗不再出现，只能去应用详情页打开。
+            TextButton(onClick = onOpenAppSettings, modifier = Modifier.padding(0.dp)) {
+                Text("去系统设置")
+            }
         }
     }
 }
@@ -296,7 +320,7 @@ private fun ConversationBlock(
         if (state.messages.isEmpty()) {
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 Text(
-                    "通道已打开，发条消息试试。",
+                    if (state.canSend) "通道已打开，发条消息试试。" else "这次没聊上。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -322,7 +346,7 @@ private fun ConversationBlock(
                 .padding(top = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedTextField(
+            TextField(
                 value = draft,
                 onValueChange = onDraftChange,
                 modifier = Modifier.weight(1f),

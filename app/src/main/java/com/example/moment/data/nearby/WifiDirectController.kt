@@ -160,6 +160,19 @@ class WifiDirectController @Inject constructor(
         manager.removeGroup(channel, listener)
     }
 
+    /**
+     * 离开页面时的收尾：不等结果也不报错。
+     *
+     * 走这条路是因为 `ViewModel.onCleared` 里 `viewModelScope` 已经取消，挂起版本发不出去，
+     * 而组不解散的话系统会一直显示两台设备还连着。
+     */
+    fun releaseQuietly() {
+        val manager = manager ?: return
+        val channel = channel() ?: return
+        runCatching { manager.cancelConnect(channel, null) }
+        runCatching { manager.removeGroup(channel, null) }
+    }
+
     private fun channel(): WifiP2pManager.Channel? {
         val manager = manager ?: return null
         synchronized(channelLock) {
