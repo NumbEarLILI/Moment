@@ -1,9 +1,11 @@
 package com.example.moment.data.nearby
 
+import com.example.moment.domain.nearby.BleConnectPolicy
 import com.example.moment.domain.nearby.NearbyChatFrame
 import java.io.Closeable
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -24,11 +26,11 @@ enum class MeshRole {
  * 只管链路，不管路由——转发给谁、要不要转发由
  * [com.example.moment.domain.nearby.NearbyMeshRouter] 决定。
  *
- * Wi-Fi Direct 的组内成员之间不能直连，只有组主能同时看到所有人，所以现在的拓扑是
- * 以组主为中心的星形。路由层不依赖这一点，将来接入别的链路即可变成真正的多跳。
+ * Wi-Fi Direct 组内成员之间不能直连，所以那条路径是以组主为中心的星形。
+ * 蓝牙路径里每台设备都跟身边的人直连，消息按跳数洪泛，才是去中心的网。
  */
 class NearbyMeshNode(
-    private val connector: NearbyChatConnector
+    private val connector: NearbyChatConnector? = null
 ) : Closeable {
 
     sealed interface Event {
@@ -39,7 +41,7 @@ class NearbyMeshNode(
         data class Received(val neighborId: String, val frame: NearbyChatFrame) : Event
     }
 
-    private val neighbors = ConcurrentHashMap<String, NearbyChatLink>()
+    private val neighbors = ConcurrentHashMap<String, NearbyLink>()
     private val neighborSequence = AtomicLong()
     private val _events = Channel<Event>(Channel.UNLIMITED)
 
@@ -51,7 +53,7 @@ class NearbyMeshNode(
     /**
      * 挂起运行直到取消（组主）或直到与组主的链路断开（组内成员）。
      *
-     * 注意：链路的读取是阻塞的，取消协程本身弹不出来，必须再调 [close]。
+     * 注意：TCP 链路的读取是阻塞的，取消协程本身弹不出来，必须再调 [close]。
      */
     suspend fun run(
         role: MeshRole,
@@ -59,14 +61,12 @@ class NearbyMeshNode(
         port: Int,
         connectTimeoutMillis: Long
     ) = coroutineScope {
+        val connector = connector ?: error("Wi-Fi Direct 路径需要 NearbyChatConnector")
+        val scope = this
         when (role) {
             MeshRole.RoomHost -> try {
                 connector.serveGroupOwner(port) { link ->
-                    if (neighbors.size >= MAX_NEIGHBORS) {
-                        link.close()
-                    } else {
-                        launch { serveNeighbor(link) }
-                    }
+                    scope.accept(link, WIFI_MAX_NEIGHBORS)
                 }
             } catch (error: Throwable) {
                 // 监听结束（被取消或出错）时必须先关掉所有链路：阻塞中的读弹不出来，
@@ -78,6 +78,22 @@ class NearbyMeshNode(
             MeshRole.RoomMember -> serveNeighbor(
                 connector.connectToGroupOwner(hostAddress, port, connectTimeoutMillis)
             )
+        }
+    }
+
+    /**
+     * 蓝牙组网：广播 + 扫描 + 双向 GATT，新链路从 [onLink] 进来。
+     * 挂起到 [keepAlive] 返回（通常是取消）。
+     */
+    suspend fun runBluetooth(
+        maxNeighbors: Int = BleConnectPolicy.MAX_NEIGHBORS,
+        keepAlive: suspend (onLink: (NearbyLink) -> Unit) -> Unit
+    ) = coroutineScope {
+        val scope = this
+        try {
+            keepAlive { link -> scope.accept(link, maxNeighbors) }
+        } finally {
+            close()
         }
     }
 
@@ -100,7 +116,15 @@ class NearbyMeshNode(
         open.forEach { it.close() }
     }
 
-    private suspend fun serveNeighbor(link: NearbyChatLink) {
+    private fun CoroutineScope.accept(link: NearbyLink, maxNeighbors: Int) {
+        if (neighbors.size >= maxNeighbors) {
+            link.close()
+        } else {
+            launch { serveNeighbor(link) }
+        }
+    }
+
+    private suspend fun serveNeighbor(link: NearbyLink) {
         val neighborId = "n${neighborSequence.incrementAndGet()}"
         neighbors[neighborId] = link
         _events.trySend(Event.NeighborJoined(neighborId))
@@ -117,6 +141,6 @@ class NearbyMeshNode(
 
     private companion object {
         /** Wi-Fi Direct 组主实际能带的设备数有限，超出的直接拒掉。 */
-        const val MAX_NEIGHBORS = 8
+        const val WIFI_MAX_NEIGHBORS = 8
     }
 }

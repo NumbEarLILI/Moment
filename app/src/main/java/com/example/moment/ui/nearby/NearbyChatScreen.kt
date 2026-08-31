@@ -1,5 +1,6 @@
 package com.example.moment.ui.nearby
 
+import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -52,6 +53,7 @@ import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyChatStage
 import com.example.moment.domain.nearby.NearbyPeer
 import com.example.moment.domain.nearby.NearbyPermissions
+import com.example.moment.domain.nearby.NearbyTransport
 import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.theme.momentTransparentTextFieldColors
@@ -64,13 +66,20 @@ private val MessageTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatter
 @Composable
 fun NearbyChatScreen(
     onBack: () -> Unit,
+    transport: NearbyTransport = NearbyTransport.WifiDirect,
     viewModel: NearbyChatViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val draft by viewModel.draft.collectAsStateWithLifecycle()
 
-    val requiredPermissions = remember { NearbyPermissions.required(Build.VERSION.SDK_INT) }
+    val requiredPermissions = remember(transport) {
+        if (transport == NearbyTransport.Bluetooth) {
+            NearbyPermissions.bluetoothRequired(Build.VERSION.SDK_INT)
+        } else {
+            NearbyPermissions.wifiRequired(Build.VERSION.SDK_INT)
+        }
+    }
     fun permissionsGranted(): Boolean = requiredPermissions.all {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
@@ -80,18 +89,26 @@ fun NearbyChatScreen(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted = permissionsGranted() }
+    val enableBluetoothLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { viewModel.onBluetoothEnabled() }
 
     // 用户可能是去系统设置里授的权，回到前台时要重新读一次。
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { granted = permissionsGranted() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        granted = permissionsGranted()
+        if (transport == NearbyTransport.Bluetooth) viewModel.onBluetoothEnabled()
+    }
 
     LaunchedEffect(granted) {
         if (granted) {
-            viewModel.start()
+            viewModel.start(transport)
         } else if (!asked) {
             asked = true
             permissionLauncher.launch(requiredPermissions.toTypedArray())
         }
     }
+
+    val isBluetooth = transport == NearbyTransport.Bluetooth
 
     Scaffold(
         containerColor = appScaffoldContainerColor(),
@@ -108,22 +125,35 @@ fun NearbyChatScreen(
                 Text("返回")
             }
             Text(
-                "附近聊天室",
+                if (isBluetooth) "蓝牙组网" else "附近聊天室",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                "用 Wi-Fi 直连把身边的设备组成一张网，最多 9 台一起聊。不走路由器也不耗流量，" +
-                    "消息只在这些设备之间传，不经过任何服务器。",
+                if (isBluetooth) {
+                    "打开这一页就会自动寻找附近同样打开的人，没有房主，也不用谁先建房。" +
+                        "消息在设备之间多跳转发，不走路由器、不耗流量、不经过服务器。"
+                } else {
+                    "用 Wi-Fi 直连把身边的设备组成一张网，最多 9 台一起聊。不走路由器也不耗流量，" +
+                        "消息只在这些设备之间传，不经过任何服务器。"
+                },
                 modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             when {
-                !state.supported -> Notice("这台设备不支持 Wi-Fi 直连，无法使用附近聊天室。")
+                !state.supported -> Notice(
+                    if (isBluetooth) "这台设备不支持蓝牙低功耗，无法使用蓝牙组网。"
+                    else "这台设备不支持 Wi-Fi 直连，无法使用附近聊天室。"
+                )
 
                 !granted -> PermissionBlock(
+                    rationale = if (isBluetooth) {
+                        NearbyPermissions.bluetoothRationale(Build.VERSION.SDK_INT)
+                    } else {
+                        NearbyPermissions.wifiRationale(Build.VERSION.SDK_INT)
+                    },
                     onRequest = { permissionLauncher.launch(requiredPermissions.toTypedArray()) },
                     onOpenAppSettings = {
                         context.startActivity(
@@ -135,12 +165,25 @@ fun NearbyChatScreen(
                     }
                 )
 
+                isBluetooth && !state.bluetoothEnabled -> {
+                    Notice("请先打开蓝牙，打开后会自动寻找附近的人。")
+                    TextButton(
+                        onClick = {
+                            enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
+                        },
+                        modifier = Modifier.padding(0.dp)
+                    ) {
+                        Text("打开蓝牙")
+                    }
+                }
+
                 state.showsConversation -> ConversationBlock(
                     state = state,
                     draft = draft,
                     onDraftChange = viewModel::onDraftChange,
                     onSend = viewModel::sendDraft,
                     onLeave = viewModel::leaveRoom,
+                    showLeave = !isBluetooth,
                     modifier = Modifier.weight(1f)
                 )
 
@@ -162,11 +205,12 @@ fun NearbyChatScreen(
 
 @Composable
 private fun PermissionBlock(
+    rationale: String,
     onRequest: () -> Unit,
     onOpenAppSettings: () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Notice(NearbyPermissions.rationale(Build.VERSION.SDK_INT))
+        Notice(rationale)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onRequest, modifier = Modifier.padding(0.dp)) {
                 Text("授予权限")
@@ -292,6 +336,7 @@ private fun ConversationBlock(
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onLeave: () -> Unit,
+    showLeave: Boolean,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -305,7 +350,13 @@ private fun ConversationBlock(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    if (state.hostingRoom) "我的聊天室（${state.members.size} 人）" else "聊天室（${state.members.size} 人）",
+                    if (state.isBluetooth) {
+                        "蓝牙组网（${state.members.size} 人）"
+                    } else if (state.hostingRoom) {
+                        "我的聊天室（${state.members.size} 人）"
+                    } else {
+                        "聊天室（${state.members.size} 人）"
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground
@@ -318,8 +369,10 @@ private fun ConversationBlock(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            TextButton(onClick = onLeave) {
-                Text(if (state.canSend) "离开" else "返回设备列表")
+            if (showLeave) {
+                TextButton(onClick = onLeave) {
+                    Text(if (state.canSend) "离开" else "返回设备列表")
+                }
             }
         }
         if (state.statusText.isNotBlank()) {

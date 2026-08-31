@@ -4,16 +4,32 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- 面对面聊天：Wi-Fi Direct 组网 + 组内 TCP 直连，不需要路由器或移动数据。 -->
+    <!-- 附近聊天室：Wi-Fi Direct 组网 + 组内 TCP。 -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission
         android:name="android.permission.NEARBY_WIFI_DEVICES"
         android:usesPermissionFlags="neverForLocation" />
 
-    <!-- 不支持 Wi-Fi 直连的设备仍可安装，页面会提示功能不可用。 -->
+    <!-- 蓝牙组网：BLE 广播 + 扫描 + GATT。12 以下的扫描还走定位权限（上面已声明）。 -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+
+    <!-- 不支持 Wi-Fi 直连 / BLE 的设备仍可安装，对应页面会提示功能不可用。 -->
     <uses-feature
         android:name="android.hardware.wifi.direct"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
         android:required="false" />
 
     <queries>

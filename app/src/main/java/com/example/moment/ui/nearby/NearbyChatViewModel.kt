@@ -2,6 +2,7 @@ package com.example.moment.ui.nearby
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.moment.data.nearby.BleMeshController
 import com.example.moment.data.nearby.MeshRole
 import com.example.moment.data.nearby.NearbyChatConnector
 import com.example.moment.data.nearby.NearbyMeshNode
@@ -16,6 +17,7 @@ import com.example.moment.domain.nearby.NearbyChatStage
 import com.example.moment.domain.nearby.NearbyChatWire
 import com.example.moment.domain.nearby.NearbyMeshRouter
 import com.example.moment.domain.nearby.NearbyPeer
+import com.example.moment.domain.nearby.NearbyTransport
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.util.UUID
@@ -32,8 +34,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class NearbyChatUiState(
+    val transport: NearbyTransport = NearbyTransport.WifiDirect,
     val supported: Boolean = true,
     val wifiDirectEnabled: Boolean = true,
+    val bluetoothEnabled: Boolean = true,
     val stage: NearbyChatStage = NearbyChatStage.Idle,
     val peers: List<NearbyPeer> = emptyList(),
     val myDeviceName: String = "",
@@ -49,19 +53,21 @@ data class NearbyChatUiState(
 
     val canSend: Boolean
         get() = stage == NearbyChatStage.InRoom
+
+    val isBluetooth: Boolean
+        get() = transport == NearbyTransport.Bluetooth
 }
 
 @HiltViewModel
 class NearbyChatViewModel @Inject constructor(
     private val wifiDirectController: WifiDirectController,
+    private val bleMeshController: BleMeshController,
     private val connector: NearbyChatConnector,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val clock: Clock
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(
-        NearbyChatUiState(supported = wifiDirectController.isSupported)
-    )
+    private val _uiState = MutableStateFlow(NearbyChatUiState())
     val uiState: StateFlow<NearbyChatUiState> = _uiState.asStateFlow()
 
     /** 输入框单独一条流，免得每敲一个字都重建整份聊天状态。 */
@@ -78,18 +84,55 @@ class NearbyChatViewModel @Inject constructor(
     private var node: NearbyMeshNode? = null
     private var activeGroup: WifiDirectGroup? = null
     private var displayName: String = ""
+    private var started = false
 
     /** 权限拿到后调用；重复调用无副作用。 */
-    fun start() {
-        if (!wifiDirectController.isSupported || eventsJob?.isActive == true) return
-        eventsJob = viewModelScope.launch {
-            wifiDirectController.events().collect(::onWifiDirectEvent)
+    fun start(transport: NearbyTransport = NearbyTransport.WifiDirect) {
+        if (started) return
+        started = true
+        _uiState.update {
+            it.copy(
+                transport = transport,
+                supported = if (transport == NearbyTransport.Bluetooth) {
+                    bleMeshController.isSupported
+                } else {
+                    wifiDirectController.isSupported
+                },
+                bluetoothEnabled = bleMeshController.isEnabled
+            )
         }
         viewModelScope.launch {
             displayName = resolveDisplayName()
             _uiState.update { it.copy(myDisplayName = displayName) }
         }
+        when (transport) {
+            NearbyTransport.WifiDirect -> startWifi()
+            NearbyTransport.Bluetooth -> startBluetooth()
+        }
+    }
+
+    fun onBluetoothEnabled() {
+        _uiState.update { it.copy(bluetoothEnabled = bleMeshController.isEnabled) }
+        if (_uiState.value.isBluetooth && bleMeshController.isEnabled && sessionJob?.isActive != true) {
+            openBluetoothSession()
+        }
+    }
+
+    private fun startWifi() {
+        if (!wifiDirectController.isSupported || eventsJob?.isActive == true) return
+        eventsJob = viewModelScope.launch {
+            wifiDirectController.events().collect(::onWifiDirectEvent)
+        }
         startDiscovery()
+    }
+
+    private fun startBluetooth() {
+        if (!bleMeshController.isSupported) return
+        if (!bleMeshController.isEnabled) {
+            _uiState.update { it.copy(statusText = "请先打开蓝牙") }
+            return
+        }
+        openBluetoothSession()
     }
 
     fun startDiscovery() {
@@ -320,6 +363,55 @@ class NearbyChatViewModel @Inject constructor(
         }
     }
 
+    private fun openBluetoothSession() {
+        if (sessionJob?.isActive == true) return
+        sessionJob?.cancel()
+        _uiState.update {
+            it.copy(
+                stage = NearbyChatStage.InRoom,
+                hostingRoom = false,
+                statusText = "正在用蓝牙寻找附近同样打开这个页面的人…"
+            )
+        }
+        sessionJob = viewModelScope.launch {
+            val meshNode = NearbyMeshNode(connector)
+            node = meshNode
+            var nodeEvents: Job? = null
+            try {
+                if (displayName.isBlank()) {
+                    displayName = resolveDisplayName()
+                    _uiState.update { it.copy(myDisplayName = displayName) }
+                }
+                router = NearbyMeshRouter(selfNodeId = java.util.UUID.randomUUID().toString())
+                neighborNodes.clear()
+                router.announceSelf(displayName, clock.millis())
+                publishMembers()
+                nodeEvents = launch { meshNode.events.collect { onNodeEvent(meshNode, it) } }
+                meshNode.runBluetooth { onLink ->
+                    bleMeshController.run(router.selfNodeId, onLink)
+                }
+                currentCoroutineContext().ensureActive()
+                _uiState.update {
+                    it.copy(stage = NearbyChatStage.Closed, statusText = "蓝牙组网已停止")
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _uiState.update {
+                    it.copy(
+                        stage = NearbyChatStage.Closed,
+                        statusText = error.message?.let { reason -> "蓝牙组网未能开始：$reason" }
+                            ?: "蓝牙组网未能开始"
+                    )
+                }
+            } finally {
+                nodeEvents?.cancel()
+                meshNode.close()
+                if (node === meshNode) node = null
+            }
+        }
+    }
+
     private suspend fun onNodeEvent(meshNode: NearbyMeshNode, event: NearbyMeshNode.Event) {
         when (event) {
             is NearbyMeshNode.Event.NeighborJoined -> {
@@ -371,10 +463,19 @@ class NearbyChatViewModel @Inject constructor(
         }
     }
 
-    private fun roomStatusText(hosting: Boolean, neighborCount: Int): String = when {
-        neighborCount > 0 -> "已接入聊天室，消息只在这些设备之间直传，不经过任何服务器"
-        hosting -> "聊天室已就绪，等其他设备加入"
-        else -> "与聊天室的连接已断开"
+    private fun roomStatusText(hosting: Boolean, neighborCount: Int): String {
+        if (_uiState.value.isBluetooth) {
+            return if (neighborCount > 0) {
+                "已与 $neighborCount 台设备直连，消息会在网里转发，不经过任何服务器"
+            } else {
+                "正在用蓝牙寻找附近同样打开这个页面的人…"
+            }
+        }
+        return when {
+            neighborCount > 0 -> "已接入聊天室，消息只在这些设备之间直传，不经过任何服务器"
+            hosting -> "聊天室已就绪，等其他设备加入"
+            else -> "与聊天室的连接已断开"
+        }
     }
 
     private fun publishMembers() {

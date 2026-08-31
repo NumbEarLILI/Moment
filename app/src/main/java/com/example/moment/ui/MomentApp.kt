@@ -167,15 +167,29 @@ fun MomentApp() {
             composable(Routes.Mine) {
                 MineScreen(
                     onOpenAccountSettings = { navController.navigate(Routes.AccountSettings) },
-                    onOpenNearbyChat = { navController.navigate(Routes.NearbyChat) },
+                    onOpenNearbyChat = { navController.navigate(Routes.nearbyChat("wifi")) },
+                    onOpenNearbyBleChat = { navController.navigate(Routes.nearbyChat("ble")) },
                     onOpenSettings = { navController.navigate(Routes.Settings) }
                 )
             }
             composable(Routes.AccountSettings) {
                 AccountSettingsScreen(onBack = { navController.popBackStack() })
             }
-            composable(Routes.NearbyChat) {
-                NearbyChatScreen(onBack = { navController.popBackStack() })
+            composable(
+                route = Routes.NearbyChat,
+                arguments = listOf(
+                    navArgument("transport") { type = NavType.StringType; defaultValue = "wifi" }
+                )
+            ) { entry ->
+                val transport = if (entry.arguments?.getString("transport") == "ble") {
+                    com.example.moment.domain.nearby.NearbyTransport.Bluetooth
+                } else {
+                    com.example.moment.domain.nearby.NearbyTransport.WifiDirect
+                }
+                NearbyChatScreen(
+                    onBack = { navController.popBackStack() },
+                    transport = transport
+                )
             }
             composable(Routes.Settings) {
                 SettingsScreen(
@@ -312,7 +326,9 @@ object Routes {
     const val History = "history"
     const val Mine = "mine"
     const val AccountSettings = "accountSettings"
-    const val NearbyChat = "nearbyChat"
+    const val NearbyChat = "nearbyChat?transport={transport}"
+
+    fun nearbyChat(transport: String): String = "nearbyChat?transport=$transport"
     const val Settings = "settings"
     const val About = "about"
     const val Detail = "detail/{id}"

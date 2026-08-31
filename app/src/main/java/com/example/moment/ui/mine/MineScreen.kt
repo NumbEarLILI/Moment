@@ -56,6 +56,7 @@ import kotlinx.coroutines.flow.collectLatest
 fun MineScreen(
     onOpenAccountSettings: () -> Unit,
     onOpenNearbyChat: () -> Unit,
+    onOpenNearbyBleChat: () -> Unit,
     onOpenSettings: () -> Unit,
     viewModel: MineViewModel = hiltViewModel()
 ) {
@@ -105,8 +106,14 @@ fun MineScreen(
             MomentHairline()
             EntryRow(
                 title = "附近聊天室",
-                subtitle = "Wi-Fi 直连组网，多台设备不联网也能聊",
+                subtitle = "Wi-Fi 直连组网，一台建房，其他人加入",
                 onClick = onOpenNearbyChat
+            )
+            MomentHairline()
+            EntryRow(
+                title = "蓝牙组网",
+                subtitle = "打开即连，没有房主，附近的人自动进网",
+                onClick = onOpenNearbyBleChat
             )
             MomentHairline()
             EntryRow(title = "设置", onClick = onOpenSettings)

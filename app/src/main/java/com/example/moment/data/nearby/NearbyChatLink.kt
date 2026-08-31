@@ -2,7 +2,6 @@ package com.example.moment.data.nearby
 
 import com.example.moment.domain.nearby.NearbyChatFrame
 import com.example.moment.domain.nearby.NearbyChatWire
-import java.io.Closeable
 import java.io.IOException
 import java.net.Socket
 import kotlinx.coroutines.Dispatchers
@@ -20,14 +19,14 @@ import kotlinx.coroutines.withContext
  *
  * [incoming] 里的读操作是阻塞的，协程取消不会打断它——想停下来必须调用 [close]。
  */
-class NearbyChatLink internal constructor(private val socket: Socket) : Closeable {
+class NearbyChatLink internal constructor(private val socket: Socket) : NearbyLink {
     private val reader = socket.getInputStream().reader(Charsets.UTF_8).buffered()
     private val writer = socket.getOutputStream().writer(Charsets.UTF_8).buffered()
     private val writeMutex = Mutex()
 
     val remoteAddress: String = socket.inetAddress?.hostAddress.orEmpty()
 
-    suspend fun send(frame: NearbyChatFrame) {
+    override suspend fun send(frame: NearbyChatFrame) {
         val line = NearbyChatWire.encode(frame)
         writeMutex.withLock {
             withContext(Dispatchers.IO) {
@@ -39,7 +38,7 @@ class NearbyChatLink internal constructor(private val socket: Socket) : Closeabl
     }
 
     /** 读到对方关闭或链路断开为止。正常结束即代表通道已经断了，不会抛 IO 异常。 */
-    fun incoming(): Flow<NearbyChatFrame> = flow {
+    override fun incoming(): Flow<NearbyChatFrame> = flow {
         while (currentCoroutineContext().isActive) {
             val line = try {
                 NearbyChatWire.readFrameLine(reader)
