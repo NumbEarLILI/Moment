@@ -14,35 +14,36 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 /**
- * 在已经建好的 Wi-Fi Direct 组里拉一条 TCP 通道：组主监听，另一端连过去。
+ * 在已经建好的 Wi-Fi Direct 组里拉 TCP 通道：组主监听，其余设备连过去。
  *
  * 两侧都用短超时轮询，这样协程取消时能及时退出，不会卡在阻塞的 accept/connect 上。
  */
 @Singleton
 class NearbyChatConnector @Inject constructor() {
 
-    suspend fun acceptAsGroupOwner(
+    /**
+     * 一直监听新接入的设备，每来一个就回调一次 [onLink]。挂起到协程取消为止。
+     *
+     * 一个 Wi-Fi Direct 组里可以有多台设备，所以这里不能收一个就收工。
+     */
+    suspend fun serveGroupOwner(
         port: Int,
-        timeoutMillis: Long
-    ): NearbyChatLink = withContext(Dispatchers.IO) {
-        val deadline = System.currentTimeMillis() + timeoutMillis
+        onLink: (NearbyChatLink) -> Unit
+    ) = withContext(Dispatchers.IO) {
         ServerSocket().use { server ->
             server.reuseAddress = true
             server.bind(InetSocketAddress(port))
             server.soTimeout = ACCEPT_POLL_MILLIS
-            while (System.currentTimeMillis() <= deadline) {
+            while (true) {
                 currentCoroutineContext().ensureActive()
                 val socket = try {
                     server.accept()
                 } catch (_: SocketTimeoutException) {
-                    null
+                    continue
                 }
-                if (socket != null) {
-                    socket.keepAlive = true
-                    return@withContext NearbyChatLink(socket)
-                }
+                socket.keepAlive = true
+                onLink(NearbyChatLink(socket))
             }
-            throw SocketTimeoutException("等待对方接入超时")
         }
     }
 

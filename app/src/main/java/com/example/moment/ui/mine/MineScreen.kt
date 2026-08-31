@@ -104,8 +104,8 @@ fun MineScreen(
             )
             MomentHairline()
             EntryRow(
-                title = "面对面聊天",
-                subtitle = "Wi-Fi 直连身边的设备，不联网也能聊",
+                title = "附近聊天室",
+                subtitle = "Wi-Fi 直连组网，多台设备不联网也能聊",
                 onClick = onOpenNearbyChat
             )
             MomentHairline()

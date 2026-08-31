@@ -1,14 +1,18 @@
 package com.example.moment.data.nearby
 
+import com.example.moment.domain.nearby.MeshMember
 import com.example.moment.domain.nearby.NearbyChatFrame
 import java.net.ServerSocket
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
@@ -24,66 +28,92 @@ import org.junit.Test
 class NearbyChatConnectorTest {
 
     private val readerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val connector = NearbyChatConnector()
+    private val openLinks = CopyOnWriteArrayList<NearbyChatLink>()
 
     @Test
     fun `both ends exchange frames once the link is open`() = runBlocking {
-        val connector = NearbyChatConnector()
         val port = freePort()
-        val ownerDeferred = readerScope.async { connector.acceptAsGroupOwner(port, TIMEOUT_MILLIS) }
-        val client = connector.connectToGroupOwner("127.0.0.1", port, TIMEOUT_MILLIS)
-        val owner = ownerDeferred.await()
+        val accepted = serve(port)
+        val client = dial(port)
+        val host = withTimeout(TIMEOUT_MILLIS) { accepted.receive() }
 
-        try {
-            val clientInbox = client.incoming().produceIn(readerScope)
-            val ownerInbox = owner.incoming().produceIn(readerScope)
+        val clientInbox = client.incoming().produceIn(readerScope)
+        val hostInbox = host.incoming().produceIn(readerScope)
 
-            owner.send(NearbyChatFrame.Hello("组主"))
-            client.send(NearbyChatFrame.Text(id = "m-1", body = "在\n楼下", sentAtEpochMillis = 42L))
+        val hello = NearbyChatFrame.Hello(
+            MeshMember(nodeId = "host", displayName = "房主", present = true, updatedAtEpochMillis = 1L)
+        )
+        val message = NearbyChatFrame.Message(
+            messageId = "m-1",
+            senderId = "node-a",
+            senderName = "阿七",
+            body = "在\n楼下",
+            sentAtEpochMillis = 42L,
+            ttl = 8
+        )
+        host.send(hello)
+        client.send(message)
 
-            withTimeout(TIMEOUT_MILLIS) {
-                assertEquals(NearbyChatFrame.Hello("组主"), clientInbox.receive())
-                assertEquals(
-                    NearbyChatFrame.Text(id = "m-1", body = "在\n楼下", sentAtEpochMillis = 42L),
-                    ownerInbox.receive()
-                )
-            }
-        } finally {
-            client.close()
-            owner.close()
+        withTimeout(TIMEOUT_MILLIS) {
+            assertEquals(hello, clientInbox.receive())
+            assertEquals(message, hostInbox.receive())
         }
     }
 
     @Test
     fun `incoming completes when the peer closes the link`() = runBlocking {
-        val connector = NearbyChatConnector()
         val port = freePort()
-        val ownerDeferred = readerScope.async { connector.acceptAsGroupOwner(port, TIMEOUT_MILLIS) }
-        val client = connector.connectToGroupOwner("127.0.0.1", port, TIMEOUT_MILLIS)
-        val owner = ownerDeferred.await()
+        val accepted = serve(port)
+        val client = dial(port)
+        val host = withTimeout(TIMEOUT_MILLIS) { accepted.receive() }
+        val clientFrames = readerScope.async { client.incoming().toList() }
 
-        try {
-            val clientFrames = readerScope.async { client.incoming().toList() }
+        val goodbye = NearbyChatFrame.Presence(
+            MeshMember(nodeId = "host", displayName = "房主", present = false, updatedAtEpochMillis = 2L)
+        )
+        host.send(goodbye)
+        host.close()
 
-            owner.send(NearbyChatFrame.Text(id = "m-1", body = "先走了", sentAtEpochMillis = 1L))
-            owner.send(NearbyChatFrame.Bye)
-            owner.close()
+        assertEquals(
+            listOf(goodbye),
+            withTimeout(TIMEOUT_MILLIS) { clientFrames.await() }
+        )
+    }
 
-            assertEquals(
-                listOf(
-                    NearbyChatFrame.Text(id = "m-1", body = "先走了", sentAtEpochMillis = 1L),
-                    NearbyChatFrame.Bye
-                ),
-                withTimeout(TIMEOUT_MILLIS) { clientFrames.await() }
-            )
-        } finally {
-            client.close()
+    @Test
+    fun `one listener takes in several devices`() = runBlocking {
+        val port = freePort()
+        val accepted = serve(port)
+
+        dial(port)
+        dial(port)
+
+        withTimeout(TIMEOUT_MILLIS) {
+            assertEquals(2, listOf(accepted.receive(), accepted.receive()).size)
         }
     }
 
     @After
     fun tearDown() {
+        openLinks.forEach { it.close() }
         readerScope.cancel()
     }
+
+    /** 起一个持续监听的组主，接入的链路都塞进队列里等测试取用。 */
+    private fun serve(port: Int): Channel<NearbyChatLink> {
+        val accepted = Channel<NearbyChatLink>(Channel.UNLIMITED)
+        readerScope.launch {
+            connector.serveGroupOwner(port) { link ->
+                openLinks += link
+                accepted.trySend(link)
+            }
+        }
+        return accepted
+    }
+
+    private suspend fun dial(port: Int): NearbyChatLink =
+        connector.connectToGroupOwner("127.0.0.1", port, TIMEOUT_MILLIS).also { openLinks += it }
 
     private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 

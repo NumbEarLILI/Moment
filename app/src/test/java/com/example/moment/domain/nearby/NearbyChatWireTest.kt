@@ -10,32 +10,48 @@ import org.junit.Test
 class NearbyChatWireTest {
 
     @Test
-    fun `encodes and decodes a text frame`() {
-        val frame = NearbyChatFrame.Text(id = "m-1", body = "在楼下咖啡店", sentAtEpochMillis = 1_700_000_000_000L)
-
-        val decoded = NearbyChatWire.decode(NearbyChatWire.encode(frame))
-
-        assertEquals(frame, decoded)
-    }
-
-    @Test
-    fun `encodes and decodes a hello frame`() {
-        val frame = NearbyChatFrame.Hello(displayName = "阿七")
+    fun `encodes and decodes a chat message`() {
+        val frame = NearbyChatFrame.Message(
+            messageId = "m-1",
+            senderId = "node-a",
+            senderName = "阿七",
+            body = "在楼下咖啡店",
+            sentAtEpochMillis = 1_700_000_000_000L,
+            ttl = 8
+        )
 
         assertEquals(frame, NearbyChatWire.decode(NearbyChatWire.encode(frame)))
     }
 
     @Test
-    fun `encodes and decodes the bye frame`() {
-        assertEquals(
-            NearbyChatFrame.Bye,
-            NearbyChatWire.decode(NearbyChatWire.encode(NearbyChatFrame.Bye))
+    fun `encodes and decodes the mesh handshake frames`() {
+        val member = MeshMember(
+            nodeId = "node-a",
+            displayName = "阿七",
+            present = true,
+            updatedAtEpochMillis = 1L
         )
+        val frames = listOf(
+            NearbyChatFrame.Hello(member),
+            NearbyChatFrame.Presence(member.copy(present = false, updatedAtEpochMillis = 2L)),
+            NearbyChatFrame.Roster(listOf(member, member.copy(nodeId = "node-b", displayName = "小明")))
+        )
+
+        frames.forEach { frame ->
+            assertEquals(frame, NearbyChatWire.decode(NearbyChatWire.encode(frame)))
+        }
     }
 
     @Test
     fun `keeps a multi-line body on a single wire line`() {
-        val frame = NearbyChatFrame.Text(id = "m-2", body = "第一行\n第二行", sentAtEpochMillis = 1L)
+        val frame = NearbyChatFrame.Message(
+            messageId = "m-2",
+            senderId = "node-a",
+            senderName = "阿七",
+            body = "第一行\n第二行",
+            sentAtEpochMillis = 1L,
+            ttl = 8
+        )
 
         val line = NearbyChatWire.encode(frame)
 
@@ -49,7 +65,7 @@ class NearbyChatWireTest {
         assertNull(NearbyChatWire.decode("   "))
         assertNull(NearbyChatWire.decode("not json at all"))
         assertNull(NearbyChatWire.decode("""{"type":"future-frame","x":1}"""))
-        assertNull(NearbyChatWire.decode("""{"type":"text","id":"a""""))
+        assertNull(NearbyChatWire.decode("""{"type":"msg","messageId":"a""""))
     }
 
     @Test
@@ -89,6 +105,25 @@ class NearbyChatWireTest {
 
         assertEquals("first", NearbyChatWire.readFrameLine(reader))
         assertEquals("second", NearbyChatWire.readFrameLine(reader))
+    }
+
+    @Test
+    fun `a full roster of members still fits in one frame`() {
+        val roster = NearbyChatFrame.Roster(
+            (1..9).map {
+                MeshMember(
+                    nodeId = "node-$it",
+                    displayName = "成员$it",
+                    present = true,
+                    updatedAtEpochMillis = it.toLong()
+                )
+            }
+        )
+
+        val line = NearbyChatWire.encode(roster)
+
+        assertTrue(line.length < NearbyChatWire.MAX_FRAME_CHARS)
+        assertEquals(roster, NearbyChatWire.decode(line))
     }
 
     @Test(expected = IOException::class)

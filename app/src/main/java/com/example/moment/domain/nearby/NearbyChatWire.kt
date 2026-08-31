@@ -6,39 +6,52 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** 两台设备之间传输的一帧数据。每帧编码成一行 JSON，用 `\n` 分隔。 */
+/** 网格里传输的一帧数据。每帧编码成一行 JSON，用 `\n` 分隔。 */
 @Serializable
 sealed interface NearbyChatFrame {
-    /** 通道打开后立刻互发，交换昵称。 */
+    /** 链路刚接上时发给这一个邻居，告诉对方「这条链路那头是谁」。 */
     @Serializable
     @SerialName("hello")
-    data class Hello(val displayName: String) : NearbyChatFrame
+    data class Hello(val self: MeshMember) : NearbyChatFrame
 
+    /** 某个节点的在线状态变化，会在网格里洪泛。 */
     @Serializable
-    @SerialName("text")
-    data class Text(
-        val id: String,
+    @SerialName("presence")
+    data class Presence(val member: MeshMember) : NearbyChatFrame
+
+    /** 新邻居接上时把已知成员一次性同步给它，省得它靠洪泛慢慢凑齐。 */
+    @Serializable
+    @SerialName("roster")
+    data class Roster(val members: List<MeshMember>) : NearbyChatFrame
+
+    /**
+     * 聊天消息，会在网格里洪泛。
+     *
+     * [messageId] 用于去重，[ttl] 每转发一跳减一，两者共同保证消息不会在环路里打转。
+     */
+    @Serializable
+    @SerialName("msg")
+    data class Message(
+        val messageId: String,
+        val senderId: String,
+        val senderName: String,
         val body: String,
-        val sentAtEpochMillis: Long
+        val sentAtEpochMillis: Long,
+        val ttl: Int
     ) : NearbyChatFrame
-
-    /** 主动断开，让对方能区分「对方退出」和「信号断了」。 */
-    @Serializable
-    @SerialName("bye")
-    data object Bye : NearbyChatFrame
 }
 
 /**
- * 聊天通道的行协议：一帧一行 JSON。
+ * 网格链路的行协议：一帧一行 JSON。
  *
  * JSON 会把正文里的换行转义成 `\n`，所以正文本身不会把一帧拆成两行。
  */
 object NearbyChatWire {
-    /** 组主监听的端口，两端写死同一个值，无需再交换。 */
+    /** 聊天室主机监听的端口，两端写死同一个值，无需再交换。 */
     const val PORT = 8899
 
     /** 单帧上限，避免对方（或坏掉的连接）不发换行时把内存撑爆。 */
-    const val MAX_FRAME_CHARS = 8 * 1024
+    const val MAX_FRAME_CHARS = 32 * 1024
 
     /** 单条消息的字符上限，留出 JSON 转义和字段名的余量。 */
     const val MAX_MESSAGE_CHARS = 2000
@@ -50,7 +63,7 @@ object NearbyChatWire {
 
     fun encode(frame: NearbyChatFrame): String = json.encodeToString(frame)
 
-    /** 解析一行；对方版本更新带来的未知帧或半截数据都返回 null，不该中断通道。 */
+    /** 解析一行；对方版本更新带来的未知帧或半截数据都返回 null，不该中断链路。 */
     fun decode(line: String): NearbyChatFrame? {
         val trimmed = line.trim()
         if (trimmed.isEmpty()) return null

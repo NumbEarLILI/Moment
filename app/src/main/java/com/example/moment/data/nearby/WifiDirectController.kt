@@ -144,10 +144,17 @@ class WifiDirectController @Inject constructor(
         manager.stopPeerDiscovery(channel, listener)
     }
 
+    /** 建一个「自治组」，本机直接成为组主，其他设备搜到后连过来即可加入。 */
+    suspend fun createGroup(): Result<Unit> = runAction { manager, channel, listener ->
+        manager.createGroup(channel, listener)
+    }
+
     suspend fun connect(deviceAddress: String): Result<Unit> = runAction { manager, channel, listener ->
         val config = WifiP2pConfig().apply {
             this.deviceAddress = deviceAddress
             wps.setup = WpsInfo.PBC
+            // 让对方当组主：聊天室的转发都在组主上，别把已经建好的房间挤掉。
+            groupOwnerIntent = 0
         }
         manager.connect(channel, config, listener)
     }
@@ -233,7 +240,8 @@ private fun WifiP2pDevice.toNearbyPeer(): NearbyPeer = NearbyPeer(
     deviceAddress = deviceAddress.orEmpty(),
     deviceName = deviceName?.takeIf { it.isNotBlank() } ?: "未命名设备",
     statusText = statusText(status),
-    connectable = status == WifiP2pDevice.AVAILABLE || status == WifiP2pDevice.INVITED
+    connectable = status == WifiP2pDevice.AVAILABLE || status == WifiP2pDevice.INVITED,
+    hostsRoom = isGroupOwner
 )
 
 private fun statusText(status: Int): String = when (status) {

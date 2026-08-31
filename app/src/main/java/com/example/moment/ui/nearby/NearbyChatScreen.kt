@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -107,19 +108,20 @@ fun NearbyChatScreen(
                 Text("返回")
             }
             Text(
-                "面对面聊天",
+                "附近聊天室",
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                "通过 Wi-Fi 直连和身边的设备聊天，不走路由器也不耗流量，消息只在两台设备之间传输。",
+                "用 Wi-Fi 直连把身边的设备组成一张网，最多 9 台一起聊。不走路由器也不耗流量，" +
+                    "消息只在这些设备之间传，不经过任何服务器。",
                 modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             when {
-                !state.supported -> Notice("这台设备不支持 Wi-Fi 直连，无法使用面对面聊天。")
+                !state.supported -> Notice("这台设备不支持 Wi-Fi 直连，无法使用附近聊天室。")
 
                 !granted -> PermissionBlock(
                     onRequest = { permissionLauncher.launch(requiredPermissions.toTypedArray()) },
@@ -138,14 +140,15 @@ fun NearbyChatScreen(
                     draft = draft,
                     onDraftChange = viewModel::onDraftChange,
                     onSend = viewModel::sendDraft,
-                    onLeave = viewModel::leaveChat,
+                    onLeave = viewModel::leaveRoom,
                     modifier = Modifier.weight(1f)
                 )
 
                 else -> DiscoveryBlock(
                     state = state,
+                    onHostRoom = viewModel::hostRoom,
                     onDiscover = viewModel::startDiscovery,
-                    onConnect = viewModel::connectTo,
+                    onJoin = viewModel::joinRoom,
                     onCancelConnecting = viewModel::cancelConnecting,
                     onOpenWifiSettings = {
                         context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
@@ -179,12 +182,15 @@ private fun PermissionBlock(
 @Composable
 private fun DiscoveryBlock(
     state: NearbyChatUiState,
+    onHostRoom: () -> Unit,
     onDiscover: () -> Unit,
-    onConnect: (NearbyPeer) -> Unit,
+    onJoin: (NearbyPeer) -> Unit,
     onCancelConnecting: () -> Unit,
     onOpenWifiSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val busy = state.stage == NearbyChatStage.Connecting
+
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (state.myDeviceName.isNotBlank()) {
             Text(
@@ -210,13 +216,16 @@ private fun DiscoveryBlock(
 
         Row(
             modifier = Modifier.padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (state.stage == NearbyChatStage.Connecting) {
+            if (busy) {
                 TextButton(onClick = onCancelConnecting, modifier = Modifier.padding(0.dp)) {
-                    Text("取消邀请")
+                    Text("取消")
                 }
             } else {
+                TextButton(onClick = onHostRoom, modifier = Modifier.padding(0.dp)) {
+                    Text("创建聊天室")
+                }
                 TextButton(onClick = onDiscover, modifier = Modifier.padding(0.dp)) {
                     Text(if (state.stage == NearbyChatStage.Discovering) "重新搜索" else "搜索附近设备")
                 }
@@ -226,18 +235,14 @@ private fun DiscoveryBlock(
 
         if (state.peers.isEmpty()) {
             Text(
-                "还没有搜到设备。让对方也在「我的 › 面对面聊天」里打开这个页面，两台设备靠近一些。",
+                "还没有搜到设备。让其中一台点「创建聊天室」，其余设备在这一页搜索后加入它。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth()) {
                 items(state.peers, key = { it.deviceAddress }) { peer ->
-                    PeerRow(
-                        peer = peer,
-                        enabled = state.stage != NearbyChatStage.Connecting,
-                        onClick = { onConnect(peer) }
-                    )
+                    PeerRow(peer = peer, enabled = !busy, onClick = { onJoin(peer) })
                     MomentHairline()
                 }
             }
@@ -265,14 +270,14 @@ private fun PeerRow(
                 color = MaterialTheme.colorScheme.onBackground
             )
             Text(
-                peer.statusText,
+                if (peer.hostsRoom) "已开聊天室 · ${peer.statusText}" else peer.statusText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         if (peer.connectable) {
             Text(
-                "邀请",
+                if (peer.hostsRoom) "加入" else "邀请",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -300,27 +305,37 @@ private fun ConversationBlock(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    state.peerDisplayName.ifBlank { "对方" },
+                    if (state.hostingRoom) "我的聊天室（${state.members.size} 人）" else "聊天室（${state.members.size} 人）",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    state.statusText,
+                    state.members.joinToString("、") { it.displayName }.ifBlank { "暂无其他成员" },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             TextButton(onClick = onLeave) {
-                Text(if (state.stage == NearbyChatStage.Connected) "断开" else "返回设备列表")
+                Text(if (state.canSend) "离开" else "返回设备列表")
             }
+        }
+        if (state.statusText.isNotBlank()) {
+            Text(
+                state.statusText,
+                modifier = Modifier.padding(bottom = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
         MomentHairline(Modifier.padding(bottom = 8.dp))
 
         if (state.messages.isEmpty()) {
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 Text(
-                    if (state.canSend) "通道已打开，发条消息试试。" else "这次没聊上。",
+                    if (state.canSend) "聊天室已就绪，发条消息试试。" else "这次没聊上。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -333,7 +348,7 @@ private fun ConversationBlock(
                     .fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(state.messages, key = { it.id }) { message ->
+                items(state.messages, key = { it.messageId }) { message ->
                     MessageBubble(message)
                 }
             }
@@ -351,7 +366,7 @@ private fun ConversationBlock(
                 onValueChange = onDraftChange,
                 modifier = Modifier.weight(1f),
                 enabled = state.canSend,
-                placeholder = { Text(if (state.canSend) "说点什么…" else "连接已断开") },
+                placeholder = { Text(if (state.canSend) "说点什么…" else "已离开聊天室") },
                 colors = momentTransparentTextFieldColors(),
                 maxLines = 4,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -376,7 +391,7 @@ private fun MessageBubble(message: NearbyChatMessage) {
         horizontalAlignment = if (message.fromMe) Alignment.End else Alignment.Start
     ) {
         Text(
-            "${message.senderName} · $time",
+            "${if (message.fromMe) "我" else message.senderName} · $time",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
