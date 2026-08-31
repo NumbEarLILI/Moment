@@ -363,7 +363,7 @@ class NearbyChatViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             stage = NearbyChatStage.InRoom,
-                            statusText = "聊天室已就绪，等其他设备加入"
+                            statusText = "等待加入"
                         )
                     }
                 }
@@ -409,7 +409,7 @@ class NearbyChatViewModel @Inject constructor(
             it.copy(
                 stage = NearbyChatStage.InRoom,
                 hostingRoom = false,
-                statusText = "正在用蓝牙寻找附近同样打开这个页面的人…"
+                statusText = "正在寻找附近的人…"
             )
         }
         sessionJob = viewModelScope.launch {
@@ -506,16 +506,12 @@ class NearbyChatViewModel @Inject constructor(
 
     private fun roomStatusText(hosting: Boolean, neighborCount: Int): String {
         if (_uiState.value.isBluetooth) {
-            return if (neighborCount > 0) {
-                "已与 $neighborCount 台设备直连，消息会在网里转发，不经过任何服务器"
-            } else {
-                "正在用蓝牙寻找附近同样打开这个页面的人…"
-            }
+            return if (neighborCount > 0) "已连接 $neighborCount 台" else "正在寻找附近的人…"
         }
         return when {
-            neighborCount > 0 -> "已接入聊天室，消息只在这些设备之间直传，不经过任何服务器"
-            hosting -> "聊天室已就绪，等其他设备加入"
-            else -> "与聊天室的连接已断开"
+            neighborCount > 0 -> "已接入"
+            hosting -> "等待加入"
+            else -> "已断开"
         }
     }
 

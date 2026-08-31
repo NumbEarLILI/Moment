@@ -146,14 +146,7 @@ fun NearbyChatScreen(
                     .padding(horizontal = 20.dp)
                     .padding(top = 12.dp)
             ) {
-            Text(
-                "聊天",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
             Row(
-                modifier = Modifier.padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 TransportChip(
@@ -167,16 +160,6 @@ fun NearbyChatScreen(
                     onClick = { viewModel.switchTransport(NearbyTransport.WifiDirect) }
                 )
             }
-            Text(
-                if (isBluetooth) {
-                    "打开就会自动寻找附近同样在聊天页的人。消息留在本机，退出再进还在。"
-                } else {
-                    "一台创建聊天室，其他人加入。记录留在本机。"
-                },
-                modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
 
             when {
                 !state.supported -> Notice(
@@ -202,7 +185,7 @@ fun NearbyChatScreen(
                 )
 
                 isBluetooth && !state.bluetoothEnabled -> {
-                    Notice("请先打开蓝牙，打开后会自动寻找附近的人。")
+                    Notice("请先打开蓝牙")
                     TextButton(
                         onClick = {
                             enableBluetoothLauncher.launch(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE))
@@ -343,7 +326,7 @@ private fun DiscoveryBlock(
 
         if (state.peers.isEmpty()) {
             Text(
-                "还没有搜到设备。让其中一台点「创建聊天室」，其余设备在这一页搜索后加入它。",
+                "还没有搜到设备",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -448,11 +431,13 @@ private fun ConversationBlock(
 
         if (state.messages.isEmpty()) {
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Text(
-                    if (state.canSend) "发条消息试试。" else "连上之后就可以聊。记录会留在这台手机上。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (state.canSend) {
+                    Text(
+                        "发条消息试试。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         } else {
             LazyColumn(
