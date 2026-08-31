@@ -35,7 +35,17 @@ data class NearbyChatMessage(
     val sentAtEpochMillis: Long,
     val fragment: SharedFragmentCard? = null,
     val imagePath: String = ""
-)
+) {
+    fun copyableText(): String {
+        val card = fragment ?: return text
+        val parts = buildList {
+            if (card.content.isNotBlank()) add(card.content)
+            val line = card.contextLine()
+            if (line.isNotBlank()) add(line)
+        }
+        return parts.joinToString("\n").ifBlank { text }
+    }
+}
 
 enum class NearbyChatStage {
     /** 还没开始搜索。 */

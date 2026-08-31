@@ -1,15 +1,21 @@
 package com.example.moment.ui.nearby
 
 import android.bluetooth.BluetoothAdapter
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -533,18 +539,21 @@ private fun ChatComposer(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     message: NearbyChatMessage,
     avatarPath: String,
     avatarUpdatedAtEpochMs: Long
 ) {
+    val context = LocalContext.current
     val time = remember(message.sentAtEpochMillis) {
         MessageTimeFormatter.format(
             Instant.ofEpochMilli(message.sentAtEpochMillis).atZone(ZoneId.systemDefault())
         )
     }
     val name = if (message.fromMe) "我" else message.senderName
+    val copyText = remember(message) { message.copyableText() }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (message.fromMe) Arrangement.End else Arrangement.Start,
@@ -571,13 +580,19 @@ private fun MessageBubble(
             Box(
                 modifier = Modifier
                     .padding(top = 3.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(
                         color = if (message.fromMe) {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                        },
-                        shape = RoundedCornerShape(14.dp)
+                        }
+                    )
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = {
+                            if (copyText.isNotBlank()) copyNearbyChatText(context, copyText)
+                        }
                     )
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
@@ -803,4 +818,12 @@ private fun Notice(text: String) {
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+private fun copyNearbyChatText(context: Context, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("chat", text))
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+        Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+    }
 }
