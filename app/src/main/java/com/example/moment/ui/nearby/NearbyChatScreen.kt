@@ -621,15 +621,17 @@ private fun SharedFragmentBubble(
             color = MaterialTheme.colorScheme.primary
         )
         if (imagePath.isNotBlank()) {
-            AsyncImage(
-                model = imagePath,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .clip(RoundedCornerShape(10.dp)),
-                contentScale = ContentScale.Crop
-            )
+            nearbyChatImageModel(imagePath)?.let { model ->
+                AsyncImage(
+                    model = model,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(10.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
         }
         if (card.content.isNotBlank()) {
             Text(
@@ -727,14 +729,16 @@ private fun FragmentSharePickerRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (thumb.isNotBlank()) {
-            AsyncImage(
-                model = thumb,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
-            )
+            nearbyChatImageModel(thumb)?.let { model ->
+                AsyncImage(
+                    model = model,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(

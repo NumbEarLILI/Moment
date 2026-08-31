@@ -3,22 +3,29 @@ package com.example.moment.data.nearby
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import com.example.moment.domain.nearby.NearbyAvatarPolicy
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
 
-/** 把本机头像压成一张很小的 JPEG，好在蓝牙链路上发给邻居。 */
+/** 把本机头像或碎片图压成一张很小的 JPEG，好在蓝牙链路上发给邻居。 */
 object NearbyAvatarThumbnail {
     fun fromFile(file: File): ByteArray? {
         if (!file.isFile) return null
-        val original = BitmapFactory.decodeFile(file.absolutePath) ?: return null
-        return encode(original)
+        return runCatching {
+            val original = decodeFile(file) ?: return@runCatching null
+            encode(original)
+        }.getOrNull()
     }
 
     fun fromUri(resolver: ContentResolver, uri: Uri): ByteArray? {
-        val original = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: return null
-        return encode(original)
+        return runCatching {
+            val original = decodeUri(resolver, uri) ?: return@runCatching null
+            encode(original)
+        }.getOrNull()
     }
 
     fun fromAny(path: String, resolver: ContentResolver): ByteArray? {
@@ -33,6 +40,37 @@ object NearbyAvatarThumbnail {
             File(trimmed)
         }
         return fromFile(file) ?: runCatching { fromUri(resolver, Uri.parse(trimmed)) }.getOrNull()
+    }
+
+    private fun decodeFile(file: File): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val decoded = BitmapFactory.decodeFile(
+            file.absolutePath,
+            BitmapFactory.Options().apply {
+                inSampleSize = NearbyAvatarPolicy.decodeSampleSize(bounds.outWidth, bounds.outHeight)
+            }
+        ) ?: return null
+        return orient(decoded, readExif(file))
+    }
+
+    private fun decodeUri(resolver: ContentResolver, uri: Uri): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val decoded = resolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(
+                input,
+                null,
+                BitmapFactory.Options().apply {
+                    inSampleSize = NearbyAvatarPolicy.decodeSampleSize(bounds.outWidth, bounds.outHeight)
+                }
+            )
+        } ?: return null
+        val orientation = resolver.openInputStream(uri)?.use { readExif(it) }
+            ?: ExifInterface.ORIENTATION_NORMAL
+        return orient(decoded, orientation)
     }
 
     private fun encode(original: Bitmap): ByteArray? {
@@ -65,5 +103,48 @@ object NearbyAvatarThumbnail {
             quality -= 10
         }
         return null
+    }
+
+    private fun readExif(file: File): Int =
+        try {
+            ExifInterface(file.absolutePath).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } catch (_: Exception) {
+            ExifInterface.ORIENTATION_NORMAL
+        }
+
+    private fun readExif(input: InputStream): Int =
+        try {
+            ExifInterface(input).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } catch (_: Exception) {
+            ExifInterface.ORIENTATION_NORMAL
+        }
+
+    private fun orient(bitmap: Bitmap, orientation: Int): Bitmap {
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.setRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.setRotate(-90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
+            else -> return bitmap
+        }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated !== bitmap) bitmap.recycle()
+        return rotated
     }
 }

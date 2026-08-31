@@ -319,11 +319,13 @@ class NearbyChatViewModel @Inject constructor(
         viewModelScope.launch {
             val card = fragment.toSharedFragmentCard()
             val localImage = fragment.imageUris.firstOrNull { it.isNotBlank() }.orEmpty()
-            val jpeg = withContext(Dispatchers.IO) {
-                localImage.takeIf { it.isNotBlank() }
-                    ?.let { NearbyAvatarThumbnail.fromAny(it, appContext.contentResolver) }
-                    ?: byteArrayOf()
-            }
+            val jpeg = runCatching {
+                withContext(Dispatchers.IO) {
+                    localImage.takeIf { it.isNotBlank() }
+                        ?.let { NearbyAvatarThumbnail.fromAny(it, appContext.contentResolver) }
+                        ?: byteArrayOf()
+                }
+            }.getOrDefault(byteArrayOf())
             val frame = router.composeFragment(
                 messageId = UUID.randomUUID().toString(),
                 displayName = displayName,
