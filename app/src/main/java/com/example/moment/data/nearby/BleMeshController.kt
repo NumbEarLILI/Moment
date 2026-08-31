@@ -29,6 +29,7 @@ import android.os.ParcelUuid
 import com.example.moment.domain.nearby.BleAdvertisementPolicy
 import com.example.moment.domain.nearby.BleConnectPolicy
 import com.example.moment.domain.nearby.BleFrameCodec
+import com.example.moment.domain.nearby.BleLinkAttachPolicy
 import com.example.moment.domain.nearby.BleMeshIds
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.ConcurrentHashMap
@@ -120,6 +121,8 @@ class BleMeshController @Inject constructor(
         private val clientGatts = ConcurrentHashMap<String, BluetoothGatt>()
         private val seenPeers = ConcurrentHashMap<String, SeenPeer>()
         private val connecting = ConcurrentHashMap.newKeySet<String>()
+        private val publishedLinks = ConcurrentHashMap.newKeySet<String>()
+        private val negotiatedMtu = ConcurrentHashMap<String, Int>()
 
         private val advertiseCallback = object : AdvertiseCallback() {
             override fun onStartFailure(errorCode: Int) {
@@ -175,6 +178,8 @@ class BleMeshController @Inject constructor(
             assemblers.clear()
             seenPeers.clear()
             connecting.clear()
+            publishedLinks.clear()
+            negotiatedMtu.clear()
         }
 
         private fun openGattServer() {
@@ -333,12 +338,9 @@ class BleMeshController @Inject constructor(
             callback.gatt = gatt
         }
 
-        private fun attachServerLink(device: BluetoothDevice) {
+        private fun attachServerEndpoint(device: BluetoothDevice) {
             val address = device.address ?: return
-            if (!occupied.add(address)) {
-                runCatching { gattServer?.cancelConnection(device) }
-                return
-            }
+            if (!occupied.add(address)) return
             val writer = GattChunkWriter { chunk -> notifyDevice(device, chunk) }
             writers[address] = writer
             assemblers[address] = BleFrameCodec.Assembler()
@@ -347,7 +349,7 @@ class BleMeshController @Inject constructor(
                 onClose = { drop(address, disconnectClient = false, cancelServer = true) }
             )
             links[address] = link
-            onLink(link)
+            applyNegotiatedMtu(address)
         }
 
         private fun attachClientLink(gatt: BluetoothGatt, inbox: BluetoothGattCharacteristic) {
@@ -364,7 +366,23 @@ class BleMeshController @Inject constructor(
                 onClose = { drop(address, disconnectClient = true, cancelServer = false) }
             )
             links[address] = link
+            applyNegotiatedMtu(address)
+            publishLink(address)
+        }
+
+        private fun publishLink(address: String) {
+            val link = links[address] ?: return
+            if (!publishedLinks.add(address)) return
             onLink(link)
+        }
+
+        private fun isOutgoingClient(address: String): Boolean =
+            connecting.contains(address) || clientGatts.containsKey(address)
+
+        private fun applyNegotiatedMtu(address: String) {
+            negotiatedMtu[address]?.let { mtu ->
+                links[address]?.updateChunkSize(chunkSizeForMtu(mtu))
+            }
         }
 
         private fun drop(address: String, disconnectClient: Boolean, cancelServer: Boolean) {
@@ -373,6 +391,8 @@ class BleMeshController @Inject constructor(
             assemblers.remove(address)
             occupied.remove(address)
             connecting.remove(address)
+            publishedLinks.remove(address)
+            negotiatedMtu.remove(address)
             if (disconnectClient) {
                 clientGatts.remove(address)?.let { gatt ->
                     runCatching { gatt.disconnect() }
@@ -395,12 +415,12 @@ class BleMeshController @Inject constructor(
             val server = gattServer ?: return false
             val characteristic = server.getService(BleMeshIds.SERVICE)
                 ?.getCharacteristic(BleMeshIds.OUTBOX) ?: return false
+            @Suppress("DEPRECATION")
+            characteristic.value = chunk
             return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 server.notifyCharacteristicChanged(device, characteristic, false, chunk) ==
                     BluetoothStatusCodes.SUCCESS
             } else {
-                @Suppress("DEPRECATION")
-                characteristic.value = chunk
                 @Suppress("DEPRECATION")
                 server.notifyCharacteristicChanged(device, characteristic, false)
             }
@@ -432,14 +452,23 @@ class BleMeshController @Inject constructor(
             }
 
             override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
+                val address = device.address ?: return
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
-                    attachServerLink(device)
+                    if (!BleLinkAttachPolicy.shouldAcceptAsServer(outgoingClient = isOutgoingClient(address))) {
+                        return
+                    }
+                    attachServerEndpoint(device)
+                    scope.launch {
+                        delay(CCCD_WAIT_MS)
+                        publishLink(address)
+                    }
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                    drop(device.address, disconnectClient = false, cancelServer = false)
+                    drop(address, disconnectClient = false, cancelServer = false)
                 }
             }
 
             override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
+                negotiatedMtu[device.address] = mtu
                 links[device.address]?.updateChunkSize(chunkSizeForMtu(mtu))
             }
 
@@ -469,6 +498,9 @@ class BleMeshController @Inject constructor(
                 offset: Int,
                 value: ByteArray?
             ) {
+                if (descriptor.uuid == BleMeshIds.CCCD) {
+                    publishLink(device.address)
+                }
                 if (responseNeeded) {
                     gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
                 }
@@ -482,6 +514,8 @@ class BleMeshController @Inject constructor(
         private inner class ClientCallback(private val address: String) : BluetoothGattCallback() {
             var gatt: BluetoothGatt? = null
             private val startedDiscovery = AtomicBoolean(false)
+            private val cccdAck = CompletableDeferred<Boolean>()
+            private val published = AtomicBoolean(false)
 
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                 if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
@@ -498,6 +532,7 @@ class BleMeshController @Inject constructor(
             }
 
             override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
+                negotiatedMtu[address] = mtu
                 links[address]?.updateChunkSize(chunkSizeForMtu(mtu))
                 discoverOnce(gatt)
             }
@@ -525,11 +560,30 @@ class BleMeshController @Inject constructor(
                 }
                 gatt.setCharacteristicNotification(outbox, true)
                 val cccd = outbox.getDescriptor(BleMeshIds.CCCD)
-                if (cccd != null) {
-                    writeDescriptor(gatt, cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                if (cccd == null) {
+                    finishClient(gatt, inboxChar)
+                    return
                 }
+                val submitted = writeDescriptor(gatt, cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                if (!submitted) cccdAck.complete(false)
+                scope.launch {
+                    withTimeoutOrNull(CCCD_WAIT_MS) { cccdAck.await() }
+                    finishClient(gatt, inboxChar)
+                }
+            }
+
+            private fun finishClient(gatt: BluetoothGatt, inbox: BluetoothGattCharacteristic) {
+                if (!published.compareAndSet(false, true)) return
                 connecting.remove(address)
-                attachClientLink(gatt, inboxChar)
+                attachClientLink(gatt, inbox)
+            }
+
+            override fun onDescriptorWrite(
+                gatt: BluetoothGatt,
+                descriptor: BluetoothGattDescriptor,
+                status: Int
+            ) {
+                cccdAck.complete(status == BluetoothGatt.GATT_SUCCESS)
             }
 
             override fun onCharacteristicChanged(
@@ -564,16 +618,15 @@ class BleMeshController @Inject constructor(
             gatt: BluetoothGatt,
             descriptor: BluetoothGattDescriptor,
             value: ByteArray
-        ) {
+        ): Boolean =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                gatt.writeDescriptor(descriptor, value)
+                gatt.writeDescriptor(descriptor, value) == BluetoothStatusCodes.SUCCESS
             } else {
                 @Suppress("DEPRECATION")
                 descriptor.value = value
                 @Suppress("DEPRECATION")
                 gatt.writeDescriptor(descriptor)
             }
-        }
     }
 
     private data class SeenPeer(
@@ -587,6 +640,7 @@ class BleMeshController @Inject constructor(
         const val CONNECT_TICK_MS = 1_000L
         const val PEER_STALE_MS = 30_000L
         const val SERVICE_READY_MS = 2_000L
+        const val CCCD_WAIT_MS = 2_000L
 
         fun chunkSizeForMtu(mtu: Int): Int = (mtu - 3 - BleFrameCodec.HEADER_SIZE).coerceAtLeast(8)
     }

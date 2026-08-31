@@ -7,6 +7,7 @@ import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
 import com.example.moment.domain.nearby.NearbyAvatarPolicy
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
@@ -43,34 +44,43 @@ object NearbyAvatarThumbnail {
     }
 
     private fun decodeFile(file: File): Bitmap? {
+        val bytes = runCatching { file.readBytes() }.getOrNull() ?: return null
+        return decodeJpegBytes(bytes)
+    }
+
+    private fun decodeUri(resolver: ContentResolver, uri: Uri): Bitmap? {
+        val bytes = resolver.openInputStream(uri)?.use { readCapped(it) } ?: return null
+        return decodeJpegBytes(bytes)
+    }
+
+    private fun decodeJpegBytes(bytes: ByteArray): Bitmap? {
+        if (bytes.isEmpty()) return null
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        val decoded = BitmapFactory.decodeFile(
-            file.absolutePath,
+        val decoded = BitmapFactory.decodeByteArray(
+            bytes,
+            0,
+            bytes.size,
             BitmapFactory.Options().apply {
                 inSampleSize = NearbyAvatarPolicy.decodeSampleSize(bounds.outWidth, bounds.outHeight)
             }
         ) ?: return null
-        return orient(decoded, readExif(file))
+        return orient(decoded, readExif(bytes))
     }
 
-    private fun decodeUri(resolver: ContentResolver, uri: Uri): Bitmap? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        val decoded = resolver.openInputStream(uri)?.use { input ->
-            BitmapFactory.decodeStream(
-                input,
-                null,
-                BitmapFactory.Options().apply {
-                    inSampleSize = NearbyAvatarPolicy.decodeSampleSize(bounds.outWidth, bounds.outHeight)
-                }
-            )
-        } ?: return null
-        val orientation = resolver.openInputStream(uri)?.use { readExif(it) }
-            ?: ExifInterface.ORIENTATION_NORMAL
-        return orient(decoded, orientation)
+    private fun readCapped(input: InputStream, maxBytes: Int = MAX_SOURCE_BYTES): ByteArray? {
+        val out = ByteArrayOutputStream()
+        val buf = ByteArray(16 * 1024)
+        var total = 0
+        while (true) {
+            val read = input.read(buf)
+            if (read < 0) break
+            total += read
+            if (total > maxBytes) return null
+            out.write(buf, 0, read)
+        }
+        return out.toByteArray()
     }
 
     private fun encode(original: Bitmap): ByteArray? {
@@ -105,19 +115,9 @@ object NearbyAvatarThumbnail {
         return null
     }
 
-    private fun readExif(file: File): Int =
+    private fun readExif(bytes: ByteArray): Int =
         try {
-            ExifInterface(file.absolutePath).getAttributeInt(
-                ExifInterface.TAG_ORIENTATION,
-                ExifInterface.ORIENTATION_NORMAL
-            )
-        } catch (_: Exception) {
-            ExifInterface.ORIENTATION_NORMAL
-        }
-
-    private fun readExif(input: InputStream): Int =
-        try {
-            ExifInterface(input).getAttributeInt(
+            ExifInterface(ByteArrayInputStream(bytes)).getAttributeInt(
                 ExifInterface.TAG_ORIENTATION,
                 ExifInterface.ORIENTATION_NORMAL
             )
@@ -148,3 +148,5 @@ object NearbyAvatarThumbnail {
         return rotated
     }
 }
+
+private const val MAX_SOURCE_BYTES = 12 * 1024 * 1024
