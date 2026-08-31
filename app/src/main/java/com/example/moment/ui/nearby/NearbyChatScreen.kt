@@ -72,7 +72,6 @@ private val MessageTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatter
 
 @Composable
 fun NearbyChatScreen(
-    asMainTab: Boolean = false,
     viewModel: NearbyChatViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current

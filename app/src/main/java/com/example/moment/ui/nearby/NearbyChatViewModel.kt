@@ -38,7 +38,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class NearbyChatUiState(
-    val transport: NearbyTransport = NearbyTransport.WifiDirect,
+    val transport: NearbyTransport = NearbyTransport.Bluetooth,
     val supported: Boolean = true,
     val wifiDirectEnabled: Boolean = true,
     val bluetoothEnabled: Boolean = true,

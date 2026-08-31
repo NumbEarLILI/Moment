@@ -111,9 +111,12 @@ class NearbyMeshNode(
     }
 
     override fun close() {
-        val open = neighbors.values.toList()
+        // 不能用 values.toList()：只剩 1 个邻居时 Kotlin 会走 iterator().next()，
+        // 对端同时拆链路就会抛 NoSuchElementException（退出聊天时正好会碰到）。
+        val open = ArrayList<NearbyLink>(neighbors.size.coerceAtLeast(4))
+        neighbors.forEach { (_, link) -> open.add(link) }
         neighbors.clear()
-        open.forEach { it.close() }
+        open.forEach { runCatching { it.close() } }
     }
 
     private fun CoroutineScope.accept(link: NearbyLink, maxNeighbors: Int) {
