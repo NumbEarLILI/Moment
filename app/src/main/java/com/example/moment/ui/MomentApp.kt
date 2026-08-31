@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
@@ -22,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -63,10 +65,8 @@ fun MomentApp() {
         MainTab(label = "历史", iconRes = R.drawable.ic_nav_history, route = Routes.History, selectedRoute = Routes.History),
         MainTab(label = "我的", iconRes = R.drawable.ic_nav_mine, route = Routes.Mine, selectedRoute = Routes.Mine)
     )
-    val showBottomBar = currentRoute == Routes.Home ||
-        currentRoute == Routes.Chat ||
-        currentRoute == Routes.History ||
-        currentRoute == Routes.Mine
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val showBottomBar = showMomentBottomBar(currentRoute, imeVisible)
 
     Scaffold(
         containerColor = appRootContainerColor(),
@@ -301,6 +301,15 @@ private data class MainTab(
     val route: String,
     val selectedRoute: String
 )
+
+/** 键盘弹起时收起底栏，避免输入框和键盘之间空出一截导航高度。 */
+internal fun showMomentBottomBar(route: String?, imeVisible: Boolean): Boolean {
+    if (imeVisible) return false
+    return route == Routes.Home ||
+        route == Routes.Chat ||
+        route == Routes.History ||
+        route == Routes.Mine
+}
 
 object Routes {
     const val Home = "home"
