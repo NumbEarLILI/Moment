@@ -23,6 +23,27 @@ class NearbyChatStoreMappingTest {
 
         assertEquals(message, restored)
     }
+
+    @Test
+    fun `keeps bluetooth and wifi as separate transports`() {
+        val message = NearbyChatMessage(
+            messageId = "m-1",
+            senderId = "node-a",
+            senderName = "阿七",
+            text = "在楼下",
+            fromMe = false,
+            sentAtEpochMillis = 42L
+        )
+
+        assertEquals(
+            NearbyTransport.Bluetooth.name,
+            message.toEntity(NearbyTransport.Bluetooth).transport
+        )
+        assertEquals(
+            NearbyTransport.WifiDirect.name,
+            message.copy(messageId = "m-2").toEntity(NearbyTransport.WifiDirect).transport
+        )
+    }
 }
 
 class PeerAvatarStoreTest {

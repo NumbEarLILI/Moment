@@ -13,16 +13,16 @@ import kotlinx.coroutines.flow.map
 class NearbyChatStore @Inject constructor(
     private val dao: NearbyChatDao
 ) {
-    fun observe(): Flow<List<NearbyChatMessage>> =
-        dao.observeAll().map { rows ->
+    fun observe(transport: NearbyTransport): Flow<List<NearbyChatMessage>> =
+        dao.observeByTransport(transport.name).map { rows ->
             val trimmed = if (rows.size > KEEP) rows.takeLast(KEEP) else rows
             trimmed.map { it.toDomain() }
         }
 
     suspend fun save(message: NearbyChatMessage, transport: NearbyTransport) {
         dao.insert(message.toEntity(transport))
-        val extra = dao.count() - KEEP
-        if (extra > 0) dao.deleteOldest(extra)
+        val extra = dao.countByTransport(transport.name) - KEEP
+        if (extra > 0) dao.deleteOldestByTransport(transport.name, extra)
     }
 
     private companion object {

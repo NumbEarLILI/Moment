@@ -27,13 +27,17 @@ import java.time.Clock
 import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -66,6 +70,7 @@ data class NearbyChatUiState(
 }
 
 @HiltViewModel
+@OptIn(ExperimentalCoroutinesApi::class)
 class NearbyChatViewModel @Inject constructor(
     private val wifiDirectController: WifiDirectController,
     private val bleMeshController: BleMeshController,
@@ -98,9 +103,13 @@ class NearbyChatViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            chatStore.observe().collect { messages ->
-                _uiState.update { it.copy(messages = messages) }
-            }
+            _uiState
+                .map { it.transport }
+                .distinctUntilChanged()
+                .flatMapLatest { transport -> chatStore.observe(transport) }
+                .collect { messages ->
+                    _uiState.update { it.copy(messages = messages) }
+                }
         }
         viewModelScope.launch {
             userPreferencesRepository.preferences.collect { prefs ->
@@ -153,6 +162,7 @@ class NearbyChatViewModel @Inject constructor(
             eventsJob?.cancel()
             eventsJob = null
             started = false
+            _uiState.update { it.copy(transport = transport, messages = emptyList()) }
             start(transport)
         }
     }
