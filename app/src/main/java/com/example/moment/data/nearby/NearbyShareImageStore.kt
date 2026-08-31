@@ -2,7 +2,7 @@ package com.example.moment.data.nearby
 
 import java.io.File
 
-/** 邻居分享过来的碎片缩略图，按 messageId 落盘。 */
+/** 邻居分享过来的碎片图，按 messageId 落盘。 */
 class NearbyShareImageStore(private val filesDir: File) {
     fun directory(): File = File(filesDir, DIR).apply { mkdirs() }
 

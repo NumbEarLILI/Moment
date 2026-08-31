@@ -72,8 +72,14 @@ object NearbyChatWire {
     /** 聊天室主机监听的端口，两端写死同一个值，无需再交换。 */
     const val PORT = 8899
 
-    /** 单帧上限，避免对方（或坏掉的连接）不发换行时把内存撑爆。 */
+    /** 蓝牙单帧上限。头像缩略图和纯文字都能放下；原图不行。 */
     const val MAX_FRAME_CHARS = 32 * 1024
+
+    /**
+     * Wi-Fi Direct 单帧上限，专门给碎片原图。
+     * 8MB JPEG 的 Base64 大约 10.7MB，再留一点 JSON 字段余量。
+     */
+    const val WIFI_MAX_FRAME_CHARS = 12 * 1024 * 1024
 
     /** 单条消息的字符上限，留出 JSON 转义和字段名的余量。 */
     const val MAX_MESSAGE_CHARS = 2000

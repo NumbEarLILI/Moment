@@ -25,6 +25,25 @@ data class SharedFragmentCard(
 
 object NearbyFragmentSharePolicy {
     const val MAX_CONTENT_CHARS = 500
+
+    /** Wi-Fi 直连传原图的上限；再大就按照片质量压缩，而不是头像缩略图。 */
+    const val WIFI_MAX_IMAGE_BYTES = 8 * 1024 * 1024
+    const val WIFI_MAX_IMAGE_EDGE_PX = 2048
+    const val WIFI_JPEG_QUALITY = 88
+
+    /** 蓝牙链路太窄，碎片只发文字卡片；Wi-Fi Direct 带上原图。 */
+    fun includeImage(transport: NearbyTransport): Boolean =
+        transport == NearbyTransport.WifiDirect
+
+    /** 自己气泡里的预览路径：蓝牙不带图，Wi-Fi 仅在确实附上了 JPEG 时才显示本地原图。 */
+    fun localPreviewPath(
+        transport: NearbyTransport,
+        localPath: String,
+        attachedJpeg: ByteArray
+    ): String {
+        if (!includeImage(transport) || attachedJpeg.isEmpty()) return ""
+        return localPath
+    }
 }
 
 fun LifeFragment.toSharedFragmentCard(): SharedFragmentCard {

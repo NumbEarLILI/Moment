@@ -41,7 +41,10 @@ class NearbyChatLink internal constructor(private val socket: Socket) : NearbyLi
     override fun incoming(): Flow<NearbyChatFrame> = flow {
         while (currentCoroutineContext().isActive) {
             val line = try {
-                NearbyChatWire.readFrameLine(reader)
+                NearbyChatWire.readFrameLine(
+                    reader,
+                    maxChars = NearbyChatWire.WIFI_MAX_FRAME_CHARS
+                )
             } catch (_: IOException) {
                 null
             } ?: break

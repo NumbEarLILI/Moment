@@ -9,6 +9,7 @@ import com.example.moment.data.nearby.NearbyAvatarThumbnail
 import com.example.moment.data.nearby.NearbyChatConnector
 import com.example.moment.data.nearby.NearbyChatStore
 import com.example.moment.data.nearby.NearbyMeshNode
+import com.example.moment.data.nearby.NearbyShareImageBytes
 import com.example.moment.data.nearby.NearbyShareImageStore
 import com.example.moment.data.nearby.PeerAvatarStore
 import com.example.moment.data.nearby.WifiDirectController
@@ -21,6 +22,7 @@ import com.example.moment.domain.nearby.NearbyChatFrame
 import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyChatStage
 import com.example.moment.domain.nearby.NearbyChatWire
+import com.example.moment.domain.nearby.NearbyFragmentSharePolicy
 import com.example.moment.domain.nearby.NearbyMeshRouter
 import com.example.moment.domain.nearby.NearbyPeer
 import com.example.moment.domain.nearby.NearbyTransport
@@ -317,17 +319,18 @@ class NearbyChatViewModel @Inject constructor(
         val currentNode = node ?: return
         if (_uiState.value.stage != NearbyChatStage.InRoom) return
         viewModelScope.launch {
+            val transport = _uiState.value.transport
             val card = fragment.toSharedFragmentCard()
             val localImage = fragment.imageUris.firstOrNull { it.isNotBlank() }.orEmpty()
-            val jpeg = runCatching {
-                withContext(Dispatchers.IO) {
-                    fragment.imageUris.firstNotNullOfOrNull { uri ->
-                        uri.takeIf { it.isNotBlank() }?.let {
-                            NearbyAvatarThumbnail.fromAny(it, appContext.contentResolver)
-                        }
-                    } ?: byteArrayOf()
-                }
-            }.getOrDefault(byteArrayOf())
+            val jpeg = if (NearbyFragmentSharePolicy.includeImage(transport)) {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        NearbyShareImageBytes.fromAny(localImage, appContext.contentResolver)
+                    }
+                }.getOrDefault(byteArrayOf())
+            } else {
+                byteArrayOf()
+            }
             val frame = router.composeFragment(
                 messageId = UUID.randomUUID().toString(),
                 displayName = displayName,
@@ -344,7 +347,11 @@ class NearbyChatViewModel @Inject constructor(
                     fromMe = true,
                     sentAtEpochMillis = frame.sentAtEpochMillis,
                     fragment = card,
-                    imagePath = localImage
+                    imagePath = NearbyFragmentSharePolicy.localPreviewPath(
+                        transport = transport,
+                        localPath = localImage,
+                        attachedJpeg = jpeg
+                    )
                 )
             )
             if (_uiState.value.stage == NearbyChatStage.InRoom) {

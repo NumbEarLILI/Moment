@@ -1,5 +1,6 @@
 package com.example.moment.ui.nearby
 
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -35,7 +36,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -51,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,6 +74,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.example.moment.data.nearby.NearbyShareImageMime
+import com.example.moment.data.nearby.NearbyShareImageSaver
 import com.example.moment.domain.model.LifeFragment
 import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyChatStage
@@ -77,10 +83,17 @@ import com.example.moment.domain.nearby.NearbyPeer
 import com.example.moment.domain.nearby.NearbyPermissions
 import com.example.moment.domain.nearby.NearbyTransport
 import com.example.moment.domain.nearby.SharedFragmentCard
+import com.example.moment.ui.common.FullscreenImageViewer
+import com.example.moment.ui.common.MoodSummaryBadge
+import com.example.moment.ui.common.TagLine
 import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.theme.positionAwareImePadding
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -136,7 +149,38 @@ fun NearbyChatScreen(
     }
 
     val isBluetooth = transport == NearbyTransport.Bluetooth
+    val scope = rememberCoroutineScope()
     var showFragmentPicker by remember { mutableStateOf(false) }
+    var detailMessage by remember { mutableStateOf<NearbyChatMessage?>(null) }
+    var fullscreenImage by remember { mutableStateOf<String?>(null) }
+    var pendingSavePath by remember { mutableStateOf<String?>(null) }
+    val writePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val path = pendingSavePath
+        pendingSavePath = null
+        when {
+            path.isNullOrBlank() -> Unit
+            granted -> saveNearbyShareImage(context, path, scope)
+            else -> Toast.makeText(context, "没有保存权限", Toast.LENGTH_SHORT).show()
+        }
+    }
+    fun requestSaveImage(path: String) {
+        if (path.isBlank()) return
+        if (NearbyShareImageMime.needsLegacyWritePermission(Build.VERSION.SDK_INT)) {
+            val permission = Manifest.permission.WRITE_EXTERNAL_STORAGE
+            if (ContextCompat.checkSelfPermission(context, permission) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                saveNearbyShareImage(context, path, scope)
+            } else {
+                pendingSavePath = path
+                writePermissionLauncher.launch(permission)
+            }
+        } else {
+            saveNearbyShareImage(context, path, scope)
+        }
+    }
 
     Scaffold(
         containerColor = appScaffoldContainerColor(),
@@ -221,6 +265,8 @@ fun NearbyChatScreen(
                 state = state,
                 onLeave = viewModel::leaveRoom,
                 showLeave = !isBluetooth && state.showsConversation,
+                onOpenFragment = { detailMessage = it },
+                onOpenFragmentImage = { fullscreenImage = it },
                 modifier = Modifier.weight(1f)
             )
             }
@@ -246,6 +292,25 @@ fun NearbyChatScreen(
                 viewModel.shareFragment(fragment)
             },
             onDismiss = { showFragmentPicker = false }
+        )
+    }
+
+    detailMessage?.let { message ->
+        val card = message.fragment ?: return@let
+        SharedFragmentDetailSheet(
+            card = card,
+            imagePath = message.imagePath,
+            onDismiss = { detailMessage = null },
+            onOpenImage = { fullscreenImage = it },
+            onSaveImage = { requestSaveImage(it) }
+        )
+    }
+    fullscreenImage?.let { path ->
+        FullscreenImageViewer(
+            imageUris = listOf(path),
+            initialPage = 0,
+            onDismiss = { fullscreenImage = null },
+            onSave = { requestSaveImage(it) }
         )
     }
 }
@@ -400,6 +465,8 @@ private fun ConversationBlock(
     state: NearbyChatUiState,
     onLeave: () -> Unit,
     showLeave: Boolean,
+    onOpenFragment: (NearbyChatMessage) -> Unit,
+    onOpenFragmentImage: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -478,7 +545,9 @@ private fun ConversationBlock(
                             state.myAvatarUpdatedAtEpochMs
                         } else {
                             0L
-                        }
+                        },
+                        onOpenFragment = { onOpenFragment(message) },
+                        onOpenFragmentImage = onOpenFragmentImage
                     )
                 }
             }
@@ -544,7 +613,9 @@ private fun ChatComposer(
 private fun MessageBubble(
     message: NearbyChatMessage,
     avatarPath: String,
-    avatarUpdatedAtEpochMs: Long
+    avatarUpdatedAtEpochMs: Long,
+    onOpenFragment: () -> Unit,
+    onOpenFragmentImage: (String) -> Unit
 ) {
     val context = LocalContext.current
     val time = remember(message.sentAtEpochMillis) {
@@ -589,7 +660,9 @@ private fun MessageBubble(
                         }
                     )
                     .combinedClickable(
-                        onClick = {},
+                        onClick = {
+                            if (message.fragment != null) onOpenFragment()
+                        },
                         onLongClick = {
                             if (copyText.isNotBlank()) copyNearbyChatText(context, copyText)
                         }
@@ -598,7 +671,15 @@ private fun MessageBubble(
             ) {
                 val card = message.fragment
                 if (card != null) {
-                    SharedFragmentBubble(card = card, imagePath = message.imagePath)
+                    SharedFragmentBubble(
+                        card = card,
+                        imagePath = message.imagePath,
+                        onOpenImage = {
+                            if (message.imagePath.isNotBlank()) {
+                                onOpenFragmentImage(message.imagePath)
+                            }
+                        }
+                    )
                 } else {
                     Text(
                         message.text,
@@ -621,7 +702,8 @@ private fun MessageBubble(
 @Composable
 private fun SharedFragmentBubble(
     card: SharedFragmentCard,
-    imagePath: String
+    imagePath: String,
+    onOpenImage: () -> Unit
 ) {
     val created = remember(card.createdAtEpochMillis) {
         FragmentShareTimeFormatter.format(
@@ -639,11 +721,12 @@ private fun SharedFragmentBubble(
             nearbyChatImageModel(imagePath)?.let { model ->
                 AsyncImage(
                     model = model,
-                    contentDescription = null,
+                    contentDescription = "碎片图片",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(120.dp)
-                        .clip(RoundedCornerShape(10.dp)),
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onOpenImage),
                     contentScale = ContentScale.Crop
                 )
             }
@@ -652,14 +735,18 @@ private fun SharedFragmentBubble(
             Text(
                 card.content,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis
             )
         }
         if (contextLine.isNotBlank()) {
             Text(
                 contextLine,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
         Text(
@@ -667,6 +754,91 @@ private fun SharedFragmentBubble(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SharedFragmentDetailSheet(
+    card: SharedFragmentCard,
+    imagePath: String,
+    onDismiss: () -> Unit,
+    onOpenImage: (String) -> Unit,
+    onSaveImage: (String) -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val created = remember(card.createdAtEpochMillis) {
+        FragmentShareTimeFormatter.format(
+            Instant.ofEpochMilli(card.createdAtEpochMillis).atZone(ZoneId.systemDefault())
+        )
+    }
+    val placeWeather = remember(card.place, card.weather) {
+        listOfNotNull(
+            card.weather.takeIf { it.isNotBlank() },
+            card.place.takeIf { it.isNotBlank() }
+        ).joinToString("  ·  ")
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "碎片",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (imagePath.isNotBlank()) {
+                nearbyChatImageModel(imagePath)?.let { model ->
+                    AsyncImage(
+                        model = model,
+                        contentDescription = "碎片图片",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onOpenImage(imagePath) },
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                TextButton(
+                    onClick = { onSaveImage(imagePath) },
+                    modifier = Modifier.padding(0.dp)
+                ) {
+                    Text("保存图片")
+                }
+            }
+            if (card.content.isNotBlank()) {
+                Text(
+                    card.content,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            if (card.mood.isNotBlank()) {
+                MoodSummaryBadge(summary = card.mood)
+            }
+            TagLine(tags = card.tags)
+            if (placeWeather.isNotBlank()) {
+                Text(
+                    placeWeather,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                created,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -825,5 +997,18 @@ private fun copyNearbyChatText(context: Context, text: String) {
     clipboard.setPrimaryClip(ClipData.newPlainText("chat", text))
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
         Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun saveNearbyShareImage(context: Context, path: String, scope: CoroutineScope) {
+    scope.launch {
+        val result = withContext(Dispatchers.IO) {
+            NearbyShareImageSaver.save(context.applicationContext, path)
+        }
+        Toast.makeText(
+            context,
+            if (result.isSuccess) "已保存到相册" else "保存失败",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 }
