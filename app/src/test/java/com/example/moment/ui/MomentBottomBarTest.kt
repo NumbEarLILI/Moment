@@ -21,10 +21,8 @@ class MomentBottomBarTest {
     }
 
     @Test
-    fun hidesWhenComposerIsFocusedEvenIfImeInsetsAreZero() {
-        assertFalse(
-            showMomentBottomBar(Routes.Chat, imeVisible = false, composerFocused = true)
-        )
+    fun showsAgainWhenKeyboardIsHiddenEvenIfComposerWasFocused() {
+        assertTrue(showMomentBottomBar(Routes.Chat, imeVisible = false))
     }
 
     @Test

@@ -20,11 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -69,16 +65,8 @@ fun MomentApp() {
         MainTab(label = "历史", iconRes = R.drawable.ic_nav_history, route = Routes.History, selectedRoute = Routes.History),
         MainTab(label = "我的", iconRes = R.drawable.ic_nav_mine, route = Routes.Mine, selectedRoute = Routes.Mine)
     )
-    var chatInputFocused by remember { mutableStateOf(false) }
-    LaunchedEffect(currentRoute) {
-        if (currentRoute != Routes.Chat) chatInputFocused = false
-    }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    val showBottomBar = showMomentBottomBar(
-        route = currentRoute,
-        imeVisible = imeVisible,
-        composerFocused = chatInputFocused
-    )
+    val showBottomBar = showMomentBottomBar(currentRoute, imeVisible)
 
     Scaffold(
         containerColor = appRootContainerColor(),
@@ -185,7 +173,7 @@ fun MomentApp() {
                 )
             }
             composable(Routes.Chat) {
-                NearbyChatScreen(onInputFocusChange = { chatInputFocused = it })
+                NearbyChatScreen()
             }
             composable(Routes.AccountSettings) {
                 AccountSettingsScreen(onBack = { navController.popBackStack() })
@@ -314,13 +302,9 @@ private data class MainTab(
     val selectedRoute: String
 )
 
-/** 键盘弹起或输入框聚焦时收起底栏，避免输入框和键盘之间空出一截导航高度。 */
-internal fun showMomentBottomBar(
-    route: String?,
-    imeVisible: Boolean,
-    composerFocused: Boolean = false
-): Boolean {
-    if (imeVisible || composerFocused) return false
+/** 键盘弹起时收起底栏。收起键盘后必须回来，不能靠输入框焦点——焦点在键盘关掉后往往还在。 */
+internal fun showMomentBottomBar(route: String?, imeVisible: Boolean): Boolean {
+    if (imeVisible) return false
     return route == Routes.Home ||
         route == Routes.Chat ||
         route == Routes.History ||

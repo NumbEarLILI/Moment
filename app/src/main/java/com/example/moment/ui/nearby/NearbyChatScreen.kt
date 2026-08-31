@@ -36,7 +36,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -78,7 +76,6 @@ private val MessageTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatter
 
 @Composable
 fun NearbyChatScreen(
-    onInputFocusChange: (Boolean) -> Unit = {},
     viewModel: NearbyChatViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -125,10 +122,6 @@ fun NearbyChatScreen(
     }
 
     val isBluetooth = transport == NearbyTransport.Bluetooth
-
-    DisposableEffect(Unit) {
-        onDispose { onInputFocusChange(false) }
-    }
 
     Scaffold(
         containerColor = appScaffoldContainerColor(),
@@ -221,7 +214,6 @@ fun NearbyChatScreen(
                 canSend = state.canSend,
                 onDraftChange = viewModel::onDraftChange,
                 onSend = viewModel::sendDraft,
-                onInputFocusChange = onInputFocusChange,
                 modifier = Modifier
                     .fillMaxWidth()
                     .positionAwareImePadding()
@@ -473,7 +465,6 @@ private fun ChatComposer(
     canSend: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
-    onInputFocusChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val placeholder = if (canSend) "说点什么…" else "已离开聊天室"
@@ -490,9 +481,7 @@ private fun ChatComposer(
             BasicTextField(
                 value = draft,
                 onValueChange = onDraftChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged { onInputFocusChange(it.isFocused) },
+                modifier = Modifier.weight(1f),
                 enabled = canSend,
                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = textColor),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
