@@ -43,6 +43,20 @@ class NearbyChatWireTest {
     }
 
     @Test
+    fun `encodes and decodes an avatar frame`() {
+        val frame = NearbyChatFrame.Avatar(
+            nodeId = "node-a",
+            jpeg = byteArrayOf(1, 2, 3, 4, 5),
+            updatedAtEpochMillis = 9L
+        )
+        val decoded = NearbyChatWire.decode(NearbyChatWire.encode(frame)) as NearbyChatFrame.Avatar
+
+        assertEquals(frame.nodeId, decoded.nodeId)
+        assertTrue(frame.jpeg.contentEquals(decoded.jpeg))
+        assertEquals(frame.updatedAtEpochMillis, decoded.updatedAtEpochMillis)
+    }
+
+    @Test
     fun `keeps a multi-line body on a single wire line`() {
         val frame = NearbyChatFrame.Message(
             messageId = "m-2",

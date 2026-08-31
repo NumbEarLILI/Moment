@@ -15,6 +15,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 
@@ -123,6 +124,15 @@ class UserPreferencesRepository @Inject constructor(
         }
     }
 
+    /** 附近聊天用的稳定节点 id，跨进出会话保持不变，这样自己发过的消息回来还认得。 */
+    suspend fun getOrCreateNearbyNodeId(): String {
+        val existing = dataStore.data.first()[Keys.NEARBY_NODE_ID]?.trim().orEmpty()
+        if (existing.isNotEmpty()) return existing
+        val created = java.util.UUID.randomUUID().toString()
+        dataStore.edit { it[Keys.NEARBY_NODE_ID] = created }
+        return created
+    }
+
     private suspend fun migratePlaintextSensitivePreferences(prefs: Preferences) {
         val aiApiKey = prefs[Keys.AI_API_KEY].orEmpty()
         val nasPassword = prefs[Keys.NAS_WEBDAV_PASSWORD].orEmpty()
@@ -158,5 +168,6 @@ class UserPreferencesRepository @Inject constructor(
         val NAS_MOMENT_ACCOUNT_USERNAME = stringPreferencesKey("nas_moment_account_username")
         val AVATAR_IMAGE_PATH = stringPreferencesKey("avatar_image_path")
         val AVATAR_UPDATED_AT_EPOCH_MS = longPreferencesKey("avatar_updated_at_epoch_ms")
+        val NEARBY_NODE_ID = stringPreferencesKey("nearby_node_id")
     }
 }

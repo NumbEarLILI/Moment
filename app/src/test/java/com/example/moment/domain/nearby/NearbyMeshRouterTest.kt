@@ -160,6 +160,29 @@ class NearbyMeshRouterTest {
         assertNull(router.onNeighborLost("node-z", atEpochMillis = 200L))
     }
 
+    @Test
+    fun `forwards a new avatar and ignores a repeat`() {
+        val frame = NearbyChatFrame.Avatar("node-a", jpeg = byteArrayOf(9, 8, 7), updatedAtEpochMillis = 10L)
+
+        val first = router.receive(frame)
+        val repeat = router.receive(frame)
+
+        assertTrue(first.avatar?.jpeg.contentEquals(frame.jpeg))
+        assertEquals(1, first.forward.size)
+        assertNull(repeat.avatar)
+        assertTrue(repeat.forward.isEmpty())
+    }
+
+    @Test
+    fun `ignores an avatar that claims to be from itself`() {
+        val outcome = router.receive(
+            NearbyChatFrame.Avatar(SELF, jpeg = byteArrayOf(1), updatedAtEpochMillis = 1L)
+        )
+
+        assertNull(outcome.avatar)
+        assertTrue(outcome.forward.isEmpty())
+    }
+
     private fun message(id: String, from: String, ttl: Int) = NearbyChatFrame.Message(
         messageId = id,
         senderId = from,

@@ -55,8 +55,6 @@ import kotlinx.coroutines.flow.collectLatest
 @Composable
 fun MineScreen(
     onOpenAccountSettings: () -> Unit,
-    onOpenNearbyChat: () -> Unit,
-    onOpenNearbyBleChat: () -> Unit,
     onOpenSettings: () -> Unit,
     viewModel: MineViewModel = hiltViewModel()
 ) {
@@ -102,18 +100,6 @@ fun MineScreen(
                 onOpenAccount = onOpenAccountSettings,
                 onChangeAvatar = { avatarPicker.launch(arrayOf("image/*")) },
                 onClearAvatar = { showClearAvatarDialog = true }
-            )
-            MomentHairline()
-            EntryRow(
-                title = "附近聊天室",
-                subtitle = "Wi-Fi 直连组网，一台建房，其他人加入",
-                onClick = onOpenNearbyChat
-            )
-            MomentHairline()
-            EntryRow(
-                title = "蓝牙组网",
-                subtitle = "打开即连，没有房主，附近的人自动进网",
-                onClick = onOpenNearbyBleChat
             )
             MomentHairline()
             EntryRow(title = "设置", onClick = onOpenSettings)

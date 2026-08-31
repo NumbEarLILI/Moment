@@ -18,8 +18,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,6 +41,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -49,6 +53,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyChatStage
 import com.example.moment.domain.nearby.NearbyPeer
@@ -57,6 +63,7 @@ import com.example.moment.domain.nearby.NearbyTransport
 import com.example.moment.ui.theme.MomentHairline
 import com.example.moment.ui.theme.appScaffoldContainerColor
 import com.example.moment.ui.theme.momentTransparentTextFieldColors
+import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -65,13 +72,13 @@ private val MessageTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPatter
 
 @Composable
 fun NearbyChatScreen(
-    onBack: () -> Unit,
-    transport: NearbyTransport = NearbyTransport.WifiDirect,
+    asMainTab: Boolean = false,
     viewModel: NearbyChatViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val draft by viewModel.draft.collectAsStateWithLifecycle()
+    val transport = state.transport
 
     val requiredPermissions = remember(transport) {
         if (transport == NearbyTransport.Bluetooth) {
@@ -84,7 +91,7 @@ fun NearbyChatScreen(
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }
 
-    var granted by remember { mutableStateOf(permissionsGranted()) }
+    var granted by remember(transport) { mutableStateOf(permissionsGranted()) }
     var asked by rememberSaveable { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -93,15 +100,18 @@ fun NearbyChatScreen(
         ActivityResultContracts.StartActivityForResult()
     ) { viewModel.onBluetoothEnabled() }
 
-    // 用户可能是去系统设置里授的权，回到前台时要重新读一次。
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         granted = permissionsGranted()
         if (transport == NearbyTransport.Bluetooth) viewModel.onBluetoothEnabled()
     }
 
+    LaunchedEffect(transport) {
+        granted = permissionsGranted()
+    }
+
     LaunchedEffect(granted) {
         if (granted) {
-            viewModel.start(transport)
+            viewModel.start()
         } else if (!asked) {
             asked = true
             permissionLauncher.launch(requiredPermissions.toTypedArray())
@@ -121,31 +131,42 @@ fun NearbyChatScreen(
                 .imePadding()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
-            TextButton(onClick = onBack, modifier = Modifier.padding(0.dp)) {
-                Text("返回")
-            }
             Text(
-                if (isBluetooth) "蓝牙组网" else "附近聊天室",
+                "聊天",
                 style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground
             )
+            Row(
+                modifier = Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TransportChip(
+                    label = "蓝牙组网",
+                    selected = isBluetooth,
+                    onClick = { viewModel.switchTransport(NearbyTransport.Bluetooth) }
+                )
+                TransportChip(
+                    label = "Wi-Fi 聊天室",
+                    selected = !isBluetooth,
+                    onClick = { viewModel.switchTransport(NearbyTransport.WifiDirect) }
+                )
+            }
             Text(
                 if (isBluetooth) {
-                    "打开这一页就会自动寻找附近同样打开的人，没有房主，也不用谁先建房。" +
-                        "消息在设备之间多跳转发，不走路由器、不耗流量、不经过服务器。"
+                    "打开就会自动寻找附近同样在聊天页的人。消息留在本机，退出再进还在。"
                 } else {
-                    "用 Wi-Fi 直连把身边的设备组成一张网，最多 9 台一起聊。不走路由器也不耗流量，" +
-                        "消息只在这些设备之间传，不经过任何服务器。"
+                    "一台创建聊天室，其他人加入。记录留在本机。"
                 },
-                modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
+                modifier = Modifier.padding(top = 6.dp, bottom = 8.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             when {
                 !state.supported -> Notice(
-                    if (isBluetooth) "这台设备不支持蓝牙低功耗，无法使用蓝牙组网。"
-                    else "这台设备不支持 Wi-Fi 直连，无法使用附近聊天室。"
+                    if (isBluetooth) "这台设备不支持蓝牙低功耗，无法组网。"
+                    else "这台设备不支持 Wi-Fi 直连，无法使用聊天室。"
                 )
 
                 !granted -> PermissionBlock(
@@ -177,17 +198,7 @@ fun NearbyChatScreen(
                     }
                 }
 
-                state.showsConversation -> ConversationBlock(
-                    state = state,
-                    draft = draft,
-                    onDraftChange = viewModel::onDraftChange,
-                    onSend = viewModel::sendDraft,
-                    onLeave = viewModel::leaveRoom,
-                    showLeave = !isBluetooth,
-                    modifier = Modifier.weight(1f)
-                )
-
-                else -> DiscoveryBlock(
+                !isBluetooth && !state.showsConversation -> DiscoveryBlock(
                     state = state,
                     onHostRoom = viewModel::hostRoom,
                     onDiscover = viewModel::startDiscovery,
@@ -196,10 +207,39 @@ fun NearbyChatScreen(
                     onOpenWifiSettings = {
                         context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS))
                     },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
+
+            ConversationBlock(
+                state = state,
+                draft = draft,
+                onDraftChange = viewModel::onDraftChange,
+                onSend = viewModel::sendDraft,
+                onLeave = viewModel::leaveRoom,
+                showLeave = !isBluetooth && state.showsConversation,
+                modifier = Modifier.weight(1f)
+            )
         }
+    }
+}
+
+@Composable
+private fun TransportChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    TextButton(onClick = onClick, modifier = Modifier.padding(0.dp)) {
+        Text(
+            label,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        )
     }
 }
 
@@ -388,7 +428,7 @@ private fun ConversationBlock(
         if (state.messages.isEmpty()) {
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 Text(
-                    if (state.canSend) "聊天室已就绪，发条消息试试。" else "这次没聊上。",
+                    if (state.canSend) "发条消息试试。" else "连上之后就可以聊。记录会留在这台手机上。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -402,7 +442,19 @@ private fun ConversationBlock(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(state.messages, key = { it.messageId }) { message ->
-                    MessageBubble(message)
+                    MessageBubble(
+                        message = message,
+                        avatarPath = if (message.fromMe) {
+                            state.myAvatarPath
+                        } else {
+                            state.peerAvatarPaths[message.senderId].orEmpty()
+                        },
+                        avatarUpdatedAtEpochMs = if (message.fromMe) {
+                            state.myAvatarUpdatedAtEpochMs
+                        } else {
+                            0L
+                        }
+                    )
                 }
             }
         }
@@ -433,39 +485,103 @@ private fun ConversationBlock(
 }
 
 @Composable
-private fun MessageBubble(message: NearbyChatMessage) {
+private fun MessageBubble(
+    message: NearbyChatMessage,
+    avatarPath: String,
+    avatarUpdatedAtEpochMs: Long
+) {
     val time = remember(message.sentAtEpochMillis) {
         MessageTimeFormatter.format(
             Instant.ofEpochMilli(message.sentAtEpochMillis).atZone(ZoneId.systemDefault())
         )
     }
-    Column(
+    val name = if (message.fromMe) "我" else message.senderName
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (message.fromMe) Alignment.End else Alignment.Start
+        horizontalArrangement = if (message.fromMe) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Top
     ) {
-        Text(
-            "${if (message.fromMe) "我" else message.senderName} · $time",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Box(
+        if (!message.fromMe) {
+            ChatAvatar(
+                name = name,
+                imagePath = avatarPath,
+                imageUpdatedAtEpochMs = avatarUpdatedAtEpochMs
+            )
+        }
+        Column(
             modifier = Modifier
-                .padding(top = 3.dp)
-                .widthIn(max = 280.dp)
-                .background(
-                    color = if (message.fromMe) {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                    },
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(horizontal = 8.dp)
+                .widthIn(max = 240.dp),
+            horizontalAlignment = if (message.fromMe) Alignment.End else Alignment.Start
         ) {
             Text(
-                message.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                "$name · $time",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Box(
+                modifier = Modifier
+                    .padding(top = 3.dp)
+                    .background(
+                        color = if (message.fromMe) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                        },
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    message.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+        if (message.fromMe) {
+            ChatAvatar(
+                name = name,
+                imagePath = avatarPath,
+                imageUpdatedAtEpochMs = avatarUpdatedAtEpochMs
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChatAvatar(
+    name: String,
+    imagePath: String,
+    imageUpdatedAtEpochMs: Long
+) {
+    val context = LocalContext.current
+    val letter = name.trim().take(1).ifBlank { "M" }
+    val file = imagePath.takeIf { it.isNotBlank() }?.let(::File)
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary),
+        contentAlignment = Alignment.Center
+    ) {
+        if (file?.isFile == true) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(file)
+                    .memoryCacheKey("chat-avatar-$imagePath-$imageUpdatedAtEpochMs")
+                    .crossfade(true)
+                    .build(),
+                contentDescription = name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Text(
+                letter,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimary
             )
         }
     }

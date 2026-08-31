@@ -64,7 +64,8 @@ data class MeshOutcome(
     val forward: List<NearbyChatFrame> = emptyList(),
     val rosterChanged: Boolean = false,
     /** Hello 帧带来的邻居身份，用于把链路和节点对应起来。 */
-    val learnedNodeId: String? = null
+    val learnedNodeId: String? = null,
+    val avatar: NearbyChatFrame.Avatar? = null
 )
 
 /**
@@ -78,6 +79,7 @@ class NearbyMeshRouter(
     private val seen: SeenMessageLog = SeenMessageLog(),
     private val roster: MeshRoster = MeshRoster()
 ) {
+    private val avatarSeen = mutableMapOf<String, Long>()
     fun members(): List<MeshMember> = roster.present()
 
     fun displayNameOf(nodeId: String): String? = roster.displayNameOf(nodeId)
@@ -158,6 +160,20 @@ class NearbyMeshRouter(
                 MeshOutcome()
             } else {
                 MeshOutcome(deliver = frame, forward = listOfNotNull(forwarded(frame)))
+            }
+        }
+
+        is NearbyChatFrame.Avatar -> {
+            if (frame.nodeId == selfNodeId || frame.jpeg.isEmpty()) {
+                MeshOutcome()
+            } else {
+                val last = avatarSeen[frame.nodeId] ?: Long.MIN_VALUE
+                if (frame.updatedAtEpochMillis <= last) {
+                    MeshOutcome()
+                } else {
+                    avatarSeen[frame.nodeId] = frame.updatedAtEpochMillis
+                    MeshOutcome(forward = listOf(frame), avatar = frame)
+                }
             }
         }
     }

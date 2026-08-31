@@ -39,6 +39,15 @@ sealed interface NearbyChatFrame {
         val sentAtEpochMillis: Long,
         val ttl: Int
     ) : NearbyChatFrame
+
+    /** 压缩过的头像，跟 Presence 一样按时间戳去重后洪泛。 */
+    @Serializable
+    @SerialName("avatar")
+    data class Avatar(
+        val nodeId: String,
+        val jpeg: ByteArray,
+        val updatedAtEpochMillis: Long
+    ) : NearbyChatFrame
 }
 
 /**

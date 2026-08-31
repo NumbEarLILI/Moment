@@ -15,8 +15,8 @@ data class NearbyPeer(
 /**
  * 聊天室成员，同时也是网格里传播的在线状态记录。
  *
- * [nodeId] 每次进入页面重新生成，不跨会话保留；[updatedAtEpochMillis] 用来在洪泛中
- * 判断哪条记录更新，旧记录会被丢弃。
+ * [nodeId] 本机跨会话保持不变（存在本地），用来认自己发过的消息和头像。
+ * [updatedAtEpochMillis] 用来在洪泛中判断哪条记录更新，旧记录会被丢弃。
  */
 @Serializable
 data class MeshMember(

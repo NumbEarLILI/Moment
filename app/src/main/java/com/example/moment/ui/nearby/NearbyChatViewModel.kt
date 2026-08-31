@@ -9,6 +9,9 @@ import com.example.moment.data.nearby.NearbyMeshNode
 import com.example.moment.data.nearby.WifiDirectController
 import com.example.moment.data.nearby.WifiDirectEvent
 import com.example.moment.data.nearby.WifiDirectGroup
+import com.example.moment.data.nearby.NearbyAvatarThumbnail
+import com.example.moment.data.nearby.NearbyChatStore
+import com.example.moment.data.nearby.PeerAvatarStore
 import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.domain.nearby.MeshMember
 import com.example.moment.domain.nearby.NearbyChatFrame
@@ -19,6 +22,7 @@ import com.example.moment.domain.nearby.NearbyMeshRouter
 import com.example.moment.domain.nearby.NearbyPeer
 import com.example.moment.domain.nearby.NearbyTransport
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
 import java.time.Clock
 import java.util.UUID
 import javax.inject.Inject
@@ -45,6 +49,9 @@ data class NearbyChatUiState(
     val hostingRoom: Boolean = false,
     val members: List<MeshMember> = emptyList(),
     val messages: List<NearbyChatMessage> = emptyList(),
+    val myAvatarPath: String = "",
+    val myAvatarUpdatedAtEpochMs: Long = 0L,
+    val peerAvatarPaths: Map<String, String> = emptyMap(),
     val statusText: String = ""
 ) {
     /** 聊天区是否该占据整屏（刚断开时也还要看得到消息）。 */
@@ -63,6 +70,8 @@ class NearbyChatViewModel @Inject constructor(
     private val wifiDirectController: WifiDirectController,
     private val bleMeshController: BleMeshController,
     private val connector: NearbyChatConnector,
+    private val chatStore: NearbyChatStore,
+    private val peerAvatarStore: PeerAvatarStore,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val clock: Clock
 ) : ViewModel() {
@@ -84,10 +93,30 @@ class NearbyChatViewModel @Inject constructor(
     private var node: NearbyMeshNode? = null
     private var activeGroup: WifiDirectGroup? = null
     private var displayName: String = ""
+    private var selfNodeId: String = ""
     private var started = false
 
+    init {
+        viewModelScope.launch {
+            chatStore.observe().collect { messages ->
+                _uiState.update { it.copy(messages = messages) }
+            }
+        }
+        viewModelScope.launch {
+            userPreferencesRepository.preferences.collect { prefs ->
+                _uiState.update {
+                    it.copy(
+                        myAvatarPath = prefs.avatarImagePath,
+                        myAvatarUpdatedAtEpochMs = prefs.avatarUpdatedAtEpochMs
+                    )
+                }
+            }
+        }
+        _uiState.update { it.copy(peerAvatarPaths = peerAvatarStore.snapshot()) }
+    }
+
     /** 权限拿到后调用；重复调用无副作用。 */
-    fun start(transport: NearbyTransport = NearbyTransport.WifiDirect) {
+    fun start(transport: NearbyTransport = NearbyTransport.Bluetooth) {
         if (started) return
         started = true
         _uiState.update {
@@ -102,12 +131,29 @@ class NearbyChatViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
+            if (selfNodeId.isBlank()) {
+                selfNodeId = userPreferencesRepository.getOrCreateNearbyNodeId()
+            }
             displayName = resolveDisplayName()
             _uiState.update { it.copy(myDisplayName = displayName) }
+            when (transport) {
+                NearbyTransport.WifiDirect -> startWifi()
+                NearbyTransport.Bluetooth -> startBluetooth()
+            }
         }
-        when (transport) {
-            NearbyTransport.WifiDirect -> startWifi()
-            NearbyTransport.Bluetooth -> startBluetooth()
+    }
+
+    fun switchTransport(transport: NearbyTransport) {
+        if (_uiState.value.transport == transport && started) return
+        viewModelScope.launch {
+            closeSession(announceLeaving = true)
+            if (_uiState.value.transport == NearbyTransport.WifiDirect) {
+                releaseGroup()
+            }
+            eventsJob?.cancel()
+            eventsJob = null
+            started = false
+            start(transport)
         }
     }
 
@@ -238,7 +284,7 @@ class NearbyChatViewModel @Inject constructor(
         viewModelScope.launch { currentNode.broadcast(frame) }
     }
 
-    /** 离开聊天室并回到设备列表，聊天记录一并清空。 */
+    /** 断开当前组网，聊天记录留在本地。 */
     fun leaveRoom() {
         viewModelScope.launch {
             closeSession(announceLeaving = true)
@@ -246,7 +292,6 @@ class NearbyChatViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     stage = NearbyChatStage.Discovering,
-                    messages = emptyList(),
                     members = emptyList(),
                     hostingRoom = false,
                     statusText = "已离开聊天室"
@@ -278,12 +323,7 @@ class NearbyChatViewModel @Inject constructor(
             viewModelScope.launch {
                 closeSession(announceLeaving = false)
                 _uiState.update {
-                    val stage = if (it.messages.isEmpty()) {
-                        NearbyChatStage.Discovering
-                    } else {
-                        NearbyChatStage.Closed
-                    }
-                    it.copy(stage = stage, members = emptyList(), statusText = "聊天室已断开")
+                    it.copy(stage = NearbyChatStage.Closed, members = emptyList(), statusText = "聊天室已断开")
                 }
             }
             return
@@ -312,8 +352,7 @@ class NearbyChatViewModel @Inject constructor(
                     displayName = resolveDisplayName()
                     _uiState.update { it.copy(myDisplayName = displayName) }
                 }
-                // 每次进房都换一份路由状态，免得上一个聊天室的成员和消息 id 留下来。
-                router = NearbyMeshRouter(selfNodeId = UUID.randomUUID().toString())
+                router = NearbyMeshRouter(selfNodeId = resolvedSelfNodeId())
                 neighborNodes.clear()
                 router.announceSelf(displayName, clock.millis())
                 publishMembers()
@@ -382,7 +421,7 @@ class NearbyChatViewModel @Inject constructor(
                     displayName = resolveDisplayName()
                     _uiState.update { it.copy(myDisplayName = displayName) }
                 }
-                router = NearbyMeshRouter(selfNodeId = java.util.UUID.randomUUID().toString())
+                router = NearbyMeshRouter(selfNodeId = resolvedSelfNodeId())
                 neighborNodes.clear()
                 router.announceSelf(displayName, clock.millis())
                 publishMembers()
@@ -418,6 +457,7 @@ class NearbyChatViewModel @Inject constructor(
                 router.greeting(displayName, clock.millis()).forEach { frame ->
                     meshNode.sendTo(event.neighborId, frame)
                 }
+                ownAvatarFrame()?.let { meshNode.sendTo(event.neighborId, it) }
                 _uiState.update {
                     it.copy(
                         stage = NearbyChatStage.InRoom,
@@ -459,6 +499,7 @@ class NearbyChatViewModel @Inject constructor(
                     meshNode.broadcast(frame, exceptNeighborId = event.neighborId)
                 }
                 if (outcome.rosterChanged) publishMembers()
+                outcome.avatar?.let { rememberPeerAvatar(it) }
             }
         }
     }
@@ -490,18 +531,31 @@ class NearbyChatViewModel @Inject constructor(
     }
 
     private fun appendMessage(message: NearbyChatMessage) {
-        _uiState.update { state ->
-            if (state.messages.any { it.messageId == message.messageId }) return@update state
-            val merged = state.messages + message
-            state.copy(
-                messages = if (merged.size > MAX_MESSAGES) {
-                    merged.takeLast(MAX_MESSAGES)
-                } else {
-                    merged
-                }
-            )
+        viewModelScope.launch {
+            chatStore.save(message, _uiState.value.transport)
         }
     }
+
+    private fun ownAvatarFrame(): NearbyChatFrame.Avatar? {
+        val path = _uiState.value.myAvatarPath
+        if (path.isBlank()) return null
+        val jpeg = NearbyAvatarThumbnail.fromFile(File(path)) ?: return null
+        return NearbyChatFrame.Avatar(
+            nodeId = resolvedSelfNodeId(),
+            jpeg = jpeg,
+            updatedAtEpochMillis = _uiState.value.myAvatarUpdatedAtEpochMs
+        )
+    }
+
+    private fun rememberPeerAvatar(frame: NearbyChatFrame.Avatar) {
+        val file = runCatching { peerAvatarStore.save(frame.nodeId, frame.jpeg) }.getOrNull() ?: return
+        _uiState.update {
+            it.copy(peerAvatarPaths = it.peerAvatarPaths + (frame.nodeId to file.absolutePath))
+        }
+    }
+
+    private fun resolvedSelfNodeId(): String =
+        selfNodeId.ifBlank { UUID.randomUUID().toString().also { selfNodeId = it } }
 
     private suspend fun closeSession(announceLeaving: Boolean) {
         val current = node
@@ -542,6 +596,5 @@ class NearbyChatViewModel @Inject constructor(
     private companion object {
         /** 组建立后到链路打开的最长等待；对方可能还在弹「接受邀请」。 */
         const val LINK_TIMEOUT_MILLIS = 25_000L
-        const val MAX_MESSAGES = 300
     }
 }

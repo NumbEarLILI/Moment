@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.moment.data.avatar.AvatarCropProcessor
 import com.example.moment.data.avatar.UserAvatarStore
+import com.example.moment.data.nearby.PeerAvatarStore
 import com.example.moment.data.local.DiaryDao
 import com.example.moment.data.local.FragmentDao
 import com.example.moment.data.local.MIGRATION_1_2
@@ -14,7 +15,9 @@ import com.example.moment.data.local.MIGRATION_5_6
 import com.example.moment.data.local.MIGRATION_6_7
 import com.example.moment.data.local.MIGRATION_7_8
 import com.example.moment.data.local.MIGRATION_8_9
+import com.example.moment.data.local.MIGRATION_9_10
 import com.example.moment.data.local.MomentDatabase
+import com.example.moment.data.local.NearbyChatDao
 import com.example.moment.data.repository.DiaryRepositoryImpl
 import com.example.moment.data.repository.FragmentRepositoryImpl
 import com.example.moment.domain.generator.DiaryGenerator
@@ -78,7 +81,8 @@ object AppModule {
                 MIGRATION_5_6,
                 MIGRATION_6_7,
                 MIGRATION_7_8,
-                MIGRATION_8_9
+                MIGRATION_8_9,
+                MIGRATION_9_10
             )
             .build()
 
@@ -87,6 +91,9 @@ object AppModule {
 
     @Provides
     fun provideDiaryDao(database: MomentDatabase): DiaryDao = database.diaryDao()
+
+    @Provides
+    fun provideNearbyChatDao(database: MomentDatabase): NearbyChatDao = database.nearbyChatDao()
 
     @Provides
     fun provideClock(): Clock = Clock.systemDefaultZone()
@@ -101,6 +108,11 @@ object AppModule {
     @Singleton
     fun provideUserAvatarStore(@ApplicationContext context: Context): UserAvatarStore =
         UserAvatarStore(context.filesDir)
+
+    @Provides
+    @Singleton
+    fun providePeerAvatarStore(@ApplicationContext context: Context): PeerAvatarStore =
+        PeerAvatarStore(context.filesDir)
 
     @Provides
     @Singleton

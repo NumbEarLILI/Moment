@@ -59,10 +59,12 @@ fun MomentApp() {
     val currentRoute = backStackEntry?.destination?.route
     val mainTabs = listOf(
         MainTab(label = "首页", iconRes = R.drawable.ic_nav_home, route = Routes.Home, selectedRoute = Routes.Home),
+        MainTab(label = "聊天", iconRes = R.drawable.ic_nav_chat, route = Routes.Chat, selectedRoute = Routes.Chat),
         MainTab(label = "历史", iconRes = R.drawable.ic_nav_history, route = Routes.History, selectedRoute = Routes.History),
         MainTab(label = "我的", iconRes = R.drawable.ic_nav_mine, route = Routes.Mine, selectedRoute = Routes.Mine)
     )
     val showBottomBar = currentRoute == Routes.Home ||
+        currentRoute == Routes.Chat ||
         currentRoute == Routes.History ||
         currentRoute == Routes.Mine
 
@@ -167,29 +169,14 @@ fun MomentApp() {
             composable(Routes.Mine) {
                 MineScreen(
                     onOpenAccountSettings = { navController.navigate(Routes.AccountSettings) },
-                    onOpenNearbyChat = { navController.navigate(Routes.nearbyChat("wifi")) },
-                    onOpenNearbyBleChat = { navController.navigate(Routes.nearbyChat("ble")) },
                     onOpenSettings = { navController.navigate(Routes.Settings) }
                 )
             }
+            composable(Routes.Chat) {
+                NearbyChatScreen()
+            }
             composable(Routes.AccountSettings) {
                 AccountSettingsScreen(onBack = { navController.popBackStack() })
-            }
-            composable(
-                route = Routes.NearbyChat,
-                arguments = listOf(
-                    navArgument("transport") { type = NavType.StringType; defaultValue = "wifi" }
-                )
-            ) { entry ->
-                val transport = if (entry.arguments?.getString("transport") == "ble") {
-                    com.example.moment.domain.nearby.NearbyTransport.Bluetooth
-                } else {
-                    com.example.moment.domain.nearby.NearbyTransport.WifiDirect
-                }
-                NearbyChatScreen(
-                    onBack = { navController.popBackStack() },
-                    transport = transport
-                )
             }
             composable(Routes.Settings) {
                 SettingsScreen(
@@ -324,11 +311,9 @@ object Routes {
     /** @param diaryId 已保存手帐的主键；无锚点手帐时用 0（须写入路径，query 在部分机型上不进 SavedStateHandle）。 */
     fun preview(date: LocalDate, diaryId: Long): String = "preview/$date/$diaryId"
     const val History = "history"
+    const val Chat = "chat"
     const val Mine = "mine"
     const val AccountSettings = "accountSettings"
-    const val NearbyChat = "nearbyChat?transport={transport}"
-
-    fun nearbyChat(transport: String): String = "nearbyChat?transport=$transport"
     const val Settings = "settings"
     const val About = "about"
     const val Detail = "detail/{id}"
