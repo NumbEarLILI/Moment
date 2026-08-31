@@ -26,10 +26,11 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
+import com.example.moment.domain.nearby.BleAdvertisementPolicy
 import com.example.moment.domain.nearby.BleConnectPolicy
 import com.example.moment.domain.nearby.BleFrameCodec
+import com.example.moment.domain.nearby.BleMeshIds
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -43,14 +44,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
-
-internal object BleMeshIds {
-    val SERVICE: UUID = UUID.fromString("6d6f6d65-6e74-4d65-7368-c0de00000001")
-    val INBOX: UUID = UUID.fromString("6d6f6d65-6e74-4d65-7368-c0de00000002")
-    val OUTBOX: UUID = UUID.fromString("6d6f6d65-6e74-4d65-7368-c0de00000003")
-    val CCCD: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
-    const val MANUFACTURER_ID = 0x6D74
-}
 
 /**
  * 蓝牙去中心组网：每台设备同时当外围（广播 + GATT 服务）和中心（扫描 + 主动连接）。
@@ -71,8 +64,10 @@ class BleMeshController @Inject constructor(
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
 
     val isAdvertisingSupported: Boolean
-        get() = adapter?.bluetoothLeAdvertiser != null &&
-            adapter.isMultipleAdvertisementSupported
+        get() = BleAdvertisementPolicy.shouldAdvertise(
+            hasAdvertiser = adapter?.bluetoothLeAdvertiser != null,
+            multipleAdvertisementSupported = adapter?.isMultipleAdvertisementSupported == true
+        )
 
     val isEnabled: Boolean
         get() = adapter?.isEnabled == true
@@ -108,12 +103,15 @@ class BleMeshController @Inject constructor(
         private val canAdvertise: Boolean,
         private val onLink: (NearbyLink) -> Unit
     ) {
-        private val selfBytes = uuidBytes(UUID.fromString(selfNodeId))
+        private val selfBytes = BleMeshIds.nodeIdBytes(selfNodeId)
         private val advertiser: BluetoothLeAdvertiser? = adapter?.bluetoothLeAdvertiser
         private val scanner: BluetoothLeScanner? = adapter?.bluetoothLeScanner
         private var gattServer: BluetoothGattServer? = null
         private var advertising = false
         private var scanning = false
+        private var advertiseWithoutScanResponse = false
+        private var unfilteredScan = false
+        private val serviceAdded = CompletableDeferred<Boolean>()
 
         private val occupied = ConcurrentHashMap.newKeySet<String>()
         private val links = ConcurrentHashMap<String, BleMeshLink>()
@@ -123,7 +121,15 @@ class BleMeshController @Inject constructor(
         private val seenPeers = ConcurrentHashMap<String, SeenPeer>()
         private val connecting = ConcurrentHashMap.newKeySet<String>()
 
-        private val advertiseCallback = object : AdvertiseCallback() {}
+        private val advertiseCallback = object : AdvertiseCallback() {
+            override fun onStartFailure(errorCode: Int) {
+                advertising = false
+                if (errorCode == ADVERTISE_FAILED_DATA_TOO_LARGE && !advertiseWithoutScanResponse) {
+                    advertiseWithoutScanResponse = true
+                    startAdvertising(includeScanResponse = false)
+                }
+            }
+        }
         private val scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
                 onScan(result)
@@ -132,12 +138,21 @@ class BleMeshController @Inject constructor(
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
                 results.forEach(::onScan)
             }
+
+            override fun onScanFailed(errorCode: Int) {
+                scanning = false
+                if (!unfilteredScan) {
+                    unfilteredScan = true
+                    startScanning(filtered = false)
+                }
+            }
         }
 
-        fun start() {
+        suspend fun start() {
             openGattServer()
-            startAdvertising()
-            startScanning()
+            withTimeoutOrNull(SERVICE_READY_MS) { serviceAdded.await() }
+            startAdvertising(includeScanResponse = true)
+            startScanning(filtered = true)
             scope.launch { connectLoop() }
         }
 
@@ -163,7 +178,11 @@ class BleMeshController @Inject constructor(
         }
 
         private fun openGattServer() {
-            val server = manager?.openGattServer(context, serverCallback) ?: return
+            val server = manager?.openGattServer(context, serverCallback)
+            if (server == null) {
+                serviceAdded.complete(false)
+                return
+            }
             val service = BluetoothGattService(BleMeshIds.SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
             val inbox = BluetoothGattCharacteristic(
                 BleMeshIds.INBOX,
@@ -184,51 +203,83 @@ class BleMeshController @Inject constructor(
             )
             service.addCharacteristic(inbox)
             service.addCharacteristic(outbox)
-            server.addService(service)
+            if (!server.addService(service)) {
+                serviceAdded.complete(false)
+            }
             gattServer = server
         }
 
-        private fun startAdvertising() {
+        private fun startAdvertising(includeScanResponse: Boolean) {
             val advertiser = advertiser ?: return
             if (!canAdvertise) return
             val settings = AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)
                 .setTimeout(0)
                 .build()
             val data = AdvertiseData.Builder()
-                .addServiceUuid(ParcelUuid(BleMeshIds.SERVICE))
+                .addManufacturerData(BleMeshIds.MANUFACTURER_ID, selfBytes)
                 .setIncludeDeviceName(false)
                 .build()
-            val scanResponse = AdvertiseData.Builder()
-                .addManufacturerData(BleMeshIds.MANUFACTURER_ID, selfBytes)
-                .setIncludeDeviceName(true)
-                .build()
+            val scanResponse = if (includeScanResponse) {
+                AdvertiseData.Builder()
+                    .addServiceUuid(ParcelUuid(BleMeshIds.SERVICE))
+                    .setIncludeDeviceName(false)
+                    .build()
+            } else {
+                null
+            }
             runCatching {
-                advertiser.startAdvertising(settings, data, scanResponse, advertiseCallback)
+                if (scanResponse != null) {
+                    advertiser.startAdvertising(settings, data, scanResponse, advertiseCallback)
+                } else {
+                    advertiser.startAdvertising(settings, data, advertiseCallback)
+                }
                 advertising = true
             }
         }
 
-        private fun startScanning() {
+        private fun startScanning(filtered: Boolean) {
             val scanner = scanner ?: return
-            val filter = ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(BleMeshIds.SERVICE))
-                .build()
             val settings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build()
+            val filters = if (filtered) {
+                listOf(
+                    ScanFilter.Builder()
+                        .setManufacturerData(
+                            BleMeshIds.MANUFACTURER_ID,
+                            ByteArray(16),
+                            ByteArray(16)
+                        )
+                        .build(),
+                    ScanFilter.Builder()
+                        .setServiceUuid(ParcelUuid(BleMeshIds.SERVICE))
+                        .build()
+                )
+            } else {
+                emptyList()
+            }
             runCatching {
-                scanner.startScan(listOf(filter), settings, scanCallback)
+                scanner.startScan(filters, settings, scanCallback)
                 scanning = true
+            }.onFailure {
+                if (filtered && !unfilteredScan) {
+                    unfilteredScan = true
+                    startScanning(filtered = false)
+                }
             }
         }
 
         private fun onScan(result: ScanResult) {
             val address = result.device?.address ?: return
-            val data = result.scanRecord?.getManufacturerSpecificData(BleMeshIds.MANUFACTURER_ID) ?: return
-            val peerId = uuidFromBytes(data)?.toString() ?: return
+            val record = result.scanRecord
+            val peerId = BleAdvertisementPolicy.peerNodeId(
+                manufacturerData = record?.getManufacturerSpecificData(BleMeshIds.MANUFACTURER_ID),
+                hasServiceUuid = record?.serviceUuids?.any { it.uuid == BleMeshIds.SERVICE } == true,
+                address = address
+            ) ?: return
             if (peerId == selfNodeId) return
             val now = System.currentTimeMillis()
             seenPeers.compute(peerId) { _, existing ->
@@ -376,6 +427,10 @@ class BleMeshController @Inject constructor(
             }
 
         private val serverCallback = object : BluetoothGattServerCallback() {
+            override fun onServiceAdded(status: Int, service: BluetoothGattService) {
+                serviceAdded.complete(status == BluetoothGatt.GATT_SUCCESS)
+            }
+
             override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
                     attachServerLink(device)
@@ -531,26 +586,9 @@ class BleMeshController @Inject constructor(
     private companion object {
         const val CONNECT_TICK_MS = 1_000L
         const val PEER_STALE_MS = 30_000L
+        const val SERVICE_READY_MS = 2_000L
 
         fun chunkSizeForMtu(mtu: Int): Int = (mtu - 3 - BleFrameCodec.HEADER_SIZE).coerceAtLeast(8)
-
-        fun uuidBytes(uuid: UUID): ByteArray {
-            val bytes = ByteArray(16)
-            val msb = uuid.mostSignificantBits
-            val lsb = uuid.leastSignificantBits
-            for (i in 0..7) bytes[i] = (msb shr ((7 - i) * 8)).toByte()
-            for (i in 0..7) bytes[8 + i] = (lsb shr ((7 - i) * 8)).toByte()
-            return bytes
-        }
-
-        fun uuidFromBytes(bytes: ByteArray): UUID? {
-            if (bytes.size < 16) return null
-            var msb = 0L
-            var lsb = 0L
-            for (i in 0..7) msb = (msb shl 8) or (bytes[i].toLong() and 0xFF)
-            for (i in 8..15) lsb = (lsb shl 8) or (bytes[i].toLong() and 0xFF)
-            return UUID(msb, lsb)
-        }
     }
 }
 
