@@ -1,5 +1,7 @@
 package com.example.moment.domain.about
 
+import com.example.moment.BuildConfig
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -37,5 +39,18 @@ class ChangelogParserTest {
     @Test
     fun emptyMarkdownYieldsNoReleases() {
         assertEquals(emptyList<ChangelogRelease>(), ChangelogParser.parse("  \n"))
+    }
+
+    @Test
+    fun bundledChangelogLatestVersionMatchesTheAppVersion() {
+        val markdown = File("src/main/assets/CHANGELOG.md").readText()
+        assertEquals(BuildConfig.VERSION_NAME, ChangelogParser.parse(markdown).first().version)
+    }
+
+    @Test
+    fun repoChangelogMatchesTheAboutPageAsset() {
+        val asset = File("src/main/assets/CHANGELOG.md").readText()
+        val repo = File("../CHANGELOG.md").readText()
+        assertEquals(repo, asset)
     }
 }
