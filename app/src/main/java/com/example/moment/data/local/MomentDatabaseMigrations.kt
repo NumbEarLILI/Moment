@@ -85,3 +85,14 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         )
     }
 }
+
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE nearby_chat_messages ADD COLUMN peerId TEXT NOT NULL DEFAULT ''"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_nearby_chat_messages_transport_peerId ON nearby_chat_messages (transport, peerId)"
+        )
+    }
+}

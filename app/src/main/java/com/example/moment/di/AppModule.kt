@@ -17,6 +17,7 @@ import com.example.moment.data.local.MIGRATION_7_8
 import com.example.moment.data.local.MIGRATION_8_9
 import com.example.moment.data.local.MIGRATION_9_10
 import com.example.moment.data.local.MIGRATION_10_11
+import com.example.moment.data.local.MIGRATION_11_12
 import com.example.moment.data.local.MomentDatabase
 import com.example.moment.data.local.NearbyChatDao
 import com.example.moment.data.nearby.NearbyShareImageStore
@@ -85,7 +86,8 @@ object AppModule {
                 MIGRATION_7_8,
                 MIGRATION_8_9,
                 MIGRATION_9_10,
-                MIGRATION_10_11
+                MIGRATION_10_11,
+                MIGRATION_11_12
             )
             .build()
 

@@ -259,13 +259,51 @@ class WebDavHttp @Inject constructor(
 
     /** 404 返回 null，其余错误抛 [IOException]。 */
     suspend fun getBytesOrNull(client: OkHttpClient, url: HttpUrl): ByteArray? =
+        getBytesWithEtag(client, url)?.bytes
+
+    data class BodyWithEtag(val bytes: ByteArray, val etag: String?)
+
+    /** 404 返回 null。 */
+    suspend fun getBytesWithEtag(client: OkHttpClient, url: HttpUrl): BodyWithEtag? =
         withContext(Dispatchers.IO) {
             val req = Request.Builder().url(url).get().build()
             client.newCall(req).execute().use { resp ->
                 when (resp.code) {
                     404 -> null
-                    in 200..299 -> resp.body?.bytes() ?: throw IOException("空响应体")
+                    in 200..299 -> BodyWithEtag(
+                        bytes = resp.body?.bytes() ?: throw IOException("空响应体"),
+                        etag = resp.header("ETag")
+                    )
                     else -> throw IOException("GET 失败（HTTP ${resp.code}）")
+                }
+            }
+        }
+
+    data class PutOutcome(val ok: Boolean, val conflict: Boolean)
+
+    /**
+     * [ifMatch] 非空时带 If-Match，冲突返回 [PutOutcome.conflict]。
+     * [ifNoneMatchAny] 为 true 时带 If-None-Match: *，已存在则冲突。
+     */
+    suspend fun putBytesConditional(
+        client: OkHttpClient,
+        url: HttpUrl,
+        bytes: ByteArray,
+        contentType: String?,
+        ifMatch: String? = null,
+        ifNoneMatchAny: Boolean = false
+    ): PutOutcome =
+        withContext(Dispatchers.IO) {
+            val mediaType = contentType?.toMediaType()
+            val body = bytes.toRequestBody(mediaType)
+            val builder = Request.Builder().url(url).put(body)
+            if (!ifMatch.isNullOrBlank()) builder.header("If-Match", ifMatch)
+            if (ifNoneMatchAny) builder.header("If-None-Match", "*")
+            client.newCall(builder.build()).execute().use { resp ->
+                when (resp.code) {
+                    in 200..299 -> PutOutcome(ok = true, conflict = false)
+                    412 -> PutOutcome(ok = false, conflict = true)
+                    else -> throw IOException("上传失败（HTTP ${resp.code}）")
                 }
             }
         }

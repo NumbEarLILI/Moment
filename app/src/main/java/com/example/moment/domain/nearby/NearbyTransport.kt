@@ -5,5 +5,8 @@ enum class NearbyTransport {
     WifiDirect,
 
     /** 蓝牙组网：每台设备自己广播、自己扫描、自己连邻居，没有房主。 */
-    Bluetooth
+    Bluetooth,
+
+    /** 家庭 NAS（WebDAV）上的 Moment 账号一对一文字聊天。 */
+    Nas
 }

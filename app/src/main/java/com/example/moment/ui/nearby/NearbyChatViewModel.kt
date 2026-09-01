@@ -3,6 +3,7 @@ package com.example.moment.ui.nearby
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.moment.data.nas.NasChatRepository
 import com.example.moment.data.nearby.BleMeshController
 import com.example.moment.data.nearby.MeshRole
 import com.example.moment.data.nearby.NearbyAvatarThumbnail
@@ -17,6 +18,8 @@ import com.example.moment.data.nearby.WifiDirectEvent
 import com.example.moment.data.nearby.WifiDirectGroup
 import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.domain.model.LifeFragment
+import com.example.moment.domain.naschat.MomentAccountRef
+import com.example.moment.domain.naschat.NasChatThreadPreview
 import com.example.moment.domain.nearby.MeshMember
 import com.example.moment.domain.nearby.NearbyChatFrame
 import com.example.moment.domain.nearby.NearbyChatMessage
@@ -41,14 +44,18 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -68,17 +75,35 @@ data class NearbyChatUiState(
     val myAvatarUpdatedAtEpochMs: Long = 0L,
     val peerAvatarPaths: Map<String, String> = emptyMap(),
     val shareableFragments: List<LifeFragment> = emptyList(),
-    val statusText: String = ""
+    val statusText: String = "",
+    val nasWebdavReady: Boolean = false,
+    val nasLoggedIn: Boolean = false,
+    val nasContacts: List<MomentAccountRef> = emptyList(),
+    val nasThreads: List<NasChatThreadPreview> = emptyList(),
+    val nasQuery: String = "",
+    val nasPeerId: String = "",
+    val nasPeerName: String = ""
 ) {
     /** 聊天区是否该占据整屏（刚断开时也还要看得到消息）。 */
     val showsConversation: Boolean
-        get() = stage == NearbyChatStage.InRoom || stage == NearbyChatStage.Closed
+        get() = if (transport == NearbyTransport.Nas) {
+            nasPeerId.isNotBlank()
+        } else {
+            stage == NearbyChatStage.InRoom || stage == NearbyChatStage.Closed
+        }
 
     val canSend: Boolean
-        get() = stage == NearbyChatStage.InRoom
+        get() = if (transport == NearbyTransport.Nas) {
+            nasPeerId.isNotBlank() && nasLoggedIn && nasWebdavReady
+        } else {
+            stage == NearbyChatStage.InRoom
+        }
 
     val isBluetooth: Boolean
         get() = transport == NearbyTransport.Bluetooth
+
+    val isNas: Boolean
+        get() = transport == NearbyTransport.Nas
 }
 
 @HiltViewModel
@@ -89,6 +114,7 @@ class NearbyChatViewModel @Inject constructor(
     private val bleMeshController: BleMeshController,
     private val connector: NearbyChatConnector,
     private val chatStore: NearbyChatStore,
+    private val nasChatRepository: NasChatRepository,
     private val shareImageStore: NearbyShareImageStore,
     private val peerAvatarStore: PeerAvatarStore,
     private val fragmentRepository: FragmentRepository,
@@ -115,15 +141,38 @@ class NearbyChatViewModel @Inject constructor(
     private var displayName: String = ""
     private var selfNodeId: String = ""
     private var started = false
+    private var nasJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            combine(
+                _uiState.map { it.transport }.distinctUntilChanged(),
+                _uiState.map { it.nasPeerId }.distinctUntilChanged()
+            ) { transport, peerId -> transport to peerId }
+                .flatMapLatest { (transport, peerId) ->
+                    if (transport == NearbyTransport.Nas) {
+                        chatStore.observe(transport, peerId)
+                    } else {
+                        chatStore.observe(transport)
+                    }
+                }
+                .collect { messages ->
+                    _uiState.update { it.copy(messages = messages) }
+                }
+        }
         viewModelScope.launch {
             _uiState
                 .map { it.transport }
                 .distinctUntilChanged()
-                .flatMapLatest { transport -> chatStore.observe(transport) }
-                .collect { messages ->
-                    _uiState.update { it.copy(messages = messages) }
+                .flatMapLatest { transport ->
+                    if (transport == NearbyTransport.Nas) {
+                        chatStore.observeThreads(transport)
+                    } else {
+                        flowOf(emptyList())
+                    }
+                }
+                .collect { threads ->
+                    _uiState.update { it.copy(nasThreads = threads) }
                 }
         }
         viewModelScope.launch {
@@ -131,7 +180,9 @@ class NearbyChatViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         myAvatarPath = prefs.avatarImagePath,
-                        myAvatarUpdatedAtEpochMs = prefs.avatarUpdatedAtEpochMs
+                        myAvatarUpdatedAtEpochMs = prefs.avatarUpdatedAtEpochMs,
+                        nasWebdavReady = prefs.nasWebdavBaseUrl.isNotBlank(),
+                        nasLoggedIn = prefs.nasMomentStorageUserId.isNotBlank()
                     )
                 }
             }
@@ -151,10 +202,10 @@ class NearbyChatViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 transport = transport,
-                supported = if (transport == NearbyTransport.Bluetooth) {
-                    bleMeshController.isSupported
-                } else {
-                    wifiDirectController.isSupported
+                supported = when (transport) {
+                    NearbyTransport.Bluetooth -> bleMeshController.isSupported
+                    NearbyTransport.WifiDirect -> wifiDirectController.isSupported
+                    NearbyTransport.Nas -> true
                 },
                 bluetoothEnabled = bleMeshController.isEnabled
             )
@@ -168,6 +219,7 @@ class NearbyChatViewModel @Inject constructor(
             when (transport) {
                 NearbyTransport.WifiDirect -> startWifi()
                 NearbyTransport.Bluetooth -> startBluetooth()
+                NearbyTransport.Nas -> startNas()
             }
         }
     }
@@ -181,8 +233,19 @@ class NearbyChatViewModel @Inject constructor(
             }
             eventsJob?.cancel()
             eventsJob = null
+            nasJob?.cancel()
+            nasJob = null
             started = false
-            _uiState.update { it.copy(transport = transport, messages = emptyList()) }
+            _uiState.update {
+                it.copy(
+                    transport = transport,
+                    messages = emptyList(),
+                    nasPeerId = "",
+                    nasPeerName = "",
+                    nasQuery = "",
+                    statusText = ""
+                )
+            }
             start(transport)
         }
     }
@@ -191,6 +254,98 @@ class NearbyChatViewModel @Inject constructor(
         _uiState.update { it.copy(bluetoothEnabled = bleMeshController.isEnabled) }
         if (_uiState.value.isBluetooth && bleMeshController.isEnabled && sessionJob?.isActive != true) {
             openBluetoothSession()
+        }
+    }
+
+    fun onNasQueryChange(value: String) {
+        _uiState.update { it.copy(nasQuery = value) }
+    }
+
+    fun openNasConversation(peer: MomentAccountRef) {
+        if (peer.userId.isBlank()) return
+        _uiState.update {
+            it.copy(
+                nasPeerId = peer.userId,
+                nasPeerName = peer.username,
+                stage = NearbyChatStage.InRoom,
+                statusText = ""
+            )
+        }
+        viewModelScope.launch {
+            nasChatRepository.pullThread(peer).onFailure { error ->
+                _uiState.update { it.copy(statusText = error.message ?: "同步失败") }
+            }
+        }
+    }
+
+    fun submitNasQuery() {
+        val query = _uiState.value.nasQuery
+        viewModelScope.launch {
+            nasChatRepository.findContact(query)
+                .onSuccess { openNasConversation(it) }
+                .onFailure { error ->
+                    _uiState.update { it.copy(statusText = error.message ?: "找不到这个账号") }
+                }
+        }
+    }
+
+    fun leaveNasConversation() {
+        _uiState.update {
+            it.copy(
+                nasPeerId = "",
+                nasPeerName = "",
+                stage = NearbyChatStage.Idle,
+                statusText = ""
+            )
+        }
+    }
+
+    private fun startNas() {
+        _uiState.update {
+            it.copy(
+                stage = if (it.nasPeerId.isBlank()) NearbyChatStage.Idle else NearbyChatStage.InRoom,
+                statusText = ""
+            )
+        }
+        nasJob?.cancel()
+        nasJob = viewModelScope.launch {
+            refreshNasContacts()
+            while (currentCoroutineContext().isActive) {
+                val state = _uiState.value
+                if (state.nasPeerId.isNotBlank()) {
+                    val peer = MomentAccountRef(state.nasPeerId, state.nasPeerName.ifBlank { state.nasPeerId })
+                    nasChatRepository.pullThread(peer).onFailure { error ->
+                        _uiState.update { it.copy(statusText = error.message ?: "同步失败") }
+                    }
+                    delay(NAS_THREAD_POLL_MS)
+                } else {
+                    refreshNasContacts()
+                    delay(NAS_LIST_POLL_MS)
+                }
+            }
+        }
+    }
+
+    private suspend fun refreshNasContacts() {
+        nasChatRepository.listContacts()
+            .onSuccess { contacts ->
+                _uiState.update { it.copy(nasContacts = contacts, statusText = "") }
+            }
+            .onFailure { error ->
+                _uiState.update { it.copy(statusText = error.message ?: "无法读取账号列表") }
+            }
+    }
+
+    private fun sendNasDraft() {
+        val text = NearbyChatWire.sanitizeMessage(_draft.value) ?: return
+        val state = _uiState.value
+        if (!state.canSend) return
+        val peer = MomentAccountRef(state.nasPeerId, state.nasPeerName.ifBlank { state.nasPeerId })
+        _draft.value = ""
+        viewModelScope.launch {
+            nasChatRepository.sendText(peer, text).onFailure { error ->
+                _uiState.update { it.copy(statusText = error.message ?: "发送失败") }
+            }
         }
     }
 
@@ -291,6 +446,10 @@ class NearbyChatViewModel @Inject constructor(
     }
 
     fun sendDraft() {
+        if (_uiState.value.transport == NearbyTransport.Nas) {
+            sendNasDraft()
+            return
+        }
         val text = NearbyChatWire.sanitizeMessage(_draft.value) ?: return
         val currentNode = node ?: return
         if (_uiState.value.stage != NearbyChatStage.InRoom) return
@@ -316,6 +475,7 @@ class NearbyChatViewModel @Inject constructor(
 
     /** 把本机一条碎片发到聊天里。对方看到卡片，不会写进对方的碎片库。 */
     fun shareFragment(fragment: LifeFragment) {
+        if (_uiState.value.transport == NearbyTransport.Nas) return
         val currentNode = node ?: return
         val transport = _uiState.value.transport
         if (_uiState.value.stage != NearbyChatStage.InRoom) return
@@ -692,6 +852,7 @@ class NearbyChatViewModel @Inject constructor(
         node?.close()
         node = null
         activeGroup = null
+        nasJob?.cancel()
         wifiDirectController.releaseQuietly()
         super.onCleared()
     }
@@ -700,5 +861,7 @@ class NearbyChatViewModel @Inject constructor(
         /** 组建立后到链路打开的最长等待；对方可能还在弹「接受邀请」。 */
         const val LINK_TIMEOUT_MILLIS = 25_000L
         const val SHAREABLE_LIMIT = 40
+        const val NAS_THREAD_POLL_MS = 3_000L
+        const val NAS_LIST_POLL_MS = 15_000L
     }
 }

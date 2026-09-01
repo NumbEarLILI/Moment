@@ -2,6 +2,7 @@ package com.example.moment.data.nas
 
 import com.example.moment.data.preferences.UserPreferencesRepository
 import com.example.moment.domain.model.NasWebdavConfig
+import com.example.moment.domain.naschat.MomentAccountRef
 import com.example.moment.domain.repository.NasMomentAccountRepository
 import java.io.IOException
 import java.util.UUID
@@ -99,6 +100,19 @@ class NasMomentAccountRepositoryImpl @Inject constructor(
             userPreferencesRepository.setNasMomentAccount(entry.userId, entry.username)
         }
     }
+
+    override suspend fun listMomentAccounts(config: NasWebdavConfig): Result<List<MomentAccountRef>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                if (!config.isConfigured()) throw IOException("请先填写 WebDAV 根地址并保存")
+                val client = webDavHttp.clientFor(config)
+                val root = requireRoot(config)
+                val registryUrl = packager.childUrl(root, MomentAppSegments.registryFileSegments())
+                val bytes = webDavHttp.getBytesOrNull(client, registryUrl)
+                    ?: return@runCatching emptyList()
+                decodeRegistry(bytes).users.map { MomentAccountRef(userId = it.userId, username = it.username) }
+            }
+        }
 
     private fun validateCredentials(config: NasWebdavConfig, username: String, password: String) {
         if (!config.isConfigured()) throw IOException("请先填写 WebDAV 根地址并保存")

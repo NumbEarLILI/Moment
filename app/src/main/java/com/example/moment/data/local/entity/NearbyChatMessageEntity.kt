@@ -6,7 +6,10 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "nearby_chat_messages",
-    indices = [Index(value = ["sentAtEpochMillis"])]
+    indices = [
+        Index(value = ["sentAtEpochMillis"]),
+        Index(value = ["transport", "peerId"])
+    ]
 )
 data class NearbyChatMessageEntity(
     @PrimaryKey val messageId: String,
@@ -17,5 +20,6 @@ data class NearbyChatMessageEntity(
     val sentAtEpochMillis: Long,
     val transport: String,
     val fragmentJson: String = "",
-    val imagePath: String = ""
+    val imagePath: String = "",
+    val peerId: String = ""
 )

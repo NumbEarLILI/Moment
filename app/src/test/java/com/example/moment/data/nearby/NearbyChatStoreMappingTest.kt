@@ -44,6 +44,28 @@ class NearbyChatStoreMappingTest {
             NearbyTransport.WifiDirect.name,
             message.copy(messageId = "m-2").toEntity(NearbyTransport.WifiDirect).transport
         )
+        assertEquals(
+            NearbyTransport.Nas.name,
+            message.copy(messageId = "m-3", peerId = "user-b").toEntity(NearbyTransport.Nas).transport
+        )
+    }
+
+    @Test
+    fun `round-trips a nas 1-1 message with peer id`() {
+        val message = NearbyChatMessage(
+            messageId = "m-nas",
+            senderId = "user-a",
+            senderName = "阿七",
+            text = "在楼下",
+            fromMe = true,
+            sentAtEpochMillis = 42L,
+            peerId = "user-b"
+        )
+
+        val restored = message.toEntity(NearbyTransport.Nas).toDomain()
+
+        assertEquals(message, restored)
+        assertEquals("user-b", restored.peerId)
     }
 
     @Test

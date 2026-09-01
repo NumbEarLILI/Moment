@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.items
@@ -81,6 +82,7 @@ import com.example.moment.domain.nearby.NearbyChatMessage
 import com.example.moment.domain.nearby.NearbyChatStage
 import com.example.moment.domain.nearby.NearbyPeer
 import com.example.moment.domain.nearby.NearbyPermissions
+import com.example.moment.domain.naschat.MomentAccountRef
 import com.example.moment.domain.nearby.NearbyTransport
 import com.example.moment.domain.nearby.SharedFragmentCard
 import com.example.moment.ui.common.FullscreenImageViewer
@@ -111,10 +113,10 @@ fun NearbyChatScreen(
     val transport = state.transport
 
     val requiredPermissions = remember(transport) {
-        if (transport == NearbyTransport.Bluetooth) {
-            NearbyPermissions.bluetoothRequired(Build.VERSION.SDK_INT)
-        } else {
-            NearbyPermissions.wifiRequired(Build.VERSION.SDK_INT)
+        when (transport) {
+            NearbyTransport.Bluetooth -> NearbyPermissions.bluetoothRequired(Build.VERSION.SDK_INT)
+            NearbyTransport.WifiDirect -> NearbyPermissions.wifiRequired(Build.VERSION.SDK_INT)
+            NearbyTransport.Nas -> emptyList()
         }
     }
     fun permissionsGranted(): Boolean = requiredPermissions.all {
@@ -139,16 +141,17 @@ fun NearbyChatScreen(
         granted = permissionsGranted()
     }
 
-    LaunchedEffect(granted) {
+    LaunchedEffect(granted, transport) {
         if (granted) {
-            viewModel.start()
-        } else if (!asked) {
+            viewModel.start(transport)
+        } else if (!asked && requiredPermissions.isNotEmpty()) {
             asked = true
             permissionLauncher.launch(requiredPermissions.toTypedArray())
         }
     }
 
     val isBluetooth = transport == NearbyTransport.Bluetooth
+    val isNas = transport == NearbyTransport.Nas
     val scope = rememberCoroutineScope()
     var showFragmentPicker by remember { mutableStateOf(false) }
     var detailMessage by remember { mutableStateOf<NearbyChatMessage?>(null) }
@@ -199,6 +202,7 @@ fun NearbyChatScreen(
                     .padding(top = 12.dp)
             ) {
             Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 TransportChip(
@@ -208,12 +212,19 @@ fun NearbyChatScreen(
                 )
                 TransportChip(
                     label = "Wi-Fi 聊天室",
-                    selected = !isBluetooth,
+                    selected = transport == NearbyTransport.WifiDirect,
                     onClick = { viewModel.switchTransport(NearbyTransport.WifiDirect) }
+                )
+                TransportChip(
+                    label = "NAS 聊天",
+                    selected = isNas,
+                    onClick = { viewModel.switchTransport(NearbyTransport.Nas) }
                 )
             }
 
             when {
+                isNas -> NasGateBlock(state = state)
+
                 !state.supported -> Notice(
                     if (isBluetooth) "这台设备不支持蓝牙低功耗，无法组网。"
                     else "这台设备不支持 Wi-Fi 直连，无法使用聊天室。"
@@ -248,7 +259,7 @@ fun NearbyChatScreen(
                     }
                 }
 
-                !isBluetooth && !state.showsConversation -> DiscoveryBlock(
+                !isBluetooth && !isNas && !state.showsConversation -> DiscoveryBlock(
                     state = state,
                     onHostRoom = viewModel::hostRoom,
                     onDiscover = viewModel::startDiscovery,
@@ -261,18 +272,32 @@ fun NearbyChatScreen(
                 )
             }
 
+            if (isNas && !state.showsConversation) {
+                if (state.nasWebdavReady && state.nasLoggedIn) {
+                    NasDirectoryBlock(
+                        state = state,
+                        onQueryChange = viewModel::onNasQueryChange,
+                        onSubmitQuery = viewModel::submitNasQuery,
+                        onOpenContact = viewModel::openNasConversation,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
             ConversationBlock(
                 state = state,
-                onLeave = viewModel::leaveRoom,
-                showLeave = !isBluetooth && state.showsConversation,
+                onLeave = if (isNas) viewModel::leaveNasConversation else viewModel::leaveRoom,
+                showLeave = state.showsConversation && (!isBluetooth),
                 onOpenFragment = { detailMessage = it },
                 onOpenFragmentImage = { fullscreenImage = it },
                 modifier = Modifier.weight(1f)
             )
             }
+            }
             ChatComposer(
                 draft = draft,
                 canSend = state.canSend,
+                showShareFragment = !isNas,
+                idleHint = if (isNas) "选择一个对话" else "已离开聊天室",
                 onDraftChange = viewModel::onDraftChange,
                 onSend = viewModel::sendDraft,
                 onShareFragment = { showFragmentPicker = true },
@@ -312,6 +337,156 @@ fun NearbyChatScreen(
             onDismiss = { fullscreenImage = null },
             onSave = { requestSaveImage(it) }
         )
+    }
+}
+
+@Composable
+private fun NasGateBlock(state: NearbyChatUiState) {
+    when {
+        !state.nasWebdavReady -> Notice("请先在「我的 → 账号与 NAS」填写 WebDAV 地址。")
+        !state.nasLoggedIn -> Notice("请先登录 Moment 账号，才能在 NAS 上和别人一对一聊天。")
+        else -> Unit
+    }
+}
+
+@Composable
+private fun NasDirectoryBlock(
+    state: NearbyChatUiState,
+    onQueryChange: (String) -> Unit,
+    onSubmitQuery: () -> Unit,
+    onOpenContact: (MomentAccountRef) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val query = state.nasQuery.trim()
+    val filteredContacts = remember(state.nasContacts, state.nasQuery) {
+        val q = state.nasQuery.trim()
+        if (q.isEmpty()) state.nasContacts
+        else state.nasContacts.filter {
+            it.username.contains(q, ignoreCase = true) || it.userId.contains(q, ignoreCase = true)
+        }
+    }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (state.statusText.isNotBlank()) {
+            Text(
+                state.statusText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            BasicTextField(
+                value = state.nasQuery,
+                onValueChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSubmitQuery() }),
+                decorationBox = { inner ->
+                    Box {
+                        if (state.nasQuery.isEmpty()) {
+                            Text(
+                                "搜索或输入用户名",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        inner()
+                    }
+                }
+            )
+            TextButton(onClick = onSubmitQuery, enabled = query.isNotBlank()) {
+                Text("开始聊天")
+            }
+        }
+        MomentHairline()
+        if (state.nasThreads.isNotEmpty()) {
+            Text(
+                "最近",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 180.dp)
+            ) {
+                items(state.nasThreads, key = { it.peerId }) { thread ->
+                    val name = thread.peerName.ifBlank {
+                        state.nasContacts.find { it.userId == thread.peerId }?.username.orEmpty()
+                            .ifBlank { thread.peerId }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onOpenContact(
+                                    MomentAccountRef(
+                                        userId = thread.peerId,
+                                        username = name
+                                    )
+                                )
+                            }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Text(
+                                thread.lastText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    MomentHairline()
+                }
+            }
+        }
+        Text(
+            "账号",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (filteredContacts.isEmpty()) {
+            Text(
+                if (state.nasContacts.isEmpty()) "还没有其他 Moment 账号" else "没有匹配的人",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                items(filteredContacts, key = { it.userId }) { contact ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpenContact(contact) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            contact.username,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                    MomentHairline()
+                }
+            }
+        }
     }
 }
 
@@ -480,19 +655,20 @@ private fun ConversationBlock(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    if (state.isBluetooth) {
-                        "蓝牙组网（${state.members.size} 人）"
-                    } else if (state.hostingRoom) {
-                        "我的聊天室（${state.members.size} 人）"
-                    } else {
-                        "聊天室（${state.members.size} 人）"
+                    when {
+                        state.isNas -> state.nasPeerName.ifBlank { "NAS 聊天" }
+                        state.isBluetooth -> "蓝牙组网（${state.members.size} 人）"
+                        state.hostingRoom -> "我的聊天室（${state.members.size} 人）"
+                        else -> "聊天室（${state.members.size} 人）"
                     },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    state.members.joinToString("、") { it.displayName }.ifBlank { "暂无其他成员" },
+                    state.members.joinToString("、") { it.displayName }.ifBlank {
+                        if (state.isNas) "文字会同步到家庭 NAS" else "暂无其他成员"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -501,7 +677,13 @@ private fun ConversationBlock(
             }
             if (showLeave) {
                 TextButton(onClick = onLeave) {
-                    Text(if (state.canSend) "离开" else "返回设备列表")
+                    Text(
+                        when {
+                            state.isNas -> "返回"
+                            state.canSend -> "离开"
+                            else -> "返回设备列表"
+                        }
+                    )
                 }
             }
         }
@@ -559,12 +741,14 @@ private fun ConversationBlock(
 private fun ChatComposer(
     draft: String,
     canSend: Boolean,
+    showShareFragment: Boolean = true,
+    idleHint: String = "已离开聊天室",
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onShareFragment: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val placeholder = if (canSend) "说点什么…" else "已离开聊天室"
+    val placeholder = if (canSend) "说点什么…" else idleHint
     val textColor = MaterialTheme.colorScheme.onSurface
     val hintColor = MaterialTheme.colorScheme.onSurfaceVariant
     Column(modifier = modifier) {
@@ -598,8 +782,10 @@ private fun ChatComposer(
                     }
                 }
             )
-            TextButton(onClick = onShareFragment, enabled = canSend) {
-                Text("碎片")
+            if (showShareFragment) {
+                TextButton(onClick = onShareFragment, enabled = canSend) {
+                    Text("碎片")
+                }
             }
             TextButton(onClick = onSend, enabled = canSend && draft.isNotBlank()) {
                 Text("发送")
