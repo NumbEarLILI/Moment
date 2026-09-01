@@ -271,6 +271,7 @@ class NearbyChatViewModel @Inject constructor(
                 statusText = ""
             )
         }
+        startNas()
         viewModelScope.launch {
             nasChatRepository.pullThread(peer).onFailure { error ->
                 _uiState.update { it.copy(statusText = error.message ?: "同步失败") }
@@ -298,6 +299,7 @@ class NearbyChatViewModel @Inject constructor(
                 statusText = ""
             )
         }
+        startNas()
     }
 
     private fun startNas() {
@@ -344,6 +346,7 @@ class NearbyChatViewModel @Inject constructor(
         _draft.value = ""
         viewModelScope.launch {
             nasChatRepository.sendText(peer, text).onFailure { error ->
+                if (_draft.value.isEmpty()) _draft.value = text
                 _uiState.update { it.copy(statusText = error.message ?: "发送失败") }
             }
         }
