@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
@@ -22,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +47,7 @@ import com.example.moment.ui.history.HistoryViewModel
 import com.example.moment.ui.home.HomeScreen
 import com.example.moment.ui.mine.AccountSettingsScreen
 import com.example.moment.ui.mine.MineScreen
+import com.example.moment.ui.nearby.NearbyChatScreen
 import com.example.moment.ui.place.PlacePickScreen
 import com.example.moment.ui.settings.AboutScreen
 import com.example.moment.ui.settings.SettingsScreen
@@ -58,12 +61,12 @@ fun MomentApp() {
     val currentRoute = backStackEntry?.destination?.route
     val mainTabs = listOf(
         MainTab(label = "首页", iconRes = R.drawable.ic_nav_home, route = Routes.Home, selectedRoute = Routes.Home),
+        MainTab(label = "聊天", iconRes = R.drawable.ic_nav_chat, route = Routes.Chat, selectedRoute = Routes.Chat),
         MainTab(label = "历史", iconRes = R.drawable.ic_nav_history, route = Routes.History, selectedRoute = Routes.History),
         MainTab(label = "我的", iconRes = R.drawable.ic_nav_mine, route = Routes.Mine, selectedRoute = Routes.Mine)
     )
-    val showBottomBar = currentRoute == Routes.Home ||
-        currentRoute == Routes.History ||
-        currentRoute == Routes.Mine
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val showBottomBar = showMomentBottomBar(currentRoute, imeVisible)
 
     Scaffold(
         containerColor = appRootContainerColor(),
@@ -168,6 +171,9 @@ fun MomentApp() {
                     onOpenAccountSettings = { navController.navigate(Routes.AccountSettings) },
                     onOpenSettings = { navController.navigate(Routes.Settings) }
                 )
+            }
+            composable(Routes.Chat) {
+                NearbyChatScreen()
             }
             composable(Routes.AccountSettings) {
                 AccountSettingsScreen(onBack = { navController.popBackStack() })
@@ -296,6 +302,15 @@ private data class MainTab(
     val selectedRoute: String
 )
 
+/** 键盘弹起时收起底栏。收起键盘后必须回来，不能靠输入框焦点——焦点在键盘关掉后往往还在。 */
+internal fun showMomentBottomBar(route: String?, imeVisible: Boolean): Boolean {
+    if (imeVisible) return false
+    return route == Routes.Home ||
+        route == Routes.Chat ||
+        route == Routes.History ||
+        route == Routes.Mine
+}
+
 object Routes {
     const val Home = "home"
     const val Capture = "capture?fragmentId={fragmentId}&forDate={forDate}"
@@ -305,6 +320,7 @@ object Routes {
     /** @param diaryId 已保存手帐的主键；无锚点手帐时用 0（须写入路径，query 在部分机型上不进 SavedStateHandle）。 */
     fun preview(date: LocalDate, diaryId: Long): String = "preview/$date/$diaryId"
     const val History = "history"
+    const val Chat = "chat"
     const val Mine = "mine"
     const val AccountSettings = "accountSettings"
     const val Settings = "settings"

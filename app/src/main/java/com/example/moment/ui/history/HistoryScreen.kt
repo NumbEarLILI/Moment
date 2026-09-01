@@ -16,7 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -67,33 +66,23 @@ fun HistoryScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "历史",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        if (state.selectedDate != viewModel.today) {
-                            QuietTextAction(
-                                text = "补记",
-                                onClick = { onAddFragmentForPastDay(state.selectedDate) }
-                            )
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
                             state.selectedDate.format(DateTimeFormatter.ofPattern("yyyy年M月d日", Locale.CHINA)),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        QuietTextAction(
-                            text = "生成手帐",
-                            onClick = { onGenerateDiary(state.selectedDate) },
-                            enabled = state.canGenerateDiary
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (state.selectedDate != viewModel.today) {
+                                QuietTextAction(
+                                    text = "补记",
+                                    onClick = { onAddFragmentForPastDay(state.selectedDate) }
+                                )
+                            }
+                            QuietTextAction(
+                                text = "生成手帐",
+                                onClick = { onGenerateDiary(state.selectedDate) },
+                                enabled = state.canGenerateDiary
+                            )
+                        }
                     }
                 }
             }

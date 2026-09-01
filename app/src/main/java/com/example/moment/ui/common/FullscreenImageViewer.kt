@@ -3,6 +3,7 @@ package com.example.moment.ui.common
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -28,7 +29,8 @@ import coil.request.ImageRequest
 fun FullscreenImageViewer(
     imageUris: List<String>,
     initialPage: Int,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSave: ((String) -> Unit)? = null
 ) {
     if (imageUris.isEmpty()) return
     val context = LocalContext.current
@@ -51,7 +53,7 @@ fun FullscreenImageViewer(
                 val data = imageUris[page].trim()
                 AsyncImage(
                     model = ImageRequest.Builder(context)
-                        .data(data)
+                        .data(coilImageModel(data) ?: data)
                         .crossfade(true)
                         .build(),
                     contentDescription = null,
@@ -59,14 +61,20 @@ fun FullscreenImageViewer(
                     modifier = Modifier.fillMaxSize()
                 )
             }
-            TextButton(
-                onClick = onDismiss,
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
                     .padding(8.dp)
             ) {
-                Text("关闭", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                if (onSave != null) {
+                    TextButton(onClick = { onSave(imageUris[pagerState.currentPage]) }) {
+                        Text("保存", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("关闭", color = Color.White, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
