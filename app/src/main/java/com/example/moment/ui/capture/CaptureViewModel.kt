@@ -241,8 +241,7 @@ class CaptureViewModel @Inject constructor(
             }
             val hasPermission = fragmentLocationCapture.hasLocationPermission()
             val loc = if (hasPermission) {
-                runCatching { fragmentLocationCapture.captureLastKnownIfPermitted() }.getOrNull()
-                    ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+                runCatching { fragmentLocationCapture.capturePreferred() }.getOrNull()
             } else {
                 null
             }
@@ -511,8 +510,7 @@ class CaptureViewModel @Inject constructor(
 
     private suspend fun captureWeather(location: FragmentLocation?): FragmentWeather? {
         val coords = location
-            ?: runCatching { fragmentLocationCapture.captureLastKnownIfPermitted() }.getOrNull()
-            ?: runCatching { fragmentLocationCapture.captureIfPermitted() }.getOrNull()
+            ?: runCatching { fragmentLocationCapture.capturePreferred() }.getOrNull()
             ?: return null
         return runCatching { weatherRepository.fetchCurrent(coords.latitude, coords.longitude) }
             .getOrNull()
