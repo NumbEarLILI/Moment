@@ -350,7 +350,6 @@ fun FragmentComposeScreen(
             location = state.locationOverride ?: state.baselineLocation,
             isResolvingPlace = state.isResolvingPlace,
             weather = state.composeWeather,
-            isAnalyzingImages = state.isAnalyzingImages,
             interactionsEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
             errorMessage = state.errorMessage,
             saveLabel = when {
@@ -359,7 +358,7 @@ fun FragmentComposeScreen(
                 else -> "保存碎片"
             },
             onSave = { requestSave() },
-            saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isAnalyzingImages && !state.isDeleting,
+            saveEnabled = !state.isSaving && !state.isLoadingDraft && !state.isDeleting,
             canDeleteFragment = isEditing && state.editingFragmentId > 0,
             isDeleting = state.isDeleting,
             onRequestDelete = { showDeleteConfirmDialog = true }
@@ -626,7 +625,6 @@ private fun CaptureMomentExpandable(
     location: FragmentLocation?,
     isResolvingPlace: Boolean,
     weather: FragmentWeather?,
-    isAnalyzingImages: Boolean,
     interactionsEnabled: Boolean,
     errorMessage: String?,
     saveLabel: String,
@@ -704,7 +702,6 @@ private fun CaptureMomentExpandable(
                         location = location,
                         isResolvingPlace = isResolvingPlace,
                         weather = weather,
-                        isAnalyzingImages = isAnalyzingImages,
                         interactionsEnabled = interactionsEnabled,
                         errorMessage = errorMessage,
                         saveLabel = saveLabel,
@@ -745,7 +742,6 @@ private fun CaptureMomentForm(
     location: FragmentLocation?,
     isResolvingPlace: Boolean,
     weather: FragmentWeather?,
-    isAnalyzingImages: Boolean,
     interactionsEnabled: Boolean,
     errorMessage: String?,
     saveLabel: String,
@@ -819,29 +815,13 @@ private fun CaptureMomentForm(
                     )
                 }
             }
-            RecordedAtField(
+                    RecordedAtField(
                         dateText = recordedDate,
                         onDateTextChange = onRecordedDateChange,
                         timeText = recordedTime,
                         onTimeTextChange = onRecordedTimeChange,
                         enabled = interactionsEnabled
                     )
-                    if (isAnalyzingImages) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Text(
-                                "正在识别图片…",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -858,7 +838,7 @@ private fun CaptureMomentForm(
                             }
                         }
                         AddPhotoTile(
-                            enabled = interactionsEnabled && !isAnalyzingImages,
+                            enabled = interactionsEnabled,
                             onClick = { showPhotoSourceSheet = true }
                         )
                     }
@@ -939,7 +919,7 @@ private fun CaptureMomentForm(
                         QuietTextAction(
                             text = if (isDeleting) "删除中…" else "删除碎片",
                             onClick = onRequestDelete,
-                            enabled = interactionsEnabled && !isDeleting && !isAnalyzingImages,
+                            enabled = interactionsEnabled && !isDeleting,
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.fillMaxWidth()
                         )

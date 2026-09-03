@@ -26,7 +26,6 @@ import com.example.moment.domain.usecase.AddFragmentResult
 import com.example.moment.domain.usecase.AddFragmentUseCase
 import com.example.moment.domain.usecase.DeleteFragmentUseCase
 import com.example.moment.domain.usecase.GetFragmentByIdUseCase
-import com.example.moment.domain.usecase.SuggestMomentCaptionFromImagesUseCase
 import com.example.moment.domain.time.resolveNewFragmentRecordedAt
 import com.example.moment.domain.usecase.UpdateFragmentResult
 import com.example.moment.domain.usecase.UpdateFragmentUseCase
@@ -46,8 +45,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 
 @HiltViewModel
@@ -56,7 +53,6 @@ class CaptureViewModel @Inject constructor(
     private val updateFragment: UpdateFragmentUseCase,
     private val deleteFragment: DeleteFragmentUseCase,
     private val getFragmentById: GetFragmentByIdUseCase,
-    private val suggestCaptionFromImages: SuggestMomentCaptionFromImagesUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val nasArchiveRepository: NasArchiveRepository,
     private val fragmentLocationCapture: FragmentLocationCapture,
@@ -135,7 +131,6 @@ class CaptureViewModel @Inject constructor(
         }
     }
     private val _uiState = MutableStateFlow(CaptureUiState())
-    private val imageAutoSuggestMutex = Mutex()
 
     private val newFragmentForDate: LocalDate? =
         savedStateHandle.get<String>(ARG_FOR_DATE)?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
@@ -303,14 +298,6 @@ class CaptureViewModel @Inject constructor(
             val merged = (it.imageUris.csvValues() + values).distinct().joinToString(", ")
             it.copy(imageUris = merged, errorMessage = null)
         }
-        viewModelScope.launch {
-            imageAutoSuggestMutex.withLock {
-                val uris = _uiState.value.imageUris.csvValues()
-                if (uris.isNotEmpty()) {
-                    runAutoSuggestFromImages(uris)
-                }
-            }
-        }
     }
 
     fun removeImageUri(uri: String) = _uiState.update { state ->
@@ -347,34 +334,6 @@ class CaptureViewModel @Inject constructor(
                 onReady(seed.latitude, seed.longitude, seed.label.orEmpty())
             }
         }
-    }
-
-    private suspend fun runAutoSuggestFromImages(uris: List<String>) {
-        _uiState.update { it.copy(isAnalyzingImages = true, errorMessage = null) }
-        runCatching { suggestCaptionFromImages(uris, null) }
-            .onSuccess { suggestion ->
-                _uiState.update { state ->
-                    val mergedTags =
-                        (state.tags.csvValues() + suggestion.suggestedTags)
-                            .map { t -> t.trim() }
-                            .filter { t -> t.isNotEmpty() }
-                            .distinct()
-                    state.copy(
-                        tags = mergedTags.joinToString(", "),
-                        mood = state.mood,
-                        isAnalyzingImages = false,
-                        errorMessage = null
-                    )
-                }
-            }
-            .onFailure {
-                _uiState.update {
-                    it.copy(
-                        isAnalyzingImages = false,
-                        errorMessage = "识别图片失败，请检查权限或稍后重试"
-                    )
-                }
-            }
     }
 
     fun save() {
@@ -545,7 +504,6 @@ data class CaptureUiState(
     val isResolvingPlace: Boolean = false,
     val baselineWeather: FragmentWeather? = null,
     val composeWeather: FragmentWeather? = null,
-    val isAnalyzingImages: Boolean = false,
     val isSaving: Boolean = false,
     val isDeleting: Boolean = false,
     val saved: Boolean = false,
@@ -584,7 +542,6 @@ data class CaptureUiState(
         isResolvingPlace = false,
         baselineWeather = null,
         composeWeather = composeWeather,
-        isAnalyzingImages = false,
         isSaving = false,
         isDeleting = false,
         saved = false,
