@@ -34,7 +34,9 @@ data class NearbyChatMessage(
     val fromMe: Boolean,
     val sentAtEpochMillis: Long,
     val fragment: SharedFragmentCard? = null,
-    val imagePath: String = ""
+    val imagePath: String = "",
+    /** NAS 一对一对方的 Moment userId；蓝牙 / Wi-Fi 房间消息留空。 */
+    val peerId: String = ""
 ) {
     fun copyableText(): String {
         val card = fragment ?: return text

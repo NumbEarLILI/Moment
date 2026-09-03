@@ -12,6 +12,15 @@ interface NearbyChatDao {
     @Query(
         """
         SELECT * FROM nearby_chat_messages
+        WHERE transport = :transport AND peerId = :peerId
+        ORDER BY sentAtEpochMillis ASC, messageId ASC
+        """
+    )
+    fun observeByTransportAndPeer(transport: String, peerId: String): Flow<List<NearbyChatMessageEntity>>
+
+    @Query(
+        """
+        SELECT * FROM nearby_chat_messages
         WHERE transport = :transport
         ORDER BY sentAtEpochMillis ASC, messageId ASC
         """
@@ -21,28 +30,28 @@ interface NearbyChatDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(entity: NearbyChatMessageEntity)
 
-    @Query("SELECT COUNT(*) FROM nearby_chat_messages WHERE transport = :transport")
-    suspend fun countByTransport(transport: String): Int
+    @Query("SELECT COUNT(*) FROM nearby_chat_messages WHERE transport = :transport AND peerId = :peerId")
+    suspend fun countByTransportAndPeer(transport: String, peerId: String): Int
 
     @Query(
         """
         SELECT * FROM nearby_chat_messages
-        WHERE transport = :transport
+        WHERE transport = :transport AND peerId = :peerId
         ORDER BY sentAtEpochMillis ASC, messageId ASC
         LIMIT :overflow
         """
     )
-    suspend fun oldestByTransport(transport: String, overflow: Int): List<NearbyChatMessageEntity>
+    suspend fun oldestByTransportAndPeer(transport: String, peerId: String, overflow: Int): List<NearbyChatMessageEntity>
 
     @Query(
         """
         DELETE FROM nearby_chat_messages WHERE messageId IN (
             SELECT messageId FROM nearby_chat_messages
-            WHERE transport = :transport
+            WHERE transport = :transport AND peerId = :peerId
             ORDER BY sentAtEpochMillis ASC, messageId ASC
             LIMIT :overflow
         )
         """
     )
-    suspend fun deleteOldestByTransport(transport: String, overflow: Int)
+    suspend fun deleteOldestByTransportAndPeer(transport: String, peerId: String, overflow: Int)
 }

@@ -19,6 +19,11 @@ class NearbyFragmentSharePolicyTest {
     }
 
     @Test
+    fun `nas chat does not attach fragment photos`() {
+        assertTrue(!NearbyFragmentSharePolicy.includeImage(NearbyTransport.Nas))
+    }
+
+    @Test
     fun `bluetooth shares hide the local preview so sender and peer match`() {
         val jpeg = ByteArray(64) { 1 }
         assertEquals(
