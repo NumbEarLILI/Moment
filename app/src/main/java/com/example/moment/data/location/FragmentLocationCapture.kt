@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationManager
 import android.os.Build
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
 import androidx.core.os.CancellationSignal
@@ -45,22 +46,21 @@ class FragmentLocationCapture @Inject constructor(
         location.toFragmentLocation()
     }
 
+    /**
+     * 先要一次当前定位；只有拿不到时才用系统缓存的 lastKnown。
+     * 首页天气、自动填地点以前先读 lastKnown，会把几天前的家坐标一直写进去。
+     */
+    suspend fun capturePreferred(): FragmentLocation? = withContext(Dispatchers.IO) {
+        if (!hasLocationPermission()) return@withContext null
+        CaptureLocationPolicy.preferFreshThenLastKnown(
+            fresh = withTimeoutOrNull(LOCATION_TIMEOUT_MS) { fetchBestLocation() }?.toFragmentLocation(),
+            lastKnown = lastKnownLocation()?.toFragmentLocation()
+        )
+    }
+
     suspend fun captureLastKnownIfPermitted(): FragmentLocation? = withContext(Dispatchers.IO) {
         if (!hasLocationPermission()) return@withContext null
-        val lm = context.getSystemService(LocationManager::class.java) ?: return@withContext null
-        var best: Location? = null
-        for (provider in locationProviders()) {
-            val location = try {
-                @Suppress("DEPRECATION")
-                lm.getLastKnownLocation(provider)
-            } catch (_: SecurityException) {
-                null
-            } ?: continue
-            if (CapturedLocationQuality.isBetter(location.toCandidate(), best?.toCandidate())) {
-                best = location
-            }
-        }
-        best?.toFragmentLocation()
+        lastKnownLocation()?.toFragmentLocation()
     }
 
     fun hasLocationPermission(): Boolean {
@@ -73,6 +73,23 @@ class FragmentLocationCapture @Inject constructor(
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
         return coarse || fine
+    }
+
+    private fun lastKnownLocation(): Location? {
+        val lm = context.getSystemService(LocationManager::class.java) ?: return null
+        var best: Location? = null
+        for (provider in locationProviders()) {
+            val location = try {
+                @Suppress("DEPRECATION")
+                lm.getLastKnownLocation(provider)
+            } catch (_: SecurityException) {
+                null
+            } ?: continue
+            if (CapturedLocationQuality.isBetter(location.toCandidate(), best?.toCandidate())) {
+                best = location
+            }
+        }
+        return best
     }
 
     private fun locationProviders(): List<String> = buildList {
@@ -110,7 +127,13 @@ class FragmentLocationCapture @Inject constructor(
                 if (CapturedLocationQuality.isBetter(location.toCandidate(), best?.toCandidate())) {
                     best = location
                 }
-                if (CapturedLocationQuality.isGoodEnough(location.accuracyMetersOrNull())) {
+                if (
+                    CapturedLocationQuality.isGoodEnough(location.accuracyMetersOrNull()) &&
+                    CapturedLocationQuality.isFreshEnough(
+                        elapsedRealtimeNanos = location.elapsedRealtimeNanos.takeIf { it > 0L },
+                        nowElapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+                    )
+                ) {
                     return best
                 }
             }
@@ -157,7 +180,11 @@ class FragmentLocationCapture @Inject constructor(
         if (hasAccuracy()) accuracy else null
 
     private fun Location.toCandidate(): CapturedLocationCandidate =
-        CapturedLocationCandidate(provider = provider, accuracyMeters = accuracyMetersOrNull())
+        CapturedLocationCandidate(
+            provider = provider,
+            accuracyMeters = accuracyMetersOrNull(),
+            elapsedRealtimeNanos = elapsedRealtimeNanos.takeIf { it > 0L }
+        )
 
     private fun formatCoordinateLabel(lat: Double, lng: Double): String =
         String.format(Locale.CHINA, "约 %.4f，%.4f", lat, lng)

@@ -12,8 +12,7 @@ class CapturedPlaceResolver @Inject constructor(
     private val nominatim: NominatimReverseGeocoder
 ) {
     suspend fun currentPlace(): FragmentLocation? {
-        val loc = fragmentLocationCapture.captureLastKnownIfPermitted()
-            ?: fragmentLocationCapture.captureIfPermitted()
+        val loc = fragmentLocationCapture.capturePreferred()
             ?: return null
         val amapLabel = runCatching {
             amapReverseGeocoder.reverseGeocode(loc.latitude, loc.longitude).label
